@@ -1,8 +1,16 @@
-import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
+import {
+  useCallback,
+  useMemo,
+  type ComponentProps,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
+  ArrowDown,
+  ArrowUp,
   Archive,
   Circle,
   CircleCheck,
@@ -17,6 +25,8 @@ import { isWeb } from "@/constants/platform";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import { useAppSettings } from "@/hooks/use-settings";
+import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
+import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import type { Theme } from "@/styles/theme";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import {
@@ -59,6 +69,8 @@ const ThemedCircleCheck = withUnistyles(CircleCheck);
 const ThemedPin = withUnistyles(Pin);
 const ThemedPinOff = withUnistyles(PinOff);
 const ThemedTag = withUnistyles(Tag);
+const ThemedArrowUp = withUnistyles(ArrowUp);
+const ThemedArrowDown = withUnistyles(ArrowDown);
 
 const copyLeadingIcon = <ThemedCopy size={14} uniProps={foregroundMutedColorMapping} />;
 const renameLeadingIcon = <ThemedPencil size={14} uniProps={foregroundMutedColorMapping} />;
@@ -96,6 +108,8 @@ export interface SidebarWorkspaceMenuProps {
   archiveShortcutKeys?: ShortcutKey[][] | null;
   isPinned?: boolean;
   onTogglePin?: () => void;
+  /** Owning project, for the row's move actions. Rows outside a project pass nothing. */
+  projectViewKey?: string | null;
   openInFileManagerPath?: string | null;
   /**
    * Lifted so the row that reveals the kebab can keep it mounted while its menu is up. See
@@ -127,6 +141,84 @@ function WorkspaceMenuItem({
   return <DropdownMenuItem {...props}>{children}</DropdownMenuItem>;
 }
 
+const moveUpLeadingIcon = <ThemedArrowUp size={14} uniProps={foregroundMutedColorMapping} />;
+const moveDownLeadingIcon = <ThemedArrowDown size={14} uniProps={foregroundMutedColorMapping} />;
+const EMPTY_ORDER_KEYS: string[] = [];
+
+/**
+ * Move this row one place up or down inside its project.
+ *
+ * Only project grouping has an order to move within — the status grouping sorts its rows by
+ * status — and pinned rows are ordered in their own list, so neither gets the actions.
+ */
+function SidebarWorkspaceMoveItems({
+  surface,
+  workspaceKey,
+  projectViewKey,
+  isPinned,
+}: {
+  surface: MenuSurface;
+  workspaceKey: string;
+  projectViewKey?: string | null;
+  isPinned?: boolean;
+}): ReactNode {
+  const { t } = useTranslation();
+  const groupMode = useSidebarViewStore((state) => state.groupMode);
+  const setWorkspaceOrder = useSidebarOrderStore((state) => state.setWorkspaceOrder);
+  const order = useSidebarOrderStore(
+    (state) =>
+      (projectViewKey ? state.workspaceOrderByProject[projectViewKey] : undefined) ??
+      EMPTY_ORDER_KEYS,
+  );
+  const index = projectViewKey ? order.indexOf(workspaceKey) : -1;
+
+  const handleMove = useCallback(
+    (delta: -1 | 1) => {
+      if (!projectViewKey) {
+        return;
+      }
+      const target = index + delta;
+      if (index < 0 || target < 0 || target >= order.length) {
+        return;
+      }
+      const next = [...order];
+      next[index] = order[target];
+      next[target] = order[index];
+      setWorkspaceOrder(projectViewKey, next);
+    },
+    [index, order, projectViewKey, setWorkspaceOrder],
+  );
+  const handleMoveUp = useCallback(() => handleMove(-1), [handleMove]);
+  const handleMoveDown = useCallback(() => handleMove(1), [handleMove]);
+
+  if (!projectViewKey || isPinned || groupMode !== "project") {
+    return null;
+  }
+
+  return (
+    <>
+      <WorkspaceMenuItem
+        surface={surface}
+        testID={`sidebar-workspace-menu-move-up-${workspaceKey}`}
+        leading={moveUpLeadingIcon}
+        disabled={index <= 0}
+        onSelect={handleMoveUp}
+      >
+        {t("sidebar.workspace.actions.moveUp")}
+      </WorkspaceMenuItem>
+      <WorkspaceMenuItem
+        surface={surface}
+        testID={`sidebar-workspace-menu-move-down-${workspaceKey}`}
+        leading={moveDownLeadingIcon}
+        disabled={index < 0 || index >= order.length - 1}
+        onSelect={handleMoveDown}
+      >
+        {t("sidebar.workspace.actions.moveDown")}
+      </WorkspaceMenuItem>
+    </>
+  );
+}
+
 function SidebarWorkspaceMenuItems({
   surface,
   workspaceKey,
@@ -144,6 +236,7 @@ function SidebarWorkspaceMenuItems({
   archiveShortcutKeys,
   isPinned,
   onTogglePin,
+  projectViewKey,
   openInFileManagerPath,
 }: SidebarWorkspaceMenuItemsProps & { surface: MenuSurface }): ReactNode {
   const { t } = useTranslation();
@@ -188,6 +281,12 @@ function SidebarWorkspaceMenuItems({
           {t("sidebar.workspace.actions.rename")}
         </WorkspaceMenuItem>
       ) : null}
+      <SidebarWorkspaceMoveItems
+        surface={surface}
+        workspaceKey={workspaceKey}
+        projectViewKey={projectViewKey}
+        isPinned={isPinned}
+      />
       {onMarkAsRead ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -266,6 +365,7 @@ export function SidebarWorkspaceMenu({
   archiveShortcutKeys,
   isPinned,
   onTogglePin,
+  projectViewKey,
   openInFileManagerPath,
   open,
   onOpenChange,
@@ -297,6 +397,7 @@ export function SidebarWorkspaceMenu({
         <SidebarWorkspaceMenuItems
           surface="dropdown"
           workspaceKey={workspaceKey}
+          projectViewKey={projectViewKey}
           serverId={serverId}
           workspaceId={workspaceId}
           workspaceLabels={workspaceLabels}
@@ -348,6 +449,7 @@ export function SidebarWorkspaceContextMenu({
   openInFileManagerPath,
   accessibilityLabel,
   highlightStyle,
+  extraContextItems = null,
   ...triggerProps
 }: PropsWithChildren<
   SidebarWorkspaceMenuItemsProps &
@@ -359,6 +461,11 @@ export function SidebarWorkspaceContextMenu({
       hostBadgeLabel?: string | null;
       serviceSummary?: WorkspaceServiceSummary | null;
       highlightStyle: ComponentProps<typeof ContextMenuTrigger>["highlightStyle"];
+      /**
+       * Extra rows appended to the context menu. The workspace row standing in for its project
+       * row carries that project's actions here, since the project row that owned them is gone.
+       */
+      extraContextItems?: ReactNode;
     }
 >) {
   const {
@@ -410,6 +517,7 @@ export function SidebarWorkspaceContextMenu({
         <SidebarWorkspaceMenuItems
           surface="context"
           workspaceKey={workspaceKey}
+          projectViewKey={workspace.projectViewKey}
           serverId={workspaceTarget.serverId}
           workspaceId={workspaceTarget.workspaceId}
           workspaceLabels={workspaceTarget.labels}
@@ -427,6 +535,7 @@ export function SidebarWorkspaceContextMenu({
           onTogglePin={onTogglePin}
           openInFileManagerPath={openInFileManagerPath}
         />
+        {extraContextItems}
       </ContextMenuContent>
     </ContextMenu>
   );

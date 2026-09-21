@@ -1160,6 +1160,8 @@ export const zhCN: TranslationResources = {
     project: {
       actions: {
         menu: "Project 操作",
+        collapse: "折叠项目",
+        expand: "展开项目",
         openSettings: "打开 project 设置",
         openNewWindow: "在新窗口中打开",
         openNewWindowFailed: "无法打开新窗口",
@@ -1203,6 +1205,8 @@ export const zhCN: TranslationResources = {
         newWorkspace: "新建 workspace",
         showMore: "显示更多",
         showLess: "收起",
+        moveUp: "上移",
+        moveDown: "下移",
         createWorkspaceFor: "为 {{projectName}} 新建 workspace",
         copyPath: "复制路径",
         copyBranchName: "复制分支名称",

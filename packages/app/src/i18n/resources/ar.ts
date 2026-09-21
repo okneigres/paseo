@@ -1169,6 +1169,8 @@ export const ar: TranslationResources = {
     project: {
       actions: {
         menu: "إجراءات المشروع",
+        collapse: "طي المشروع",
+        expand: "توسيع المشروع",
         openSettings: "افتح إعدادات المشروع",
         openNewWindow: "Open in new window",
         openNewWindowFailed: "Couldn't open a new window",
@@ -1213,6 +1215,8 @@ export const ar: TranslationResources = {
         newWorkspace: "مساحة عمل جديدة",
         showMore: "عرض المزيد",
         showLess: "عرض أقل",
+        moveUp: "نقل لأعلى",
+        moveDown: "نقل لأسفل",
         createWorkspaceFor: "قم بإنشاء مساحة عمل جديدة لـ{{projectName}}",
         copyPath: "نسخ المسار",
         copyBranchName: "انسخ اسم الفرع",

@@ -1195,6 +1195,8 @@ export const ptBR: TranslationResources = {
     project: {
       actions: {
         menu: "Ações do projeto",
+        collapse: "Recolher projeto",
+        expand: "Expandir projeto",
         openSettings: "Abrir configurações do projeto",
         openNewWindow: "Abrir em nova janela",
         openNewWindowFailed: "Não foi possível abrir uma nova janela",
@@ -1239,6 +1241,8 @@ export const ptBR: TranslationResources = {
         newWorkspace: "Novo workspace",
         showMore: "Mostrar mais",
         showLess: "Mostrar menos",
+        moveUp: "Mover para cima",
+        moveDown: "Mover para baixo",
         createWorkspaceFor: "Criar um novo workspace para {{projectName}}",
         copyPath: "Copiar caminho",
         copyBranchName: "Copiar nome da branch",

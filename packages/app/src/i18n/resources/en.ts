@@ -1177,6 +1177,8 @@ export const en = {
     project: {
       actions: {
         menu: "Project actions",
+        collapse: "Collapse project",
+        expand: "Expand project",
         openSettings: "Open project settings",
         openNewWindow: "Open in new window",
         openNewWindowFailed: "Couldn't open a new window",
@@ -1221,6 +1223,8 @@ export const en = {
         newWorkspace: "New workspace",
         showMore: "Show more",
         showLess: "Show less",
+        moveUp: "Move up",
+        moveDown: "Move down",
         createWorkspaceFor: "Create a new workspace for {{projectName}}",
         copyPath: "Copy path",
         copyBranchName: "Copy branch name",

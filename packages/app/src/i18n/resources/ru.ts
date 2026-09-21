@@ -1187,6 +1187,8 @@ export const ru: TranslationResources = {
     project: {
       actions: {
         menu: "Действия проекта",
+        collapse: "Свернуть проект",
+        expand: "Развернуть проект",
         openSettings: "Открыть настройки проекта",
         openNewWindow: "Открыть в новом окне",
         openNewWindowFailed: "Не удалось открыть новое окно",
@@ -1231,6 +1233,8 @@ export const ru: TranslationResources = {
         newWorkspace: "Новое рабочее пространство",
         showMore: "Показать ещё",
         showLess: "Показать меньше",
+        moveUp: "Переместить выше",
+        moveDown: "Переместить ниже",
         createWorkspaceFor: "Создать новое рабочее пространство для {{projectName}}",
         copyPath: "Копировать путь",
         copyBranchName: "Скопировать имя ветки",

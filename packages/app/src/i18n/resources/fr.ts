@@ -1205,6 +1205,8 @@ export const fr: TranslationResources = {
     project: {
       actions: {
         menu: "Actions du projet",
+        collapse: "Réduire le projet",
+        expand: "Développer le projet",
         openSettings: "Ouvrir les paramètres du projet",
         openNewWindow: "Open in new window",
         openNewWindowFailed: "Couldn't open a new window",
@@ -1249,6 +1251,8 @@ export const fr: TranslationResources = {
         newWorkspace: "Nouvel espace de travail",
         showMore: "Afficher plus",
         showLess: "Afficher moins",
+        moveUp: "Monter",
+        moveDown: "Descendre",
         createWorkspaceFor: "Créer un nouvel espace de travail pour{{projectName}}",
         copyPath: "Copier le chemin",
         copyBranchName: "Copier le nom de la branche",

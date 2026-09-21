@@ -1176,6 +1176,8 @@ export const ko: TranslationResources = {
     project: {
       actions: {
         menu: "프로젝트 작업",
+        collapse: "프로젝트 접기",
+        expand: "프로젝트 펼치기",
         openSettings: "프로젝트 설정 열기",
         openNewWindow: "새 창에서 열기",
         openNewWindowFailed: "새 창을 열 수 없습니다",
@@ -1220,6 +1222,8 @@ export const ko: TranslationResources = {
         newWorkspace: "새 워크스페이스",
         showMore: "더 보기",
         showLess: "간략히 보기",
+        moveUp: "위로 이동",
+        moveDown: "아래로 이동",
         createWorkspaceFor: "{{projectName}}을(를) 위한 새 워크스페이스 생성",
         copyPath: "경로 복사",
         copyBranchName: "브랜치 이름 복사",

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -16,6 +17,16 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const desktopDir = path.resolve(scriptDir, "..");
 const rootDir = path.resolve(desktopDir, "../..");
 const appDir = path.resolve(desktopDir, "../app");
+
+// macOS reads the app name from the bundle, not from `app.setName()`: run from a copy of the
+// Electron bundle whose Info.plist says Paseo, or the menu bar, Dock and Cmd+Tab show "Electron".
+// `.dev/electron-dist` is that copy (see `.dev/run-dev-desktop.sh`); an explicit
+// ELECTRON_OVERRIDE_DIST_PATH still wins, and without the copy nothing changes.
+const renamedElectronDist = path.join(rootDir, ".dev", "electron-dist");
+if (!process.env.ELECTRON_OVERRIDE_DIST_PATH && existsSync(renamedElectronDist)) {
+  process.env.ELECTRON_OVERRIDE_DIST_PATH = renamedElectronDist;
+}
+
 const require = createRequire(import.meta.url);
 const electron = require("electron");
 

@@ -1183,6 +1183,8 @@ export const ja: TranslationResources = {
     project: {
       actions: {
         menu: "プロジェクトアクション",
+        collapse: "プロジェクトを折りたたむ",
+        expand: "プロジェクトを展開する",
         openSettings: "プロジェクト設定を開く",
         openNewWindow: "新しいウィンドウで開く",
         openNewWindowFailed: "新しいウィンドウを開けませんでした",
@@ -1227,6 +1229,8 @@ export const ja: TranslationResources = {
         newWorkspace: "新しいワークスペース",
         showMore: "さらに表示",
         showLess: "表示を減らす",
+        moveUp: "上へ移動",
+        moveDown: "下へ移動",
         createWorkspaceFor: "{{projectName}}の新しいワークスペースを作成",
         copyPath: "パスをコピー",
         copyBranchName: "ブランチ名をコピー",

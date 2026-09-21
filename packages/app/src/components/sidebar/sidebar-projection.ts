@@ -10,10 +10,6 @@ import type {
 } from "@/hooks/use-sidebar-workspaces-list";
 import type { SidebarGroupMode } from "@/stores/sidebar-view-store";
 import {
-  resolveSidebarProjectIconTargets,
-  type SidebarProjectIconTarget,
-} from "@/utils/sidebar-project-row-model";
-import {
   buildSidebarShortcutSections,
   type SidebarShortcutModel,
   type SidebarShortcutSection,
@@ -23,15 +19,6 @@ import { statusWorkspaceGroups, type SidebarWorkspaceGroup } from "./sidebar-lab
 export interface SidebarProjection {
   pinnedGroups: PinnedSidebarGroups;
   workspaceGroups: SidebarWorkspaceGroup[];
-  /**
-   * The project icons this projection needs fetched, keyed by `projectViewKey` — one per project,
-   * whatever the mode groups by. It sits here rather than beside `useProjectIcons` in the list
-   * because it is the same `projects` the rows above are projected from: a mode that renders a
-   * row can only ever ask for an icon this list already covers. It used to be derived in the
-   * list, under a `groupMode === "status"` gate written when status was the only mode that put
-   * icons on rows.
-   */
-  projectIconTargets: SidebarProjectIconTarget[];
   shortcutModel: SidebarShortcutModel;
 }
 
@@ -85,7 +72,6 @@ export function buildSidebarProjection(input: SidebarProjectionInput): SidebarPr
   return {
     pinnedGroups,
     workspaceGroups,
-    projectIconTargets: resolveSidebarProjectIconTargets(input.projects),
     shortcutModel: buildSidebarShortcutSections({ sections }),
   };
 }

@@ -1,8 +1,15 @@
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
-import { Text, View, type ViewStyle } from "react-native";
+import { useTranslation } from "react-i18next";
+import { Pressable, Text, View, type GestureResponderEvent, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { CircleAlert, Folder, FolderGit2, Monitor } from "lucide-react-native";
-import { ProjectStatusIndicator } from "@/components/sidebar/project-leading-visual";
+import {
+  ChevronDown,
+  ChevronRight,
+  CircleAlert,
+  Folder,
+  FolderGit2,
+  Monitor,
+} from "lucide-react-native";
 import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import {
   WorkspaceMetaRow,
@@ -16,6 +23,8 @@ import {
   type SidebarWorkspaceTrailing,
 } from "@/components/sidebar/workspace-trailing";
 import { useAppSettings } from "@/hooks/use-settings";
+import { useHosts } from "@/runtime/host-runtime";
+import { isWeb } from "@/constants/platform";
 import type { Theme } from "@/styles/theme";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { getStatusDotColor } from "@/utils/status-dot-color";
@@ -36,6 +45,8 @@ const needsInputColorMapping = (theme: Theme) => ({
   fill: getStatusDotColor({ theme, bucket: "needs_input" }) ?? undefined,
 });
 
+const ThemedChevronDown = withUnistyles(ChevronDown);
+const ThemedChevronRight = withUnistyles(ChevronRight);
 const ThemedCircleAlert = withUnistyles(CircleAlert);
 const ThemedMonitor = withUnistyles(Monitor);
 const ThemedFolder = withUnistyles(Folder);
@@ -87,13 +98,22 @@ export function SidebarWorkspaceRowFrame({
   );
 }
 
+/**
+ * The collapse control a project row used to own. A header workspace row stands in for its
+ * project row, so it carries the control instead.
+ */
+export interface SidebarProjectCollapseControl {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
 export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowContent({
   workspace,
   hostBadge,
   leadingProjectName = null,
-  leadingProjectIconDataUri = null,
+  projectCollapse = null,
+  projectNamePrefix = null,
   serviceSummary = null,
-  backdrop,
   isHovered,
   isLoading,
   isCreating = false,
@@ -104,12 +124,13 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
 }: {
   workspace: SidebarWorkspaceEntry;
   hostBadge?: HostBadgeModel | null;
-  /** Hoisted rows use their project icon as the leading visual because no project row contains them. */
+  /** Project a hoisted row belongs to; it names that project in the meta line. */
   leadingProjectName?: string | null;
-  leadingProjectIconDataUri?: string | null;
+  /** Set on the workspace row that stands in for its project row: hover swaps the icon for the chevron. */
+  projectCollapse?: SidebarProjectCollapseControl | null;
+  /** Project name shown ahead of the workspace title, for that same row. */
+  projectNamePrefix?: string | null;
   serviceSummary?: WorkspaceServiceSummary | null;
-  /** The row's current background, so the project status badge can knock out of it. */
-  backdrop: SidebarSurfaceBackdrop;
   isHovered: boolean;
   isLoading: boolean;
   isCreating?: boolean;
@@ -135,38 +156,55 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
     [isHovered, isCreating],
   );
 
+  // Every row leads with the workspace's own status. The row that stands in for its project row
+  // puts the collapse triangle ahead of it, which is what makes that row read as the header it is.
+  const leadingVisual = (
+    <>
+      {leadingProjectName && projectCollapse ? (
+        <ProjectCollapseControl
+          collapsed={projectCollapse.collapsed}
+          onToggle={projectCollapse.onToggle}
+          projectViewKey={workspace.projectViewKey}
+        />
+      ) : null}
+      <WorkspaceStatusIndicator
+        bucket={workspace.statusBucket}
+        workspaceKind={workspace.workspaceKind}
+        loading={isLoading}
+        reserveIdleSpace={reserveIdleStatusIndicatorSpace}
+      />
+    </>
+  );
+
+  // The row that stands in for its project row names the project and the host its workspace lives
+  // on, so the title reads "project · host · workspace". The host name comes from the registry
+  // rather than from the row's badge: the local host's badge is hidden by default, and this line
+  // names it regardless.
+  const hostLabel = useHostLabel(projectNamePrefix ? workspace.serverId : null);
+  // The host rides along at half size: the same string for every workspace on a machine, so it
+  // reads as a note beside the project name rather than as a third name.
+  const titlePrefix = projectNamePrefix ?? null;
+
   return (
     <View style={styles.workspaceRowContent}>
       <View style={styles.workspaceRowMain}>
-        {leadingProjectName ? (
-          <ProjectStatusIndicator
-            iconDataUri={leadingProjectIconDataUri}
-            displayName={leadingProjectName}
-            projectViewKey={workspace.projectViewKey}
-            statusBucket={workspace.statusBucket}
-            backdrop={backdrop}
-            loading={isLoading}
-            testID={`sidebar-row-project-icon-${workspace.workspaceKey}`}
-          />
-        ) : (
-          <WorkspaceStatusIndicator
-            bucket={workspace.statusBucket}
-            workspaceKind={workspace.workspaceKind}
-            loading={isLoading}
-            reserveIdleSpace={reserveIdleStatusIndicatorSpace}
-          />
-        )}
+        <View style={styles.workspaceLeadingGroup}>{leadingVisual}</View>
         <View style={styles.workspaceContentColumn}>
           <View style={styles.workspaceTitleRow}>
             <Text style={workspaceBranchTextStyle} numberOfLines={1}>
+              {titlePrefix ? (
+                <WorkspaceTitlePrefix projectName={titlePrefix} hostLabel={hostLabel} />
+              ) : null}
               {workspaceLabel}
             </Text>
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>
           </View>
           <WorkspaceMetaRow
             currentBranch={workspace.currentBranch}
-            projectName={leadingProjectName}
-            hostBadge={hostBadge ?? null}
+            // The header row names its project and host in the title, so repeating either under
+            // the title would be the same string twice on one row.
+            projectName={projectNamePrefix ? null : leadingProjectName}
+            hostBadge={projectNamePrefix ? null : (hostBadge ?? null)}
             prHint={workspace.prHint}
             serviceSummary={serviceSummary}
             labels={labels}
@@ -181,6 +219,81 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
     </View>
   );
 });
+
+/** The host's display name, or null while its row is not naming a host. */
+function useHostLabel(serverId: string | null): string | null {
+  const hosts = useHosts();
+  return useMemo(() => {
+    if (!serverId) {
+      return null;
+    }
+    const label = hosts.find((host) => host.serverId === serverId)?.label.trim();
+    return label ? label : null;
+  }, [hosts, serverId]);
+}
+
+/**
+ * The start of a title on the row that stands in for its project row: the project's name, then the
+ * host that workspace lives on at half size — the same string for every workspace on a machine, so
+ * it reads as a note beside the project name rather than as a third name.
+ */
+function WorkspaceTitlePrefix({
+  projectName,
+  hostLabel,
+}: {
+  projectName: string;
+  hostLabel: string | null;
+}): ReactNode {
+  return (
+    <>
+      <Text style={styles.workspaceTitleProjectPrefix}>{projectName}</Text>
+      {hostLabel ? <Text style={styles.workspaceTitleSeparator}> · </Text> : null}
+      {hostLabel ? <Text style={styles.workspaceTitleHost}>{hostLabel}</Text> : null}
+      {hostLabel ? <Text style={styles.workspaceTitleSeparator}> · </Text> : null}
+    </>
+  );
+}
+
+function ProjectCollapseControl({
+  collapsed,
+  onToggle,
+  projectViewKey,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  projectViewKey: string;
+}) {
+  const { t } = useTranslation();
+  // The row press opens the workspace, so the control has to keep the press to itself.
+  const handlePress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      onToggle();
+    },
+    [onToggle],
+  );
+
+  return (
+    <Pressable
+      // Not a button on web: this control sits inside the row's own button, and a nested <button>
+      // is invalid DOM that React rejects. Same convention the row's trailing controls use.
+      accessibilityRole={isWeb ? undefined : "button"}
+      accessibilityLabel={t(
+        collapsed ? "sidebar.project.actions.expand" : "sidebar.project.actions.collapse",
+      )}
+      hitSlop={8}
+      onPress={handlePress}
+      style={styles.projectCollapseControl}
+      testID={`sidebar-project-collapse-${projectViewKey}`}
+    >
+      {collapsed ? (
+        <ThemedChevronRight size={14} uniProps={foregroundMutedColorMapping} />
+      ) : (
+        <ThemedChevronDown size={14} uniProps={foregroundMutedColorMapping} />
+      )}
+    </Pressable>
+  );
+}
 
 function WorkspaceStatusIndicator({
   bucket,
@@ -474,11 +587,56 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: theme.spacing[2],
+    // The title's own line box, pinned: an inline box taller than the text (the half-size host in
+    // the header row) would otherwise stretch the row a pixel past every row under it.
+    height: 20,
   },
   shortcutBadgeOverlay: {
     position: "absolute",
     top: 1,
     right: 0,
+  },
+  // Holds the leading glyph or glyphs of a row: the collapse triangle, when the row stands in
+  // for its project row, and then the workspace's status. The project's children are indented
+  // past the whole group — see `projectWorkspaceListContainer` in sidebar-workspace-list.tsx.
+  workspaceLeadingGroup: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing[2],
+    flexShrink: 0,
+  },
+  // Sits ahead of the workspace title on that row, so the row still names its project after the
+  // project row itself is gone. Size and line box are repeated from `workspaceBranchText`: a nested
+  // Text does not inherit its parent's lineHeight, and the taller default box made these rows 4pt
+  // taller than every workspace row under them.
+  workspaceTitleProjectPrefix: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.base,
+    lineHeight: 20,
+  },
+  workspaceTitleHost: {
+    color: theme.colors.foregroundMuted,
+    // Half the title's size — see `workspaceBranchText`. `verticalAlign: middle` matters: sitting on
+    // the parent's baseline, a 7pt font hangs 2pt below the 20pt line box and makes this row taller
+    // than every row under it.
+    fontSize: theme.fontSize.base / 2,
+    lineHeight: 20,
+    verticalAlign: "middle",
+  },
+  workspaceTitleSeparator: {
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: theme.fontSize.base,
+    lineHeight: 20,
+  },
+  // Takes the status slot's geometry, so the triangle and the glyph after it sit on the one rail
+  // the sidebar uses for leading visuals.
+  projectCollapseControl: {
+    width: theme.iconSize.md,
+    height: 20,
+    borderRadius: theme.borderRadius.sm,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   workspaceStatusDot: {
     position: "relative",
