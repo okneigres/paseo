@@ -1,25 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
   backAddProjectPage,
+  cancelNewDirectory,
   chooseAddProjectHost,
   currentAddProjectPage,
+  DIRECTORY_BROWSE_ROOT,
   moveAddProjectActiveIndex,
   moveAddProjectSelection,
+  navigateDirectoryBrowse,
   openAddProjectFlow,
-  openDirectorySearchPage,
+  openDirectoryBrowsePage,
   openGithubLocationPage,
   openNewDirectoryNamePage,
   openNewDirectoryParentPage,
   setAddProjectActiveIndex,
   setAddProjectPageInput,
+  setNewDirectoryError,
   setNewDirectoryName,
+  startNewDirectory,
   type AddProjectHost,
 } from "./model";
 import {
   addProjectMethodEmptyText,
+  browseAbsolutePath,
+  browseParentPath,
+  browseRelativePath,
   buildAddProjectMethods,
   buildCloneLocationOptions,
   buildManualGithubRepositoryChoices,
+  directoryNameError,
+  filterDirectoryNames,
 } from "./options";
 
 const HOST: AddProjectHost = {
@@ -52,7 +62,7 @@ describe("Add Project navigation", () => {
     state = setAddProjectPageInput(state, "rem");
     state = setAddProjectActiveIndex(state, 1);
     state = chooseAddProjectHost(state, secondHost.serverId);
-    state = openDirectorySearchPage(state, secondHost.serverId);
+    state = openDirectoryBrowsePage(state, secondHost.serverId);
 
     state = backAddProjectPage(state) ?? state;
     state = backAddProjectPage(state) ?? state;
@@ -204,5 +214,88 @@ describe("Add Project options", () => {
         disabled: false,
       },
     ]);
+  });
+});
+
+describe("Add Project directory browser", () => {
+  it("opens at the host root and resets filter and selection when navigating", () => {
+    let state = openAddProjectFlow({ hosts: [HOST] });
+    state = openDirectoryBrowsePage(state, HOST.serverId);
+
+    expect(currentAddProjectPage(state)).toEqual({
+      kind: "directory-browse",
+      hostId: HOST.serverId,
+      directoryPath: DIRECTORY_BROWSE_ROOT,
+      query: "",
+      activeIndex: -1,
+      error: null,
+      newDirectory: null,
+      isSubmitting: false,
+    });
+
+    state = setAddProjectPageInput(state, "us");
+    state = setAddProjectActiveIndex(state, 3);
+    state = startNewDirectory(state);
+    state = navigateDirectoryBrowse(state, "/Users");
+
+    expect(currentAddProjectPage(state)).toMatchObject({
+      kind: "directory-browse",
+      directoryPath: "/Users",
+      query: "",
+      activeIndex: -1,
+      newDirectory: null,
+    });
+  });
+
+  it("drops the selection while the folder filter is typed", () => {
+    let state = openAddProjectFlow({ hosts: [HOST] });
+    state = openDirectoryBrowsePage(state, HOST.serverId);
+    state = setAddProjectActiveIndex(state, 2);
+    state = setAddProjectPageInput(state, "os");
+
+    expect(currentAddProjectPage(state)).toMatchObject({ query: "os", activeIndex: -1 });
+  });
+
+  it("tracks the inline new-folder draft until it is cancelled", () => {
+    let state = openAddProjectFlow({ hosts: [HOST] });
+    state = openDirectoryBrowsePage(state, HOST.serverId);
+    state = startNewDirectory(state);
+    state = setNewDirectoryName(state, "repos");
+    state = setNewDirectoryError(state, "already exists");
+
+    expect(currentAddProjectPage(state)).toMatchObject({
+      newDirectory: { name: "repos", error: "already exists" },
+    });
+
+    state = setNewDirectoryName(state, "repos2");
+    expect(currentAddProjectPage(state)).toMatchObject({
+      newDirectory: { name: "repos2", error: null },
+    });
+
+    state = cancelNewDirectory(state);
+    expect(currentAddProjectPage(state)).toMatchObject({ newDirectory: null });
+  });
+
+  it("converts between the root-relative listing paths and absolute paths", () => {
+    expect(browseRelativePath("/")).toBe("");
+    expect(browseRelativePath("/Users/os")).toBe("Users/os");
+    expect(browseAbsolutePath("Users/os")).toBe("/Users/os");
+    expect(browseAbsolutePath("/")).toBe("/");
+    expect(browseParentPath("/Users")).toBe("/");
+    expect(browseParentPath("/")).toBeNull();
+  });
+
+  it("lists folders sorted by name and filters them by the typed query", () => {
+    expect(filterDirectoryNames(["src", "Apps", "docs"], "")).toEqual(["Apps", "docs", "src"]);
+    expect(filterDirectoryNames(["src", "Apps", "docs"], "PP")).toEqual(["Apps"]);
+    expect(filterDirectoryNames(["src", "Apps", "docs"], "ocs")).toEqual(["docs"]);
+    expect(filterDirectoryNames(["src"], "zzz")).toEqual([]);
+  });
+
+  it("rejects folder names that are not a single path segment", () => {
+    expect(directoryNameError("")).toBe("Enter a directory name");
+    expect(directoryNameError("..")).toBe("Enter a directory name");
+    expect(directoryNameError("a/b")).toBe("Name cannot contain path separators");
+    expect(directoryNameError("repos")).toBeNull();
   });
 });

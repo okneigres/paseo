@@ -22,14 +22,29 @@ interface PageState {
   error: string | null;
 }
 
+interface NewDirectoryDraft {
+  name: string;
+  error: string | null;
+}
+
 interface SearchPageState extends PageState {
   query: string;
 }
 
+// The browser walks the target host's filesystem from its root, so it lists
+// directories the daemon can reach rather than anything the client knows about.
+export const DIRECTORY_BROWSE_ROOT = "/";
+
 export type AddProjectPage =
   | ({ kind: "host" } & SearchPageState)
   | ({ kind: "method"; hostId: string; isSubmitting: boolean } & PageState)
-  | ({ kind: "directory-search"; hostId: string; isSubmitting: boolean } & SearchPageState)
+  | ({
+      kind: "directory-browse";
+      hostId: string;
+      directoryPath: string;
+      newDirectory: NewDirectoryDraft | null;
+      isSubmitting: boolean;
+    } & SearchPageState)
   | ({ kind: "github-search"; hostId: string } & SearchPageState)
   | ({
       kind: "github-location";
@@ -146,15 +161,61 @@ export function chooseAddProjectHost(
   return pushAddProjectPage(state, methodPage(hostId));
 }
 
-export function openDirectorySearchPage(
+export function openDirectoryBrowsePage(
   state: AddProjectFlowState,
   hostId: string,
 ): AddProjectFlowState {
   return pushAddProjectPage(state, {
-    ...searchPage("directory-search"),
+    ...searchPage("directory-browse"),
     hostId,
+    directoryPath: DIRECTORY_BROWSE_ROOT,
+    // Nothing is selected until the user picks a folder: the Choose action only
+    // appears once there is something to open.
+    activeIndex: -1,
+    newDirectory: null,
     isSubmitting: false,
   });
+}
+
+export function navigateDirectoryBrowse(
+  state: AddProjectFlowState,
+  directoryPath: string,
+): AddProjectFlowState {
+  return updateCurrentAddProjectPage(state, (page) =>
+    page.kind === "directory-browse"
+      ? {
+          ...page,
+          directoryPath,
+          query: "",
+          activeIndex: -1,
+          error: null,
+          newDirectory: null,
+        }
+      : page,
+  );
+}
+
+export function startNewDirectory(state: AddProjectFlowState): AddProjectFlowState {
+  return updateCurrentAddProjectPage(state, (page) =>
+    page.kind === "directory-browse" ? { ...page, newDirectory: { name: "", error: null } } : page,
+  );
+}
+
+export function cancelNewDirectory(state: AddProjectFlowState): AddProjectFlowState {
+  return updateCurrentAddProjectPage(state, (page) =>
+    page.kind === "directory-browse" ? { ...page, newDirectory: null } : page,
+  );
+}
+
+export function setNewDirectoryError(
+  state: AddProjectFlowState,
+  error: string | null,
+): AddProjectFlowState {
+  return updateCurrentAddProjectPage(state, (page) =>
+    page.kind === "directory-browse" && page.newDirectory
+      ? { ...page, newDirectory: { ...page.newDirectory, error } }
+      : page,
+  );
 }
 
 export function openGithubSearchPage(
@@ -215,6 +276,9 @@ export function setAddProjectPageInput(
       return { ...current, name: value, activeIndex: 0, error: null };
     }
     if (current.kind === "method") return current;
+    if (current.kind === "directory-browse") {
+      return { ...current, query: value, activeIndex: -1, error: null };
+    }
     return { ...current, query: value, activeIndex: 0, error: null };
   });
   if (page.kind !== "github-location") return updated;
@@ -233,6 +297,13 @@ export function setNewDirectoryName(
   value: string,
 ): AddProjectFlowState {
   const page = currentAddProjectPage(state);
+  if (page.kind === "directory-browse") {
+    return updateCurrentAddProjectPage(state, (current) =>
+      current.kind === "directory-browse" && current.newDirectory
+        ? { ...current, newDirectory: { name: value, error: null } }
+        : current,
+    );
+  }
   if (page.kind !== "new-directory-name") return state;
   const draftKey = newDirectoryDraftKey(page.hostId, page.parentPath);
   const updated = setAddProjectPageInput(state, value);

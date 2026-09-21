@@ -4,7 +4,7 @@ import {
   parseGitRemoteLocation,
 } from "@getpaseo/protocol/git-remote";
 import { shortenPath } from "@/utils/shorten-path";
-import type { AddProjectHost, GithubRepositoryChoice } from "./model";
+import { DIRECTORY_BROWSE_ROOT, type AddProjectHost, type GithubRepositoryChoice } from "./model";
 
 export type AddProjectMethodId = "directory-search" | "browse" | "github" | "new-directory";
 
@@ -125,6 +125,44 @@ export function parentDirectory(path: string): string | null {
   if (index < 0) return null;
   if (index === 0) return trimmed.slice(0, 1);
   return trimmed.slice(0, index);
+}
+
+// The browser lists the target host's directories relative to its filesystem
+// root: the daemon resolves them against that root and refuses anything above.
+export function browseRelativePath(absolutePath: string): string {
+  const trimmed = absolutePath.trim();
+  const withoutRoot = trimmed.startsWith(DIRECTORY_BROWSE_ROOT)
+    ? trimmed.slice(DIRECTORY_BROWSE_ROOT.length)
+    : trimmed;
+  return withoutRoot.replace(/\/+$/u, "");
+}
+
+export function browseAbsolutePath(relativePath: string): string {
+  const trimmed = relativePath.replace(/^\/+/u, "").replace(/\/+$/u, "");
+  return trimmed ? `${DIRECTORY_BROWSE_ROOT}${trimmed}` : DIRECTORY_BROWSE_ROOT;
+}
+
+export function browseParentPath(absolutePath: string): string | null {
+  const normalized = browseAbsolutePath(absolutePath);
+  if (normalized === DIRECTORY_BROWSE_ROOT) return null;
+  const parent = parentDirectory(normalized);
+  return parent ? browseAbsolutePath(parent) : null;
+}
+
+export function filterDirectoryNames(names: readonly string[], query: string): string[] {
+  const normalized = query.trim().toLowerCase();
+  return names
+    .filter((name) => !normalized || name.toLowerCase().includes(normalized))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+export function directoryNameError(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === "." || trimmed === "..") return "Enter a directory name";
+  if (trimmed.includes("/") || trimmed.includes("\\")) {
+    return "Name cannot contain path separators";
+  }
+  return null;
 }
 
 export function joinDirectoryPath(parent: string, name: string): string {

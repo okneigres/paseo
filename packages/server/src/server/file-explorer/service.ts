@@ -1,4 +1,4 @@
-import { constants, promises as fs, type BigIntStats, type Stats } from "fs";
+import { constants, promises as fs, type BigIntStats, type Dirent, type Stats } from "fs";
 import type { FileHandle } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -156,7 +156,10 @@ export async function listDirectoryEntries({
   const entriesWithNulls = await Promise.all(
     dirents.map(async (dirent) => {
       const targetPath = path.join(directoryPath.requestedPath, dirent.name);
-      const kind: ExplorerEntryKind = dirent.isDirectory() ? "directory" : "file";
+      const kind = await resolveEntryKind(
+        path.join(directoryPath.resolvedPath, dirent.name),
+        dirent,
+      );
       try {
         return await buildEntryPayload({
           root,
@@ -826,6 +829,19 @@ function assertWithinWorkspace(root: string, candidate: string): void {
 
 async function openFileForRead(filePath: string): Promise<FileHandle> {
   return fs.open(filePath, READ_FILE_OPEN_FLAGS);
+}
+
+// A symlinked directory is a directory to every caller that walks into it: on
+// macOS /tmp, /var and /etc are links, and the browser hides entries it cannot
+// open. Dangling links stay files.
+async function resolveEntryKind(absolutePath: string, dirent: Dirent): Promise<ExplorerEntryKind> {
+  if (dirent.isDirectory()) return "directory";
+  if (!dirent.isSymbolicLink()) return "file";
+  try {
+    return (await fs.stat(absolutePath)).isDirectory() ? "directory" : "file";
+  } catch {
+    return "file";
+  }
 }
 
 async function buildEntryPayload({
