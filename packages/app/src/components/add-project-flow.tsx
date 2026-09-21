@@ -895,36 +895,32 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       return;
     }
     if (page.kind === "directory-browse") {
-      if (page.newDirectory) {
-        void createDirectoryInBrowser();
-        return;
-      }
+      // Enter only follows a typed absolute path; picking a folder is a click.
       const typedPath = page.query.trim();
       const typedAbsolutePath = browseAbsolutePath(typedPath);
       if (typedPath.startsWith(DIRECTORY_BROWSE_ROOT) && typedAbsolutePath !== page.directoryPath) {
         setState((current) => navigateDirectoryBrowse(current, typedAbsolutePath));
-        return;
       }
+      return;
     }
     const option = rows[activeIndex];
     if (option && !option.disabled) option.select();
-  }, [activeIndex, createDirectory, createDirectoryInBrowser, page, rows]);
+  }, [activeIndex, createDirectory, page, rows]);
 
   const handleKey = useCallback(
     (key: string): boolean => {
-      if (page.kind === "directory-browse" && page.newDirectory) {
-        if (key === "Escape") {
-          setState((current) => cancelNewDirectory(current));
-          return true;
-        }
-        if (key === "Enter") {
-          void createDirectoryInBrowser();
-          return true;
-        }
-      }
       if (key === "Escape") {
         handleBack();
         return true;
+      }
+      if (page.kind === "directory-browse") {
+        // Enter follows a typed absolute path; ↑ and ↓ do nothing here, since
+        // picking a folder is a click.
+        if (key === "Enter") {
+          submitActive();
+          return true;
+        }
+        return key === "ArrowDown" || key === "ArrowUp";
       }
       if (key === "Enter") {
         submitActive();
@@ -939,7 +935,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       setState((current) => setAddProjectActiveIndex(current, next));
       return true;
     },
-    [activeIndex, createDirectoryInBrowser, handleBack, page, rows, submitActive],
+    [activeIndex, handleBack, page, rows, submitActive],
   );
 
   const modalLayer = useGlobalWebOverlayLayer("modal", isWeb);
@@ -1184,9 +1180,21 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
                 <Text style={styles.footerButtonText}>Create dir</Text>
               </Pressable>
             ) : null}
-            <FlowHint keys={NAVIGATION_HINT_KEYS} action="Navigate" />
-            <FlowHint keys={SELECT_HINT_KEYS} action="Select" />
-            <FlowHint keys={ESCAPE_HINT_KEYS} action={state.pages.length > 1 ? "Back" : "Close"} />
+            {page.kind === "directory-browse" ? (
+              <FlowHint
+                keys={ESCAPE_HINT_KEYS}
+                action={state.pages.length > 1 ? "Back" : "Close"}
+              />
+            ) : (
+              <>
+                <FlowHint keys={NAVIGATION_HINT_KEYS} action="Navigate" />
+                <FlowHint keys={SELECT_HINT_KEYS} action="Select" />
+                <FlowHint
+                  keys={ESCAPE_HINT_KEYS}
+                  action={state.pages.length > 1 ? "Back" : "Close"}
+                />
+              </>
+            )}
           </View>
         </View>
       </View>
