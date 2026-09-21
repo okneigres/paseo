@@ -1157,10 +1157,21 @@ export const ru: TranslationResources = {
     },
     actions: {
       addProject: "Добавить проект",
+      addSeparator: "Добавить разделитель",
       newWorkspace: "Новое рабочее пространство",
       hosts: "Хосты",
       settings: "Настройки",
       closeSidebar: "Закрыть боковую панель",
+    },
+    separator: {
+      add: "Добавить разделитель",
+      defaultLabel: "Разделитель",
+      renameTitle: "Переименовать разделитель",
+      actions: {
+        menu: "Действия разделителя",
+        rename: "Переименовать",
+        remove: "Удалить",
+      },
     },
     help: {
       trigger: "Помощь и поддержка",

@@ -1146,10 +1146,21 @@ export const ko: TranslationResources = {
     },
     actions: {
       addProject: "프로젝트 추가",
+      addSeparator: "구분선 추가",
       newWorkspace: "새 워크스페이스",
       hosts: "호스트",
       settings: "설정",
       closeSidebar: "사이드바 닫기",
+    },
+    separator: {
+      add: "구분선 추가",
+      defaultLabel: "구분선",
+      renameTitle: "구분선 이름 바꾸기",
+      actions: {
+        menu: "구분선 작업",
+        rename: "이름 바꾸기",
+        remove: "삭제",
+      },
     },
     help: {
       trigger: "도움말 및 지원",

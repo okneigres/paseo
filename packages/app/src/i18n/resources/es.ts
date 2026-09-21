@@ -1175,10 +1175,21 @@ export const es: TranslationResources = {
     },
     actions: {
       addProject: "Agregar proyecto",
+      addSeparator: "Añadir separador",
       newWorkspace: "Nuevo espacio de trabajo",
       hosts: "Hosts",
       settings: "Ajustes",
       closeSidebar: "Cerrar barra lateral",
+    },
+    separator: {
+      add: "Añadir separador",
+      defaultLabel: "Separador",
+      renameTitle: "Renombrar separador",
+      actions: {
+        menu: "Acciones del separador",
+        rename: "Renombrar",
+        remove: "Eliminar",
+      },
     },
     help: {
       trigger: "Ayuda y soporte",

@@ -1153,10 +1153,21 @@ export const ja: TranslationResources = {
     },
     actions: {
       addProject: "プロジェクトを追加",
+      addSeparator: "セパレーターを追加",
       newWorkspace: "新しいワークスペース",
       hosts: "ホスト",
       settings: "設定",
       closeSidebar: "サイドバーを閉じる",
+    },
+    separator: {
+      add: "セパレーターを追加",
+      defaultLabel: "セパレーター",
+      renameTitle: "セパレーターの名前を変更",
+      actions: {
+        menu: "セパレーターの操作",
+        rename: "名前を変更",
+        remove: "削除",
+      },
     },
     help: {
       trigger: "ヘルプとサポート",

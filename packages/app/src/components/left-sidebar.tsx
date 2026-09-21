@@ -1,5 +1,13 @@
 import { router } from "expo-router";
-import { FolderPlus, GitBranch, Import, Server, Settings, X } from "lucide-react-native";
+import {
+  FolderPlus,
+  SeparatorHorizontal,
+  GitBranch,
+  Import,
+  Server,
+  Settings,
+  X,
+} from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -41,6 +49,9 @@ import type { PinnedSidebarGroups } from "@/hooks/use-sidebar-pins";
 import { RetainedPanelActivity } from "@/components/retained-panel";
 import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels";
 import { type SidebarGroupMode, useSidebarViewStore } from "@/stores/sidebar-view-store";
+import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
+import { useSidebarSeparatorsStore } from "@/stores/sidebar-separators-store";
+import { sidebarSeparatorOrderKey } from "@/utils/sidebar-project-rows";
 import { useHosts } from "@/runtime/host-runtime";
 import { usePanelStore } from "@/stores/panel-store";
 import { useOwnsWindowChromeCorner, WindowChromeSafeArea } from "@/utils/desktop-window";
@@ -73,6 +84,7 @@ interface SidebarSharedProps {
   toggleProjectCollapsed: (projectViewKey: string) => void;
   handleRefresh: () => void;
   handleOpenProject: () => void;
+  handleAddSeparator: () => void;
   handleImportSession: () => void;
   handleSettings: () => void;
   labels: SidebarLabels;
@@ -82,6 +94,7 @@ interface SidebarSharedProps {
 
 interface SidebarLabels {
   addProject: string;
+  addSeparator: string;
   hosts: string;
   importSession: string;
   settings: string;
@@ -150,6 +163,14 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
     void openProjectPicker();
   }, [openProjectPicker]);
 
+  const addSeparator = useSidebarSeparatorsStore((state) => state.addSeparator);
+  const getProjectOrder = useSidebarOrderStore((state) => state.getProjectOrder);
+  const setProjectOrder = useSidebarOrderStore((state) => state.setProjectOrder);
+  const handleAddSeparator = useCallback(() => {
+    const id = addSeparator(t("sidebar.separator.defaultLabel"));
+    setProjectOrder([...getProjectOrder(), sidebarSeparatorOrderKey(id)]);
+  }, [addSeparator, getProjectOrder, setProjectOrder, t]);
+
   const handleSettingsMobile = useCallback(() => {
     showMobileAgent();
     router.push(buildSettingsRoute());
@@ -188,6 +209,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
   const labels = useMemo(
     (): SidebarLabels => ({
       addProject: t("sidebar.actions.addProject"),
+      addSeparator: t("sidebar.separator.add"),
       hosts: t("sidebar.actions.hosts"),
       importSession: t("importSession.title"),
       settings: t("sidebar.actions.settings"),
@@ -227,6 +249,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
             insetsBottom={insets.bottom}
             closeSidebar={showMobileAgent}
             handleOpenProject={handleOpenProjectMobile}
+            handleAddSeparator={handleAddSeparator}
             handleImportSession={handleImportSessionMobile}
             handleSettings={handleSettingsMobile}
             handleAddHost={handleAddHostMobile}
@@ -246,6 +269,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
           insetsTop={insets.top}
           active={active}
           handleOpenProject={handleOpenProjectDesktop}
+          handleAddSeparator={handleAddSeparator}
           handleImportSession={openImportSession}
           handleSettings={handleSettingsDesktop}
           handleAddHost={handleAddHostDesktop}
@@ -315,15 +339,19 @@ function footerAddProjectButtonStyle({
   return [styles.footerAddProjectButton, Boolean(hovered) && styles.footerAddProjectButtonHovered];
 }
 
-function FooterAddProjectButton({
+function FooterActionButton({
   onPress,
   label,
+  icon: Icon,
+  testID,
   shortcutKeys,
   theme,
 }: {
   onPress: () => void;
   label: string;
-  shortcutKeys: ReturnType<typeof useShortcutKeys>;
+  icon: typeof FolderPlus;
+  testID: string;
+  shortcutKeys: ReturnType<typeof useShortcutKeys> | null;
   theme: SidebarTheme;
 }) {
   return (
@@ -331,8 +359,8 @@ function FooterAddProjectButton({
       <TooltipTrigger asChild>
         <Pressable
           style={footerAddProjectButtonStyle}
-          testID="sidebar-add-project"
-          nativeID="sidebar-add-project"
+          testID={testID}
+          nativeID={testID}
           accessible
           accessibilityLabel={label}
           accessibilityRole="button"
@@ -342,7 +370,7 @@ function FooterAddProjectButton({
             const isHovered = Boolean(hovered);
             return (
               <>
-                <FolderPlus
+                <Icon
                   size={theme.iconSize.sm}
                   color={isHovered ? theme.colors.foreground : theme.colors.foregroundMuted}
                 />
@@ -440,6 +468,7 @@ function IconTooltipContent({
 function SidebarFooter({
   theme,
   handleOpenProject,
+  handleAddSeparator,
   handleImportSession,
   handleSettings,
   labels,
@@ -448,10 +477,12 @@ function SidebarFooter({
 }: {
   theme: SidebarTheme;
   handleOpenProject: () => void;
+  handleAddSeparator: () => void;
   handleImportSession: () => void;
   handleSettings: () => void;
   labels: {
     addProject: string;
+    addSeparator: string;
     hosts: string;
     importSession: string;
     settings: string;
@@ -465,10 +496,20 @@ function SidebarFooter({
 
   return (
     <View style={styles.sidebarFooter}>
-      <FooterAddProjectButton
+      <FooterActionButton
         onPress={handleOpenProject}
         label={labels.addProject}
+        icon={FolderPlus}
+        testID="sidebar-add-project"
         shortcutKeys={newAgentKeys}
+        theme={theme}
+      />
+      <FooterActionButton
+        onPress={handleAddSeparator}
+        label={labels.addSeparator}
+        icon={SeparatorHorizontal}
+        testID="sidebar-add-separator"
+        shortcutKeys={null}
         theme={theme}
       />
       <View style={styles.footerIconRow}>
@@ -517,6 +558,7 @@ function MobileSidebar({
   toggleProjectCollapsed,
   handleRefresh,
   handleOpenProject,
+  handleAddSeparator,
   handleImportSession,
   handleSettings,
   labels,
@@ -599,6 +641,7 @@ function MobileSidebar({
         <SidebarFooter
           theme={theme}
           handleOpenProject={handleOpenProject}
+          handleAddSeparator={handleAddSeparator}
           handleImportSession={handleImportSession}
           handleSettings={handleSettings}
           labels={labels}
@@ -627,6 +670,7 @@ function DesktopSidebar({
   toggleProjectCollapsed,
   handleRefresh,
   handleOpenProject,
+  handleAddSeparator,
   handleImportSession,
   handleSettings,
   labels,
@@ -774,6 +818,7 @@ function DesktopSidebar({
         <SidebarFooter
           theme={theme}
           handleOpenProject={handleOpenProject}
+          handleAddSeparator={handleAddSeparator}
           handleImportSession={handleImportSession}
           handleSettings={handleSettings}
           labels={labels}

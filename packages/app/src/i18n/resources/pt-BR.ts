@@ -1165,10 +1165,21 @@ export const ptBR: TranslationResources = {
     },
     actions: {
       addProject: "Adicionar projeto",
+      addSeparator: "Adicionar separador",
       newWorkspace: "Novo workspace",
       hosts: "Hosts",
       settings: "Configurações",
       closeSidebar: "Fechar barra lateral",
+    },
+    separator: {
+      add: "Adicionar separador",
+      defaultLabel: "Separador",
+      renameTitle: "Renomear separador",
+      actions: {
+        menu: "Ações do separador",
+        rename: "Renomear",
+        remove: "Remover",
+      },
     },
     help: {
       trigger: "Ajuda e suporte",

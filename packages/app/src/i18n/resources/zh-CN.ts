@@ -1131,10 +1131,21 @@ export const zhCN: TranslationResources = {
     },
     actions: {
       addProject: "添加 project",
+      addSeparator: "添加分隔符",
       newWorkspace: "新建工作区",
       hosts: "Hosts",
       settings: "设置",
       closeSidebar: "关闭侧边栏",
+    },
+    separator: {
+      add: "添加分隔符",
+      defaultLabel: "分隔符",
+      renameTitle: "重命名分隔符",
+      actions: {
+        menu: "分隔符操作",
+        rename: "重命名",
+        remove: "删除",
+      },
     },
     help: {
       trigger: "帮助与支持",

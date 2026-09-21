@@ -1139,10 +1139,21 @@ export const ar: TranslationResources = {
     },
     actions: {
       addProject: "إضافة مشروع",
+      addSeparator: "إضافة فاصل",
       newWorkspace: "مساحة عمل جديدة",
       hosts: "المضيفون",
       settings: "إعدادات",
       closeSidebar: "إغلاق الشريط الجانبي",
+    },
+    separator: {
+      add: "إضافة فاصل",
+      defaultLabel: "فاصل",
+      renameTitle: "إعادة تسمية الفاصل",
+      actions: {
+        menu: "إجراءات الفاصل",
+        rename: "إعادة التسمية",
+        remove: "إزالة",
+      },
     },
     help: {
       trigger: "المساعدة والدعم",

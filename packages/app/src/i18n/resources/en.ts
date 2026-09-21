@@ -1147,10 +1147,21 @@ export const en = {
     },
     actions: {
       addProject: "Add project",
+      addSeparator: "Add separator",
       newWorkspace: "New workspace",
       hosts: "Hosts",
       settings: "Settings",
       closeSidebar: "Close sidebar",
+    },
+    separator: {
+      add: "Add separator",
+      defaultLabel: "Separator",
+      renameTitle: "Rename separator",
+      actions: {
+        menu: "Separator actions",
+        rename: "Rename",
+        remove: "Remove",
+      },
     },
     help: {
       trigger: "Help and support",

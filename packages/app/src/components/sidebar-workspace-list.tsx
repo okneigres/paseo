@@ -62,6 +62,9 @@ import {
   type SidebarWorkspacePlacement,
 } from "@/hooks/use-sidebar-workspaces-list";
 import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
+import { useSidebarSeparatorsStore } from "@/stores/sidebar-separators-store";
+import { buildSidebarProjectRows, type SidebarProjectRow } from "@/utils/sidebar-project-rows";
+import { SidebarSeparatorRow } from "@/components/sidebar/sidebar-separator-row";
 import {
   hasActiveSidebarLabelFilter,
   useSidebarViewStore,
@@ -152,7 +155,7 @@ import { PullRequestStateIcon } from "@/git/pull-request-state-icon";
 
 const workspaceKeyExtractor = (workspace: SidebarWorkspacePlacement) => workspace.workspaceKey;
 
-const projectViewKeyExtractor = (project: SidebarProjectEntry) => project.viewKey;
+const sidebarProjectRowKeyExtractor = (row: SidebarProjectRow) => row.key;
 
 const WORKSPACE_STATUS_DOT_WIDTH = 14;
 const ThemedExternalLink = withUnistyles(ExternalLink);
@@ -2265,6 +2268,10 @@ function ProjectModeList({
 
   const getProjectOrder = useSidebarOrderStore((state) => state.getProjectOrder);
   const setProjectOrder = useSidebarOrderStore((state) => state.setProjectOrder);
+  const projectOrder = useSidebarOrderStore((state) => state.projectOrder);
+  const separators = useSidebarSeparatorsStore((state) => state.separators);
+  const renameSeparator = useSidebarSeparatorsStore((state) => state.renameSeparator);
+  const removeSeparator = useSidebarSeparatorsStore((state) => state.removeSeparator);
   const getWorkspaceOrder = useSidebarOrderStore((state) => state.getWorkspaceOrder);
   const setWorkspaceOrder = useSidebarOrderStore((state) => state.setWorkspaceOrder);
 
@@ -2342,13 +2349,15 @@ function ProjectModeList({
   }, [creatingWorkspaceIds, projects]);
 
   const handleProjectDragEnd = useCallback(
-    (reorderedProjects: SidebarProjectEntry[]) => {
-      const reorderedProjectKeys = reorderedProjects.map((project) => project.viewKey);
+    (reorderedRows: SidebarProjectRow[]) => {
+      // Projects and separators share the list and therefore the order: the keys it is written
+      // with are project view keys and separator keys, and the store keeps both.
+      const reorderedKeys = reorderedRows.map((row) => row.key);
       const currentProjectOrder = getProjectOrder();
       if (
         !hasVisibleOrderChanged({
           currentOrder: currentProjectOrder,
-          reorderedVisibleKeys: reorderedProjectKeys,
+          reorderedVisibleKeys: reorderedKeys,
         })
       ) {
         return;
@@ -2357,7 +2366,7 @@ function ProjectModeList({
       setProjectOrder(
         mergeWithRemainder({
           currentOrder: currentProjectOrder,
-          reorderedVisibleKeys: reorderedProjectKeys,
+          reorderedVisibleKeys: reorderedKeys,
         }),
       );
     },
@@ -2473,10 +2482,34 @@ function ProjectModeList({
     ],
   );
 
-  const renderProject = useCallback(
-    ({ item, drag, isActive, dragHandleProps }: DraggableRenderItemInfo<SidebarProjectEntry>) =>
-      renderProjectBlock(item, { drag, isDragging: isActive, dragHandleProps }),
-    [renderProjectBlock],
+  const rows = useMemo(
+    () =>
+      buildSidebarProjectRows({
+        projects: unpinnedProjects,
+        separators,
+        projectOrder,
+      }),
+    [unpinnedProjects, separators, projectOrder],
+  );
+
+  const renderRow = useCallback(
+    ({ item, drag, isActive, dragHandleProps }: DraggableRenderItemInfo<SidebarProjectRow>) => {
+      if (item.kind === "separator") {
+        return (
+          <SidebarSeparatorRow
+            key={item.key}
+            separator={item.separator}
+            drag={drag}
+            isDragging={isActive}
+            dragHandleProps={dragHandleProps}
+            onRename={renameSeparator}
+            onRemove={removeSeparator}
+          />
+        );
+      }
+      return renderProjectBlock(item.project, { drag, isDragging: isActive, dragHandleProps });
+    },
+    [removeSeparator, renameSeparator, renderProjectBlock],
   );
 
   const renderPinnedChat = useCallback(
@@ -2522,14 +2555,14 @@ function ProjectModeList({
   );
 
   const projectBody =
-    projects.length === 0 ? (
+    rows.length === 0 ? (
       <SidebarProjectEmptyState onAddProject={onAddProject} onImportSession={onImportSession} />
     ) : (
       <DraggableList
         testID="sidebar-project-list"
-        data={unpinnedProjects}
-        keyExtractor={projectViewKeyExtractor}
-        renderItem={renderProject}
+        data={rows}
+        keyExtractor={sidebarProjectRowKeyExtractor}
+        renderItem={renderRow}
         onDragEnd={handleProjectDragEnd}
         extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
         scrollEnabled={false}
