@@ -922,17 +922,6 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
           return true;
         }
       }
-      if (page.kind === "directory-browse" && (key === "ArrowRight" || key === "ArrowLeft")) {
-        const target =
-          key === "ArrowRight"
-            ? (activeRow?.directoryPath ?? null)
-            : browseParentPath(page.directoryPath);
-        if (target) {
-          setState((current) => navigateDirectoryBrowse(current, target));
-          return true;
-        }
-        return false;
-      }
       if (key === "Escape") {
         handleBack();
         return true;
@@ -950,7 +939,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       setState((current) => setAddProjectActiveIndex(current, next));
       return true;
     },
-    [activeRow, activeIndex, createDirectoryInBrowser, handleBack, page, rows, submitActive],
+    [activeIndex, createDirectoryInBrowser, handleBack, page, rows, submitActive],
   );
 
   const modalLayer = useGlobalWebOverlayLayer("modal", isWeb);
@@ -970,13 +959,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
 
   const handleNativeKeyPress = useCallback(
     ({ nativeEvent: { key } }: { nativeEvent: { key: string } }) => {
-      if (
-        key === "ArrowDown" ||
-        key === "ArrowUp" ||
-        key === "ArrowLeft" ||
-        key === "ArrowRight" ||
-        key === "Escape"
-      ) {
+      if (key === "ArrowDown" || key === "ArrowUp" || key === "Escape") {
         handleKey(key);
       }
     },
