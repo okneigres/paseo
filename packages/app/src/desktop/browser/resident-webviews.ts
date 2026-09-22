@@ -194,6 +194,27 @@ function clearResidentWebviewParkingStyle(webview: HTMLElement): void {
   webview.style.zIndex = "";
 }
 
+// A fixed device frame keeps the page at its emulated size; the pane sizes the
+// frame to whatever fits, and the page is scaled to match it.
+function applyBrowserWebviewScale(
+  webview: HTMLElement,
+  viewport: BrowserViewport,
+  frameWidth: number,
+): void {
+  if (viewport.mode !== "fixed" || viewport.width <= 0 || frameWidth <= 0) {
+    clearBrowserWebviewScale(webview);
+    return;
+  }
+  const scale = frameWidth / viewport.width;
+  webview.style.transformOrigin = "top left";
+  webview.style.transform = Number.isFinite(scale) && scale > 0 ? `scale(${scale})` : "";
+}
+
+function clearBrowserWebviewScale(webview: HTMLElement): void {
+  webview.style.transform = "";
+  webview.style.transformOrigin = "";
+}
+
 export function rememberBrowserWebviewSize(input: {
   browserId: string;
   width: number;
@@ -231,6 +252,7 @@ export function applyInactiveBrowserWebviewViewport(
   if (viewport.mode === "fixed") {
     rememberBrowserWebviewSize({ browserId, width: viewport.width, height: viewport.height });
   }
+  clearBrowserWebviewScale(webview);
   applyResidentWebviewStyle(webview, trimNonEmpty(browserId));
 }
 
@@ -291,6 +313,7 @@ export function presentBrowserWebview(
   webview.style.position = "absolute";
   webview.style.left = `${Math.round(anchorBounds.left - surfaceLeft)}px`;
   webview.style.top = `${Math.round(anchorBounds.top - surfaceTop)}px`;
+  applyBrowserWebviewScale(webview, viewport, anchorBounds.width);
 }
 
 export function prepareBrowserWebview(

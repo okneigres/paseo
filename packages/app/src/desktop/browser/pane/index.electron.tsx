@@ -10,7 +10,14 @@ import {
   createElement,
 } from "react";
 import { createPortal } from "react-dom";
-import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  Pressable,
+  Text,
+  View,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import {
   EditingTextInput as TextInput,
   type EditingTextInputHandle,
@@ -617,6 +624,10 @@ export function BrowserPane({
   const pendingNavigationUrlRef = useRef<string | null>(null);
   const annotationMarkersRef = useRef<BrowserAnnotationMarker[]>([]);
   const [selectorMode, setSelectorMode] = useState<"annotate" | "screenshot" | null>(null);
+  const [webviewWrapContentSize, setWebviewWrapContentSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const selectorControllerRef = useRef<ReturnType<typeof createElementSelectorController> | null>(
     null,
   );
@@ -1387,6 +1398,32 @@ export function BrowserPane({
     [browserId, setBrowserViewport],
   );
 
+  // A fixed device frame keeps the page at its emulated size and is scaled, up or
+  // down, so the whole frame fits the pane.
+  const deviceFrameInset = theme.spacing[3];
+  const handleWebviewWrapLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const { width, height } = event.nativeEvent.layout;
+      const inset = isResponsiveDevice ? 0 : deviceFrameInset;
+      setWebviewWrapContentSize({
+        width: Math.max(0, width - inset * 2),
+        height: Math.max(0, height - inset * 2),
+      });
+    },
+    [deviceFrameInset, isResponsiveDevice],
+  );
+
+  const deviceFitScale = useMemo(() => {
+    if (browserViewport.mode !== "fixed" || !webviewWrapContentSize) {
+      return 1;
+    }
+    const scale = Math.min(
+      webviewWrapContentSize.width / browserViewport.width,
+      webviewWrapContentSize.height / browserViewport.height,
+    );
+    return Number.isFinite(scale) && scale > 0 ? scale : 1;
+  }, [browserViewport, webviewWrapContentSize]);
+
   const webviewHostStyle = useMemo<CSSProperties>(
     () =>
       isResponsiveDevice
@@ -1399,15 +1436,16 @@ export function BrowserPane({
             background: theme.colors.surface0,
           }
         : {
-            // Fixed-size device frame, centered within webviewWrap (see styles).
+            // Fixed-size device frame, centered within webviewWrap (see styles)
+            // and fitted to it via deviceFitScale.
             display: "flex",
-            width: browserViewport.width,
-            height: browserViewport.height,
+            width: browserViewport.width * deviceFitScale,
+            height: browserViewport.height * deviceFitScale,
             minHeight: 0,
             background: theme.colors.surface0,
             boxShadow: "0 2px 16px rgba(0,0,0,0.25)",
           },
-    [browserViewport, isResponsiveDevice, theme.colors.surface0],
+    [browserViewport, deviceFitScale, isResponsiveDevice, theme.colors.surface0],
   );
 
   const webviewWrapStyle = useMemo(
@@ -1538,6 +1576,7 @@ export function BrowserPane({
       <View
         ref={setWebviewClipNode}
         style={webviewWrapStyle}
+        onLayout={handleWebviewWrapLayout}
         testID={`browser-webview-clip-${browserId}`}
       >
         {createElement("div", {

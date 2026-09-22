@@ -204,6 +204,77 @@ describe("resident browser webviews", () => {
     expect(webview.parentElement.style.height).toBe("600px");
   });
 
+  it("scales a fixed viewport page to the frame the pane fitted it into", () => {
+    const webview = ensureTestBrowser({
+      browserId: "browser-fitted",
+      workspaceId: "workspace-fitted",
+      url: "https://example.com",
+    });
+    if (!webview?.parentElement) {
+      throw new Error("Expected resident browser surface");
+    }
+    const anchor = document.createElement("div");
+    const clip = document.createElement("div");
+    // The pane sized the device frame to half of a 1280×720 viewport.
+    Object.defineProperty(anchor, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 640, height: 360 }),
+    });
+    Object.defineProperty(clip, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 640, height: 360 }),
+    });
+
+    presentBrowserWebview("browser-fitted", webview, anchor, clip, {
+      mode: "fixed",
+      width: 1280,
+      height: 720,
+    });
+
+    expect(webview.style.width).toBe("1280px");
+    expect(webview.style.height).toBe("720px");
+    expect(webview.style.transformOrigin).toBe("left top");
+    expect(webview.style.transform).toBe("scale(0.5)");
+
+    presentBrowserWebview("browser-fitted", webview, anchor, clip, { mode: "responsive" });
+
+    expect(webview.style.transform).toBe("");
+    expect(webview.style.transformOrigin).toBe("");
+  });
+
+  it("drops the fitted scale when a fixed viewport browser is parked", () => {
+    const webview = ensureTestBrowser({
+      browserId: "browser-parked-scale",
+      workspaceId: "workspace-parked-scale",
+      url: "https://example.com",
+    });
+    if (!webview?.parentElement) {
+      throw new Error("Expected resident browser surface");
+    }
+    const anchor = document.createElement("div");
+    const clip = document.createElement("div");
+    Object.defineProperty(anchor, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 195, height: 422 }),
+    });
+    Object.defineProperty(clip, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 195, height: 422 }),
+    });
+
+    presentBrowserWebview("browser-parked-scale", webview, anchor, clip, {
+      mode: "fixed",
+      width: 390,
+      height: 844,
+    });
+    expect(webview.style.transform).toBe("scale(0.5)");
+
+    applyInactiveBrowserWebviewViewport("browser-parked-scale", webview, {
+      mode: "fixed",
+      width: 390,
+      height: 844,
+    });
+
+    expect(webview.style.transform).toBe("");
+    expect(webview.style.transformOrigin).toBe("");
+  });
+
   it("creates a resident webview for an agent-created unfocused tab", () => {
     const webview = ensureTestBrowser({
       browserId: "browser-agent",
