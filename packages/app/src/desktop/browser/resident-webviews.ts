@@ -4,6 +4,7 @@ import {
   type DesktopBrowserBridge,
 } from "@/desktop/host";
 import type { BrowserViewport } from "@/desktop/browser/store";
+import { PASEO_BROWSER_TAB_USER_AGENT } from "./browser-user-agent";
 import { WEB_SURFACE_PLANE } from "@/lib/overlay-root";
 
 const RESIDENT_BROWSER_HOST_ID = "paseo-browser-resident-webviews";
@@ -327,6 +328,12 @@ export function prepareBrowserWebview(
 ): void {
   const browser = getBrowserBridge(input.profileHost);
   webview.setAttribute(BROWSER_ID_ATTRIBUTE, input.browserId);
+  // Electron requires the user agent attribute to be set before partition and
+  // src, and the embedded-app identity it would otherwise send is what makes
+  // providers such as Google refuse sign-in.
+  if (PASEO_BROWSER_TAB_USER_AGENT) {
+    webview.setAttribute("useragent", PASEO_BROWSER_TAB_USER_AGENT);
+  }
   webview.setAttribute("partition", browser.profilePartition);
   webview.setAttribute("allowpopups", "true");
   webview.setAttribute("spellcheck", "false");
