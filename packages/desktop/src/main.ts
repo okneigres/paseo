@@ -131,6 +131,11 @@ const bootstrapComplete = new Promise<void>((resolve) => {
 let bootstrapIsComplete = false;
 
 app.setName(APP_NAME);
+// Electron folds the app name and version into every user agent. Browser tabs
+// then announce an application token that no sign-in provider knows, which is
+// one more thing that makes an embedded browser look like something other than
+// Chromium; drop it so tabs send the runtime's own identity.
+app.userAgentFallback = app.userAgentFallback.replace(` ${APP_NAME}/${app.getVersion()}`, "");
 log.info("[desktop] app startup", {
   version: app.getVersion(),
   platform: process.platform,
