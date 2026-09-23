@@ -90,6 +90,12 @@ contextBridge.exposeInMainWorld("paseoDesktop", {
     isSupported: () => ipcRenderer.invoke("paseo:notification:isSupported"),
     sendNotification: (payload: { title: string; body?: string; data?: Record<string, unknown> }) =>
       ipcRenderer.invoke("paseo:notification:send", payload),
+    dismissNotification: (target: {
+      serverId?: string;
+      agentId?: string;
+      workspaceId?: string;
+      terminalId?: string;
+    }) => ipcRenderer.invoke("paseo:notification:dismiss", target),
   },
   opener: {
     openUrl: (url: string) => ipcRenderer.invoke("paseo:opener:openUrl", url),

@@ -40,6 +40,12 @@ async function loadModuleForPlatform(
           body?: string;
           data?: Record<string, unknown>;
         }) => Promise<boolean>;
+        dismissNotification?: (target: {
+          serverId?: string;
+          agentId?: string;
+          workspaceId?: string;
+          terminalId?: string;
+        }) => Promise<number>;
       };
     } | null;
   },
@@ -286,5 +292,29 @@ describe("sendOsNotification", () => {
       body: "If you can see this, desktop notifications work.",
       data: { serverId: "srv-1" },
     });
+  });
+});
+
+describe("dismissOsNotifications", () => {
+  beforeEach(() => {
+    restoreGlobals();
+  });
+
+  it("passes the target to the desktop bridge and reports how many were dismissed", async () => {
+    const dismissNotification = vi.fn(async () => 2);
+    const module = await loadModuleForPlatform("web", {
+      desktopHost: { notification: { dismissNotification } },
+    });
+
+    await expect(
+      module.dismissOsNotifications({ serverId: "srv_1", agentId: "agent_1" }),
+    ).resolves.toBe(2);
+    expect(dismissNotification).toHaveBeenCalledWith({ serverId: "srv_1", agentId: "agent_1" });
+  });
+
+  it("dismisses nothing when there is no desktop bridge", async () => {
+    const module = await loadModuleForPlatform("web", { desktopHost: null });
+
+    await expect(module.dismissOsNotifications({ agentId: "agent_1" })).resolves.toBe(0);
   });
 });

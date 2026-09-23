@@ -2,6 +2,12 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { app, BrowserWindow, Notification, ipcMain, nativeImage } from "electron";
 import { getDesktopSettingsStore } from "../settings/desktop-settings-electron.js";
+import {
+  isEmptyNotificationTarget,
+  notificationTargetMatches,
+  readNotificationTarget,
+  type NotificationTarget,
+} from "./notification-target.js";
 
 interface NotificationInput {
   title?: unknown;
@@ -13,7 +19,16 @@ interface NotificationClickPayload {
   data?: Record<string, unknown>;
 }
 
-const activeNotifications = new Set<Notification>();
+// Each shown notification keeps the target it points at, so the renderer can
+// later say "this is read now" and the matching ones get dismissed.
+const activeNotifications = new Map<Notification, NotificationTarget & { id: string }>();
+let nextNotificationId = 1;
+
+function supportsDeliveredNotificationRemoval(): boolean {
+  // `Notification.remove` is macOS-only and removes entries from Notification
+  // Center, not just the banner.
+  return process.platform === "darwin" && typeof Notification.remove === "function";
+}
 
 function toTrimmedString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -97,14 +112,17 @@ export function registerNotificationHandlers(): void {
     const data = toRecord(rawInput?.data);
     const icon = getNotificationIcon();
     const settings = await getDesktopSettingsStore().get();
+    const id = `paseo-notification-${nextNotificationId}`;
+    nextNotificationId += 1;
     const notification = new Notification({
+      id,
       title,
       ...(body ? { body } : {}),
       ...(icon ? { icon } : {}),
       silent: !settings.notifications.playSound,
     });
 
-    activeNotifications.add(notification);
+    activeNotifications.set(notification, { ...readNotificationTarget(data), id });
 
     notification.on("click", () => {
       const win = focusSenderWindow(event.sender);
@@ -121,5 +139,30 @@ export function registerNotificationHandlers(): void {
 
     notification.show();
     return true;
+  });
+
+  // The renderer names the target that just became read; everything pointing at
+  // it is dismissed. Notifications whose handles are gone (a previous run) are
+  // out of reach.
+  ipcMain.handle("paseo:notification:dismiss", (_event, rawTarget?: unknown) => {
+    const request = readNotificationTarget(rawTarget);
+    if (isEmptyNotificationTarget(request)) {
+      return 0;
+    }
+    let dismissed = 0;
+    const dismissedIds: string[] = [];
+    for (const [notification, target] of activeNotifications) {
+      if (!notificationTargetMatches(target, request)) {
+        continue;
+      }
+      notification.close();
+      dismissedIds.push(target.id);
+      activeNotifications.delete(notification);
+      dismissed += 1;
+    }
+    if (dismissedIds.length > 0 && supportsDeliveredNotificationRemoval()) {
+      Notification.remove(dismissedIds);
+    }
+    return dismissed;
   });
 }

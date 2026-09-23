@@ -53,11 +53,19 @@ export interface DesktopDialogBridge {
   open?: (options?: DesktopDialogOpenOptions) => Promise<string | string[] | null>;
 }
 
+export interface DesktopNotificationTarget {
+  serverId?: string;
+  agentId?: string;
+  workspaceId?: string;
+  terminalId?: string;
+}
+
 export interface DesktopNotificationBridge {
   isSupported?: () => Promise<boolean>;
   sendNotification?: (
     payload: string | { title: string; body?: string; data?: Record<string, unknown> },
   ) => Promise<boolean>;
+  dismissNotification?: (target: DesktopNotificationTarget) => Promise<number>;
 }
 
 export interface DesktopOpenerBridge {

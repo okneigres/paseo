@@ -163,6 +163,31 @@ function attachWebClickHandler(
   });
 }
 
+/**
+ * Dismiss the desktop notifications that point at a target the user has now
+ * read (the same ids the notification carried in `data`). Notifications from a
+ * previous run no longer have handles, so they stay in the system list.
+ */
+export async function dismissOsNotifications(target: {
+  serverId?: string;
+  agentId?: string;
+  workspaceId?: string;
+  terminalId?: string;
+}): Promise<number> {
+  if (isNative) {
+    return 0;
+  }
+  const dismiss = getDesktopHost()?.notification?.dismissNotification;
+  if (typeof dismiss !== "function") {
+    return 0;
+  }
+  try {
+    return await dismiss(target);
+  } catch {
+    return 0;
+  }
+}
+
 export async function sendOsNotification(payload: OsNotificationPayload): Promise<boolean> {
   // Mobile/native notifications should be remote push only.
   if (isNative) {

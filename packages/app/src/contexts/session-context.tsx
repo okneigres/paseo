@@ -36,7 +36,7 @@ import {
   type SessionState,
 } from "@/stores/session-store";
 import { useWorkspaceSetupStore } from "@/stores/workspace-setup-store";
-import { sendOsNotification } from "@/utils/os-notifications";
+import { dismissOsNotifications, sendOsNotification } from "@/utils/os-notifications";
 import { getIsAppActivelyVisible, getIsAppVisible } from "@/utils/app-visibility";
 import {
   getInitKey,
@@ -317,6 +317,20 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     },
     [serverId],
   );
+
+  // What the user has open in front of them counts as read: dismiss the system
+  // notifications that point at that agent or terminal.
+  useEffect(() => {
+    if (!isAppVisible) {
+      return;
+    }
+    if (focusedAgentId) {
+      void dismissOsNotifications({ serverId, agentId: focusedAgentId });
+    }
+    if (focusedTerminalId) {
+      void dismissOsNotifications({ serverId, terminalId: focusedTerminalId });
+    }
+  }, [focusedAgentId, focusedTerminalId, isAppVisible, serverId]);
 
   useEffect(() => {
     const serverInfo = client.getLastServerInfoMessage();
