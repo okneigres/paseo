@@ -106,7 +106,7 @@ describe("legacy browser profiles", () => {
     );
 
     expect(partitions).toEqual([
-      "persist:paseo-browser",
+      "persist:paseo-browser-fresh",
       `persist:paseo-browser-${uuid}`,
       `persist:paseo-browser-${fallbackId}`,
     ]);
