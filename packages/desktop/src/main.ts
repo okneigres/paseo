@@ -347,6 +347,11 @@ if (electronFlags) {
   log.info("[electron-flags]", electronFlags);
 }
 
+// A browser tab is a Chromium guest that Paseo itself may drive over CDP, and an
+// automated guest answers `navigator.webdriver === true`. Sign-in providers refuse
+// to serve their flow to an automated browser, so keep that flag out of the page.
+app.commandLine.appendSwitch("disable-blink-features", "AutomationControlled");
+
 if (process.platform === "linux") {
   // Keep the desktop/dock identity independent of the wrapped Electron filename.
   app.setDesktopName("Paseo.desktop");
