@@ -37,7 +37,11 @@ import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop
 import { type GestureType } from "react-native-gesture-handler";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
 import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
-import { ExternalLink, Settings, MoreVertical, Plus, Trash2 } from "lucide-react-native";
+import {
+  useIsSidebarProjectMarked,
+  useSidebarProjectMarksStore,
+} from "@/stores/sidebar-project-marks-store";
+import { ExternalLink, Settings, MoreVertical, Plus, Target, Trash2 } from "lucide-react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import { DraggableList, type DraggableRenderItemInfo } from "./draggable-list";
 import type { DraggableListDragHandleProps } from "./draggable-list.types";
@@ -164,6 +168,7 @@ const ThemedPlus = withUnistyles(Plus);
 const ThemedMoreVertical = withUnistyles(MoreVertical);
 const ThemedTrash2 = withUnistyles(Trash2);
 const ThemedSettings = withUnistyles(Settings);
+const ThemedTarget = withUnistyles(Target);
 
 const foregroundColorMapping = (theme: Theme) => ({
   color: theme.colors.foreground,
@@ -462,6 +467,7 @@ function ProjectRowTrailingActions({
 
 const trash2LeadingIcon = <ThemedTrash2 size={14} uniProps={foregroundMutedColorMapping} />;
 const settingsLeadingIcon = <ThemedSettings size={14} uniProps={foregroundMutedColorMapping} />;
+const markLeadingIcon = <ThemedTarget size={14} uniProps={foregroundMutedColorMapping} />;
 const openInNewWindowLeadingIcon = (
   <ThemedExternalLink size={14} uniProps={foregroundMutedColorMapping} />
 );
@@ -550,6 +556,12 @@ function ProjectMenuItems({
     if (!settingsTarget) return;
     router.navigate(buildProjectSettingsRoute(settingsTarget.serverId, settingsTarget.projectId));
   }, [settingsTarget]);
+  const isProjectMarked = useIsSidebarProjectMarked(projectViewKey);
+  const toggleProjectMark = useSidebarProjectMarksStore((state) => state.toggleMark);
+  const handleToggleProjectMark = useCallback(() => {
+    toggleProjectMark(projectViewKey);
+  }, [projectViewKey, toggleProjectMark]);
+
   const canOpenInNewWindow = getIsElectron() && projectPath.trim().length > 0;
   const handleOpenInNewWindow = useCallback(() => {
     const trimmedPath = projectPath.trim();
@@ -589,6 +601,14 @@ function ProjectMenuItems({
         path={projectPath}
         testID={`sidebar-project-menu-open-folder-${projectViewKey}`}
       />
+      <ProjectMenuItem
+        surface={surface}
+        testID={`sidebar-project-menu-mark-${projectViewKey}`}
+        leading={markLeadingIcon}
+        onSelect={handleToggleProjectMark}
+      >
+        {isProjectMarked ? t("sidebar.project.actions.unmark") : t("sidebar.project.actions.mark")}
+      </ProjectMenuItem>
       <ProjectMenuItem
         surface={surface}
         testID={`sidebar-project-menu-remove-${projectViewKey}`}

@@ -1191,6 +1191,8 @@ export const en = {
         menu: "Project actions",
         collapse: "Collapse project",
         expand: "Expand project",
+        mark: "Mark",
+        unmark: "Unmark",
         openSettings: "Open project settings",
         openNewWindow: "Open in new window",
         openNewWindowFailed: "Couldn't open a new window",

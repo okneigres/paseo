@@ -23,6 +23,7 @@ import {
   type SidebarWorkspaceTrailing,
 } from "@/components/sidebar/workspace-trailing";
 import { useAppSettings } from "@/hooks/use-settings";
+import { useIsSidebarProjectMarked } from "@/stores/sidebar-project-marks-store";
 import { useHosts } from "@/runtime/host-runtime";
 import { isWeb } from "@/constants/platform";
 import type { Theme } from "@/styles/theme";
@@ -33,7 +34,7 @@ import {
   STATUS_INDICATOR_DOT_SIZE,
   STATUS_INDICATOR_FILLED_DOT_SIZE,
 } from "@/utils/status-indicator-geometry";
-import { shouldRenderSyncedStatusLoader } from "@/utils/status-loader";
+import { resolveWorkspaceStatusVisual } from "@/utils/workspace-status-visual";
 import { StatusRing } from "@/components/status-ring";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
@@ -156,24 +157,16 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
     [isHovered, isCreating],
   );
 
-  // Every row leads with the workspace's own status. The row that stands in for its project row
+  // Every row leads with the workspace's own status; the row that stands in for its project row
   // puts the collapse triangle ahead of it, which is what makes that row read as the header it is.
   const leadingVisual = (
-    <>
-      {leadingProjectName && projectCollapse ? (
-        <ProjectCollapseControl
-          collapsed={projectCollapse.collapsed}
-          onToggle={projectCollapse.onToggle}
-          projectViewKey={workspace.projectViewKey}
-        />
-      ) : null}
-      <WorkspaceStatusIndicator
-        bucket={workspace.statusBucket}
-        workspaceKind={workspace.workspaceKind}
-        loading={isLoading}
-        reserveIdleSpace={reserveIdleStatusIndicatorSpace}
-      />
-    </>
+    <SidebarWorkspaceLeadingVisual
+      workspace={workspace}
+      leadingProjectName={leadingProjectName}
+      projectCollapse={projectCollapse}
+      isLoading={isLoading}
+      reserveIdleStatusIndicatorSpace={reserveIdleStatusIndicatorSpace}
+    />
   );
 
   // The row that stands in for its project row names the project and the host its workspace lives
@@ -295,77 +288,135 @@ function ProjectCollapseControl({
   );
 }
 
+/**
+ * The leading slot of a row: the collapse control, when the row stands in for its project row, and
+ * the status dot every row carries. Only that project row reports the project's mark, so the
+ * workspaces under it keep their own status.
+ */
+function SidebarWorkspaceLeadingVisual({
+  workspace,
+  leadingProjectName,
+  projectCollapse,
+  isLoading,
+  reserveIdleStatusIndicatorSpace,
+}: {
+  workspace: SidebarWorkspaceEntry;
+  leadingProjectName: string | null;
+  projectCollapse: SidebarProjectCollapseControl | null;
+  isLoading: boolean;
+  reserveIdleStatusIndicatorSpace: boolean;
+}) {
+  const isProjectHeaderRow = Boolean(leadingProjectName && projectCollapse);
+  const isProjectMarked = useIsSidebarProjectMarked(
+    isProjectHeaderRow ? workspace.projectViewKey : null,
+  );
+
+  return (
+    <>
+      {isProjectHeaderRow && projectCollapse ? (
+        <ProjectCollapseControl
+          collapsed={projectCollapse.collapsed}
+          onToggle={projectCollapse.onToggle}
+          projectViewKey={workspace.projectViewKey}
+        />
+      ) : null}
+      <WorkspaceStatusIndicator
+        bucket={workspace.statusBucket}
+        workspaceKind={workspace.workspaceKind}
+        loading={isLoading}
+        reserveIdleSpace={reserveIdleStatusIndicatorSpace}
+        marked={isProjectMarked}
+      />
+    </>
+  );
+}
+
 function WorkspaceStatusIndicator({
   bucket,
   workspaceKind,
   loading = false,
   reserveIdleSpace = true,
+  marked = false,
 }: {
   bucket: SidebarWorkspaceEntry["statusBucket"];
   workspaceKind: SidebarWorkspaceEntry["workspaceKind"];
   loading?: boolean;
   reserveIdleSpace?: boolean;
+  /** The row stands in for a project the user marked: its idle dot carries the mark's color. */
+  marked?: boolean;
 }) {
-  // Busy is the only status that moves, and it is the ring rather than a dot for the same
-  // reason it is a dot elsewhere: every status in the sidebar sits in this one slot, so busy
-  // has to fill it without displacing anything. A row starting up and a row working are both
-  // busy, so they share the ring and differ only in testID.
-  if (loading) {
-    return (
-      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-loading">
-        <StatusRing />
-      </View>
-    );
+  // Which shape the slot takes is decided outside this component: the rule, the project mark
+  // included, is then testable without rendering a row.
+  const visual = resolveWorkspaceStatusVisual({ bucket, loading, marked });
+
+  switch (visual) {
+    // Busy is the only status that moves, and it is the ring rather than a dot for the same
+    // reason it is a dot elsewhere: every status in the sidebar sits in this one slot, so busy
+    // has to fill it without displacing anything. A row starting up and a row working are both
+    // busy, so they share the ring and differ only in testID.
+    case "loading":
+      return (
+        <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-loading">
+          <StatusRing />
+        </View>
+      );
+    case "running":
+      return (
+        <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-running">
+          <StatusRing />
+        </View>
+      );
+    case "needs_input":
+      return (
+        <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-needs_input">
+          <ThemedCircleAlert size={STATUS_INDICATOR_ALERT_SIZE} uniProps={needsInputColorMapping} />
+        </View>
+      );
+    case "attention":
+      return (
+        <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-attention">
+          <View style={styles.standaloneStatusDot} />
+        </View>
+      );
+    case "idle":
+    case "marked":
+      // An idle row still gets a dot rather than an empty slot. Nested rows are marked as
+      // workspaces by indentation alone, and with nothing in the leading slot the rail has no
+      // edge to read against — a workspace carrying its own glyph starts looking like a project
+      // header. The dot is muted to half opacity so it holds the rail without reporting status;
+      // a marked project takes the mark's color instead, because the dot is the one place the
+      // sidebar has to say where the user's attention is, and an idle project is what the mark
+      // is for.
+      if (!reserveIdleSpace) {
+        return null;
+      }
+      return (
+        <View
+          style={styles.workspaceStatusDot}
+          testID={
+            visual === "marked"
+              ? "workspace-status-indicator-marked"
+              : "workspace-status-indicator-done"
+          }
+        >
+          <View style={visual === "marked" ? styles.markedStatusDot : styles.idleStatusDot} />
+        </View>
+      );
+    case "kind": {
+      let KindIcon: typeof ThemedMonitor;
+      if (workspaceKind === "local_checkout") KindIcon = ThemedMonitor;
+      else if (workspaceKind === "worktree") KindIcon = ThemedFolderGit2;
+      else KindIcon = ThemedFolder;
+
+      const dotColorStyle = getStatusDotColorStyle(bucket);
+      return (
+        <View style={styles.workspaceStatusDot} testID={`workspace-status-indicator-${bucket}`}>
+          <KindIcon size={14} uniProps={foregroundMutedColorMapping} />
+          {dotColorStyle ? <StatusDotOverlay dotColorStyle={dotColorStyle} /> : null}
+        </View>
+      );
+    }
   }
-
-  if (shouldRenderSyncedStatusLoader({ bucket })) {
-    return (
-      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-running">
-        <StatusRing />
-      </View>
-    );
-  }
-
-  if (bucket === "needs_input") {
-    return (
-      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-needs_input">
-        <ThemedCircleAlert size={STATUS_INDICATOR_ALERT_SIZE} uniProps={needsInputColorMapping} />
-      </View>
-    );
-  }
-
-  if (bucket === "attention") {
-    return (
-      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-attention">
-        <View style={styles.standaloneStatusDot} />
-      </View>
-    );
-  }
-
-  if (bucket === "done") {
-    // An idle row still gets a dot rather than an empty slot. Nested rows are marked as
-    // workspaces by indentation alone, and with nothing in the leading slot the rail has no
-    // edge to read against — a workspace carrying its own glyph starts looking like a project
-    // header. The dot is muted to half opacity so it holds the rail without reporting status.
-    return reserveIdleSpace ? (
-      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-done">
-        <View style={styles.idleStatusDot} />
-      </View>
-    ) : null;
-  }
-
-  let KindIcon: typeof ThemedMonitor;
-  if (workspaceKind === "local_checkout") KindIcon = ThemedMonitor;
-  else if (workspaceKind === "worktree") KindIcon = ThemedFolderGit2;
-  else KindIcon = ThemedFolder;
-
-  const dotColorStyle = getStatusDotColorStyle(bucket);
-  return (
-    <View style={styles.workspaceStatusDot} testID={`workspace-status-indicator-${bucket}`}>
-      <KindIcon size={14} uniProps={foregroundMutedColorMapping} />
-      {dotColorStyle ? <StatusDotOverlay dotColorStyle={dotColorStyle} /> : null}
-    </View>
-  );
 }
 
 function StatusDotOverlay({ dotColorStyle }: { dotColorStyle: ViewStyle }) {
@@ -668,6 +719,14 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.foregroundExtraMuted,
     opacity: 0.3,
+  },
+  // Same dot, in the status family's amber — the color a row uses to ask for something — so the
+  // mark reads as a status the user set rather than as a second kind of dot.
+  markedStatusDot: {
+    width: STATUS_INDICATOR_FILLED_DOT_SIZE,
+    height: STATUS_INDICATOR_FILLED_DOT_SIZE,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: getStatusDotColor({ theme, bucket: "needs_input" }) ?? undefined,
   },
   // The title owns the first line outright now that the host, change request and CI moved
   // to the meta row, so it takes the full width the trailing slot leaves behind.

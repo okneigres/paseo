@@ -1190,6 +1190,8 @@ export const ko: TranslationResources = {
         menu: "프로젝트 작업",
         collapse: "프로젝트 접기",
         expand: "프로젝트 펼치기",
+        mark: "표시",
+        unmark: "표시 해제",
         openSettings: "프로젝트 설정 열기",
         openNewWindow: "새 창에서 열기",
         openNewWindowFailed: "새 창을 열 수 없습니다",

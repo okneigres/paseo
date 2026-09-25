@@ -1209,6 +1209,8 @@ export const ptBR: TranslationResources = {
         menu: "Ações do projeto",
         collapse: "Recolher projeto",
         expand: "Expandir projeto",
+        mark: "Marcar",
+        unmark: "Desmarcar",
         openSettings: "Abrir configurações do projeto",
         openNewWindow: "Abrir em nova janela",
         openNewWindowFailed: "Não foi possível abrir uma nova janela",

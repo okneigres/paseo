@@ -1219,6 +1219,8 @@ export const fr: TranslationResources = {
         menu: "Actions du projet",
         collapse: "Réduire le projet",
         expand: "Développer le projet",
+        mark: "Marquer",
+        unmark: "Démarquer",
         openSettings: "Ouvrir les paramètres du projet",
         openNewWindow: "Open in new window",
         openNewWindowFailed: "Couldn't open a new window",

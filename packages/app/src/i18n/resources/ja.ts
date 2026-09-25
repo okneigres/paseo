@@ -1197,6 +1197,8 @@ export const ja: TranslationResources = {
         menu: "プロジェクトアクション",
         collapse: "プロジェクトを折りたたむ",
         expand: "プロジェクトを展開する",
+        mark: "マークする",
+        unmark: "マークを外す",
         openSettings: "プロジェクト設定を開く",
         openNewWindow: "新しいウィンドウで開く",
         openNewWindowFailed: "新しいウィンドウを開けませんでした",

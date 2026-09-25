@@ -1174,6 +1174,8 @@ export const zhCN: TranslationResources = {
         menu: "Project 操作",
         collapse: "折叠项目",
         expand: "展开项目",
+        mark: "标记",
+        unmark: "取消标记",
         openSettings: "打开 project 设置",
         openNewWindow: "在新窗口中打开",
         openNewWindowFailed: "无法打开新窗口",

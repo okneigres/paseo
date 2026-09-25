@@ -1183,6 +1183,8 @@ export const ar: TranslationResources = {
         menu: "إجراءات المشروع",
         collapse: "طي المشروع",
         expand: "توسيع المشروع",
+        mark: "Mark",
+        unmark: "Unmark",
         openSettings: "افتح إعدادات المشروع",
         openNewWindow: "Open in new window",
         openNewWindowFailed: "Couldn't open a new window",

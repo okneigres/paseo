@@ -1201,6 +1201,8 @@ export const ru: TranslationResources = {
         menu: "Действия проекта",
         collapse: "Свернуть проект",
         expand: "Развернуть проект",
+        mark: "Отметить",
+        unmark: "Снять отметку",
         openSettings: "Открыть настройки проекта",
         openNewWindow: "Открыть в новом окне",
         openNewWindowFailed: "Не удалось открыть новое окно",
