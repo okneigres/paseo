@@ -193,6 +193,10 @@ const lightStatusDotColors = {
   statusDotDanger: "#f12e2f",
   statusDotWarning: "#b37824",
   statusDotRunning: "#268ae0",
+  // The project mark's dot. The one dot outside the family above: the user sets it themselves, so
+  // it is meant to say "this row matters more" — the claim those four may not make. Yellow in both
+  // themes, a step deeper in the light one, where the dark theme's yellow would wash out.
+  statusDotMarked: "#e8b400",
 };
 
 const darkStatusDotColors = {
@@ -201,6 +205,7 @@ const darkStatusDotColors = {
   statusDotDanger: "#f7796d",
   statusDotWarning: "#db932e",
   statusDotRunning: "#5caaf6",
+  statusDotMarked: "#ffd60a",
 };
 
 export interface LightThemeConfig {

@@ -32,3 +32,11 @@ export function getStatusDotColor(input: {
   }
   return null;
 }
+
+/**
+ * The dot a marked project carries. The mark is not an agent state, so it has no bucket in the map
+ * above: it is the one status color the user sets themselves.
+ */
+export function getProjectMarkDotColor({ theme }: { theme: Theme }): string {
+  return theme.colors.statusDotMarked;
+}

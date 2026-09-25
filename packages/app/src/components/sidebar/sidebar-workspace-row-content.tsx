@@ -28,7 +28,7 @@ import { useHosts } from "@/runtime/host-runtime";
 import { isWeb } from "@/constants/platform";
 import type { Theme } from "@/styles/theme";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
-import { getStatusDotColor } from "@/utils/status-dot-color";
+import { getProjectMarkDotColor, getStatusDotColor } from "@/utils/status-dot-color";
 import {
   STATUS_INDICATOR_ALERT_SIZE,
   STATUS_INDICATOR_DOT_SIZE,
@@ -720,13 +720,12 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.foregroundExtraMuted,
     opacity: 0.3,
   },
-  // Same dot, in the status family's amber — the color a row uses to ask for something — so the
-  // mark reads as a status the user set rather than as a second kind of dot.
+  // The project mark's own dot: same geometry as the idle dot it replaces, in the mark's yellow.
   markedStatusDot: {
     width: STATUS_INDICATOR_FILLED_DOT_SIZE,
     height: STATUS_INDICATOR_FILLED_DOT_SIZE,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: getStatusDotColor({ theme, bucket: "needs_input" }) ?? undefined,
+    backgroundColor: getProjectMarkDotColor({ theme }),
   },
   // The title owns the first line outright now that the host, change request and CI moved
   // to the meta row, so it takes the full width the trailing slot leaves behind.
