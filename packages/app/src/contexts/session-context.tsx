@@ -37,7 +37,7 @@ import {
 } from "@/stores/session-store";
 import { useWorkspaceSetupStore } from "@/stores/workspace-setup-store";
 import { dismissOsNotifications, sendOsNotification } from "@/utils/os-notifications";
-import { getIsAppActivelyVisible, getIsAppVisible } from "@/utils/app-visibility";
+import { getIsAppVisible } from "@/utils/app-visibility";
 import {
   getInitKey,
   getInitDeferred,
@@ -270,15 +270,8 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       timestamp: string;
       notification?: AgentAttentionNotificationPayload;
     }) => {
-      const appState = appStateRef.current;
       const session = useSessionStore.getState().sessions[serverId];
-      const attentionFocusedAgentId = session?.focusedAgentId ?? null;
       if (params.reason === "error") {
-        return;
-      }
-      const isActivelyVisible = getIsAppActivelyVisible(appState);
-      const isAwayFromAgent = !isActivelyVisible || attentionFocusedAgentId !== params.agentId;
-      if (!isAwayFromAgent) {
         return;
       }
 
