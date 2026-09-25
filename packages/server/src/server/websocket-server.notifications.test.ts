@@ -335,6 +335,25 @@ describe("VoiceAssistantWebSocketServer notification payloads", () => {
     expect(pushNotifications.sent).toEqual([]);
   });
 
+  it("hands attention to the client that has the agent focused", async () => {
+    const { server, pushNotifications } = createServer();
+    const focusedWs = connectClient(server, {
+      deviceType: "web",
+      appVisible: true,
+      focusedAgentId: "agent-X",
+      lastActivityAt: new Date(Date.now() - 5_000),
+    });
+
+    await asInternals<WebSocketServerInternals>(server).broadcastAgentAttention({
+      agentId: "agent-X",
+      provider: "claude",
+      reason: "finished",
+    });
+
+    expect(readAttentionRequiredMessage(focusedWs).shouldNotify).toBe(true);
+    expect(pushNotifications.sent).toEqual([]);
+  });
+
   it("pushes non-error attention when the only connected client has never sent a heartbeat", async () => {
     const { server, pushNotifications } = createServer();
     const ws = connectClient(server, null);

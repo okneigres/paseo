@@ -8,7 +8,6 @@ import {
 
 function state(overrides: Partial<ClientPresenceState>): ClientPresenceState {
   return {
-    appVisible: true,
     focusedAgentId: null,
     focusedTerminalId: null,
     lastActivityAtMs: null,
@@ -21,7 +20,7 @@ describe("computeNotificationPlan", () => {
   const staleAtMs = nowMs - PRESENCE_THRESHOLD_MS - 1;
   const presentAtMs = nowMs - PRESENCE_THRESHOLD_MS + 1;
 
-  it("does not suppress notifications when a focused client is stale", () => {
+  it("pushes when the only client is stale", () => {
     const staleFocused = state({
       focusedAgentId: "agent-1",
       lastActivityAtMs: staleAtMs,
@@ -30,14 +29,13 @@ describe("computeNotificationPlan", () => {
     expect(
       computeNotificationPlan({
         allStates: [staleFocused],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
     ).toEqual({ inAppRecipientIndex: null, shouldPush: true });
   });
 
-  it("suppresses notifications when a focused client is present", () => {
+  it("hands the notification to the present client that has the agent focused", () => {
     const staleFocused = state({
       focusedAgentId: "agent-1",
       lastActivityAtMs: staleAtMs,
@@ -50,31 +48,28 @@ describe("computeNotificationPlan", () => {
     expect(
       computeNotificationPlan({
         allStates: [staleFocused, presentFocused],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: null, shouldPush: false });
+    ).toEqual({ inAppRecipientIndex: 1, shouldPush: false });
   });
 
-  it("does not suppress notifications when a focused client is backgrounded", () => {
-    const backgroundFocused = state({
-      appVisible: false,
+  it("hands the notification to a present client whatever it has on screen", () => {
+    const presentFocused = state({
       focusedAgentId: "agent-1",
       lastActivityAtMs: presentAtMs,
     });
 
     expect(
       computeNotificationPlan({
-        allStates: [backgroundFocused],
-        focusTarget: { kind: "agent", id: "agent-1" },
+        allStates: [presentFocused],
         pushEligible: true,
         nowMs,
       }),
     ).toEqual({ inAppRecipientIndex: 0, shouldPush: false });
   });
 
-  it("treats present clients focused on different agents as eligible", () => {
+  it("hands the notification to a present client whatever it has focused", () => {
     expect(
       computeNotificationPlan({
         allStates: [
@@ -83,7 +78,6 @@ describe("computeNotificationPlan", () => {
             lastActivityAtMs: nowMs - 1_000,
           }),
         ],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
@@ -98,7 +92,6 @@ describe("computeNotificationPlan", () => {
           state({ lastActivityAtMs: nowMs - 1_000 }),
           state({ lastActivityAtMs: staleAtMs }),
         ],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
@@ -112,7 +105,6 @@ describe("computeNotificationPlan", () => {
           state({ lastActivityAtMs: nowMs - 1_000 }),
           state({ lastActivityAtMs: nowMs - 1_000 }),
         ],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
@@ -126,7 +118,6 @@ describe("computeNotificationPlan", () => {
           state({ lastActivityAtMs: nowMs - 1 }),
           state({ lastActivityAtMs: nowMs + 600_000 }),
         ],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
@@ -137,7 +128,6 @@ describe("computeNotificationPlan", () => {
     expect(
       computeNotificationPlan({
         allStates: [state({ lastActivityAtMs: null })],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
@@ -148,7 +138,6 @@ describe("computeNotificationPlan", () => {
     expect(
       computeNotificationPlan({
         allStates: [state({ lastActivityAtMs: staleAtMs })],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
@@ -159,7 +148,6 @@ describe("computeNotificationPlan", () => {
     expect(
       computeNotificationPlan({
         allStates: [state({ lastActivityAtMs: staleAtMs })],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: false,
         nowMs,
       }),
@@ -173,7 +161,6 @@ describe("computeNotificationPlan", () => {
           state({ focusedAgentId: "agent-2", lastActivityAtMs: nowMs - 20_000 }),
           state({ focusedAgentId: null, lastActivityAtMs: nowMs - 500 }),
         ],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
@@ -184,40 +171,26 @@ describe("computeNotificationPlan", () => {
     expect(
       computeNotificationPlan({
         allStates: [state({ lastActivityAtMs: staleAtMs }), state({ lastActivityAtMs: staleAtMs })],
-        focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
         nowMs,
       }),
     ).toEqual({ inAppRecipientIndex: null, shouldPush: true });
   });
 
-  it("never suppresses when focusTarget is null even if a client focuses a matching id", () => {
+  it("hands the notification to a present client focused on the terminal", () => {
     expect(
       computeNotificationPlan({
-        allStates: [state({ focusedAgentId: "terminal-1", lastActivityAtMs: nowMs - 500 })],
-        focusTarget: null,
+        allStates: [state({ focusedTerminalId: "terminal-1", lastActivityAtMs: nowMs - 500 })],
         pushEligible: true,
         nowMs,
       }),
     ).toEqual({ inAppRecipientIndex: 0, shouldPush: false });
   });
 
-  it("suppresses terminal notifications when a present visible client focuses the terminal", () => {
-    expect(
-      computeNotificationPlan({
-        allStates: [state({ focusedTerminalId: "terminal-1", lastActivityAtMs: nowMs - 500 })],
-        focusTarget: { kind: "terminal", id: "terminal-1" },
-        pushEligible: true,
-        nowMs,
-      }),
-    ).toEqual({ inAppRecipientIndex: null, shouldPush: false });
-  });
-
-  it("pushes for a null-focus target when no client is present and push is eligible", () => {
+  it("pushes when no client is present and push is eligible", () => {
     expect(
       computeNotificationPlan({
         allStates: [state({ lastActivityAtMs: staleAtMs })],
-        focusTarget: null,
         pushEligible: true,
         nowMs,
       }),

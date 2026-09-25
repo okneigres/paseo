@@ -2463,7 +2463,6 @@ export class VoiceAssistantWebSocketServer {
     const activity = session.getClientActivity(source);
     if (!activity) {
       return {
-        appVisible: false,
         focusedAgentId: null,
         focusedTerminalId: null,
         lastActivityAtMs: null,
@@ -2471,7 +2470,6 @@ export class VoiceAssistantWebSocketServer {
     }
 
     return {
-      appVisible: activity.appVisible,
       focusedAgentId: activity.focusedAgentId,
       focusedTerminalId: activity.focusedTerminalId,
       lastActivityAtMs: activity.lastActivityAt.getTime(),
@@ -2522,7 +2520,6 @@ export class VoiceAssistantWebSocketServer {
 
     const plan = computeNotificationPlan({
       allStates,
-      focusTarget: { kind: "agent", id: params.agentId },
       pushEligible: isPushEligibleAttentionReason(params.reason),
       nowMs,
     });
@@ -2617,7 +2614,6 @@ export class VoiceAssistantWebSocketServer {
 
     const plan = computeNotificationPlan({
       allStates,
-      focusTarget: { kind: "terminal", id: params.terminalId },
       pushEligible: true,
       nowMs,
     });

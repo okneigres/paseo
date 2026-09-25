@@ -123,7 +123,7 @@ describe("client activity tracking", () => {
   // ===========================================================================
 
   describe("single client - basic cases", () => {
-    test("no notification when actively focused on agent", async () => {
+    test("notification when actively focused on agent", async () => {
       client1 = await createClient();
 
       const agent = await createAgent({
@@ -146,7 +146,7 @@ describe("client activity tracking", () => {
       const attention = await attentionPromise;
 
       expect(attention.reason).toBe("finished");
-      expect(attention.shouldNotify).toBe(false);
+      expect(attention.shouldNotify).toBe(true);
     }, 120000);
 
     test("notification when focused on different agent", async () => {
@@ -257,7 +257,7 @@ describe("client activity tracking", () => {
   // ===========================================================================
 
   describe("two web clients", () => {
-    test("no notification when other web client is active on agent", async () => {
+    test("notifies the web client that has the agent focused", async () => {
       client1 = await createClient();
       client2 = await createClient();
 
@@ -274,7 +274,9 @@ describe("client activity tracking", () => {
         appVisible: false,
       });
 
-      // Client 2: actively focused on agent
+      // Client 2: actively focused on agent, and more recently active than client 1, so it is the
+      // client the notification is handed to.
+      await new Promise((r) => setTimeout(r, 10));
       client2.sendHeartbeat({
         deviceType: "web",
         focusedAgentId: agent.id,
@@ -290,9 +292,9 @@ describe("client activity tracking", () => {
 
       const [attention1, attention2] = await Promise.all([attention1Promise, attention2Promise]);
 
-      // Neither should notify - user is actively watching on client2
+      // Only the client the user is on notifies; the other tab stays quiet.
       expect(attention1.shouldNotify).toBe(false);
-      expect(attention2.shouldNotify).toBe(false);
+      expect(attention2.shouldNotify).toBe(true);
     }, 120000);
 
     test("pushes when both web clients are inactive", async () => {
@@ -402,7 +404,7 @@ describe("client activity tracking", () => {
       await expect(mobileStream).resolves.toMatch(/hello/i);
     }, 120000);
 
-    test("no notification to either when user actively on agent (web)", async () => {
+    test("notifies the web client when the user is on the agent there", async () => {
       client1 = await createClient(); // web
       client2 = await createClient(); // mobile
 
@@ -435,12 +437,12 @@ describe("client activity tracking", () => {
 
       const [attention1, attention2] = await Promise.all([attention1Promise, attention2Promise]);
 
-      // Neither should notify - user sees it on web
-      expect(attention1.shouldNotify).toBe(false);
+      // The web client is the one the user is on, so it takes the notification.
+      expect(attention1.shouldNotify).toBe(true);
       expect(attention2.shouldNotify).toBe(false);
     }, 120000);
 
-    test("no notification to either when user actively on agent (mobile)", async () => {
+    test("notifies the mobile client when the user is on the agent there", async () => {
       client1 = await createClient(); // web
       client2 = await createClient(); // mobile
 
@@ -473,9 +475,9 @@ describe("client activity tracking", () => {
 
       const [attention1, attention2] = await Promise.all([attention1Promise, attention2Promise]);
 
-      // Neither should notify - user sees it on mobile
+      // The mobile client is the one the user is on, so it takes the notification.
       expect(attention1.shouldNotify).toBe(false);
-      expect(attention2.shouldNotify).toBe(false);
+      expect(attention2.shouldNotify).toBe(true);
     }, 120000);
 
     test("notify mobile only when web is stale and mobile is present", async () => {

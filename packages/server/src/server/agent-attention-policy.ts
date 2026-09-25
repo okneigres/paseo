@@ -3,14 +3,18 @@ import type { AgentAttentionReason } from "@getpaseo/protocol/agent-attention-no
 export const PRESENCE_THRESHOLD_MS = 180_000;
 
 export interface ClientPresenceState {
-  appVisible: boolean;
   lastActivityAtMs: number | null;
   focusedAgentId: string | null;
   focusedTerminalId: string | null;
 }
 
-export type AttentionFocusTarget = { kind: "agent"; id: string } | { kind: "terminal"; id: string };
-
+/**
+ * Where a notification goes: the client that shows it in-app, or a push when nobody is present.
+ *
+ * A client that is present, app-visible and focused on the very thing that finished still gets the
+ * notification: the user may have stepped away from a screen that is still in front, and an
+ * attention they can see again later is worth one banner they did not need.
+ */
 export interface NotificationPlan {
   inAppRecipientIndex: number | null;
   shouldPush: boolean;
@@ -18,30 +22,13 @@ export interface NotificationPlan {
 
 interface ComputeNotificationPlanInput {
   allStates: ClientPresenceState[];
-  // A present, app-visible client focused on the attention target suppresses the
-  // notification entirely. Pass null when the target should not suppress notifications.
-  focusTarget: AttentionFocusTarget | null;
   // Whether a push notification is allowed when no client is present.
   pushEligible: boolean;
   nowMs: number;
 }
 
-function isFocusedOnTarget(
-  state: ClientPresenceState,
-  target: AttentionFocusTarget | null,
-): boolean {
-  if (target === null) {
-    return false;
-  }
-  if (target.kind === "agent") {
-    return state.focusedAgentId === target.id;
-  }
-  return state.focusedTerminalId === target.id;
-}
-
 export function computeNotificationPlan({
   allStates,
-  focusTarget,
   pushEligible,
   nowMs,
 }: ComputeNotificationPlanInput): NotificationPlan {
@@ -56,10 +43,6 @@ export function computeNotificationPlan({
 
     if (!isPresent) {
       continue;
-    }
-
-    if (state.appVisible && isFocusedOnTarget(state, focusTarget)) {
-      return { inAppRecipientIndex: null, shouldPush: false };
     }
 
     if (clampedActivityAtMs > mostRecentPresentAtMs) {
