@@ -7,6 +7,8 @@ import { buildDaemonWebSocketUrl } from "@/utils/daemon-endpoints";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { isWeb } from "@/constants/platform";
 import { i18n } from "@/i18n/i18next";
+import { encodeBytesToBase64 } from "@/utils/bytes-base64";
+import type { FileReadResult } from "@getpaseo/client/internal/daemon-client";
 
 interface DownloadProgress {
   percent: number;
@@ -43,6 +45,12 @@ interface DownloadState {
       mimeType: string | null;
       error: string | null;
     }>;
+    /**
+     * Reads a file over the client's own connection. A daemon reached only through the relay has no
+     * address to download from, and the local address of one in a container is not this machine's, so
+     * the file is read over the connection instead.
+     */
+    readFile?: (path: string) => Promise<FileReadResult>;
   }) => Promise<void>;
 
   updateProgress: (id: string, progress: DownloadProgress) => void;
@@ -67,6 +75,7 @@ export const useDownloadStore = create<DownloadState>()((set, get) => ({
     path,
     daemonProfile,
     requestFileDownloadToken,
+    readFile,
   }) => {
     const id = generateDownloadId();
     const download: Download = {
@@ -155,6 +164,22 @@ export const useDownloadStore = create<DownloadState>()((set, get) => ({
         });
       }
     } catch (error) {
+      // The address a daemon runs on is not always one this machine can reach. Its connection is,
+      // so read the file over that and write it here; when even that is not possible, the download's
+      // own failure is the one to report.
+      try {
+        if (readFile) {
+          await readDownloadOverConnection({ path, fileName, readFile });
+          get().completeDownload(id);
+          return;
+        }
+      } catch (connectionError) {
+        console.warn(
+          "[DownloadStore] Reading the file over the connection failed:",
+          connectionError instanceof Error ? connectionError.message : connectionError,
+        );
+      }
+
       const message = error instanceof Error ? error.message : i18n.t("downloads.failed");
       if (isWeb) {
         console.warn("[DownloadStore] Download failed:", message);
@@ -242,6 +267,61 @@ interface DownloadTarget {
   baseUrl: string | null;
   authHeader: string | null;
   authCredentials: { username: string; password: string } | null;
+}
+
+/**
+ * Saves a file by reading it over the client's own connection, where the daemon has no reachable
+ * address of its own. Returns the name it was written under.
+ */
+async function readDownloadOverConnection(input: {
+  path: string;
+  fileName: string;
+  readFile: (path: string) => Promise<FileReadResult>;
+}): Promise<string> {
+  const file = await input.readFile(input.path);
+  const fileName = input.fileName || fileNameFromPath(file.path);
+
+  if (isWeb) {
+    triggerBrowserDownloadFromBytes(file.bytes, fileName, file.mime);
+    return fileName;
+  }
+
+  const targetFile = resolveDownloadTargetFile(fileName);
+  await LegacyFileSystem.writeAsStringAsync(targetFile.uri, encodeBytesToBase64(file.bytes), {
+    encoding: "base64",
+  });
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(targetFile.uri, {
+      mimeType: file.mime || undefined,
+      dialogTitle: i18n.t("downloads.shareFileNamed", { fileName }),
+    });
+  }
+
+  return fileName;
+}
+
+/** The last segment of a path, for a file read out of the daemon rather than off a URL. */
+function fileNameFromPath(path: string): string {
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  return segments[segments.length - 1] ?? "";
+}
+
+/** Saves bytes the browser already holds, for a file that never had a URL of its own. */
+function triggerBrowserDownloadFromBytes(
+  bytes: Uint8Array,
+  fileName: string,
+  mimeType: string,
+): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  // `slice` hands the Blob an exact-length buffer: the bytes may be a view over a larger one, and
+  // BlobPart refuses a buffer that might be shared.
+  const blob = new Blob([bytes.slice()], mimeType ? { type: mimeType } : undefined);
+  const url = URL.createObjectURL(blob);
+  triggerBrowserDownload(url, fileName);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function resolveDaemonDownloadTarget(daemon?: HostProfile): DownloadTarget {
