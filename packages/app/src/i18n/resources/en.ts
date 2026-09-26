@@ -109,6 +109,10 @@ export const en = {
     },
   },
   composer: {
+    speaker: {
+      label: "Who is speaking",
+      empty: "Empty",
+    },
     placeholders: {
       desktop: "Message the agent, tag @files, or use /commands and /skills",
       mobile: "Message, @files, /commands",

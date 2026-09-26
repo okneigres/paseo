@@ -114,6 +114,10 @@ export const es: TranslationResources = {
     },
   },
   composer: {
+    speaker: {
+      label: "Quién habla",
+      empty: "Vacío",
+    },
     placeholders: {
       desktop: "Envíe un mensaje al agente, etiquete@fileso use/commandsy/skills",
       mobile: "Mensaje,@files,/commands",

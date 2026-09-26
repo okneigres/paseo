@@ -251,3 +251,80 @@ describe("submitAgentInput", () => {
     expect(clearDraft).toHaveBeenCalledWith("sent");
   });
 });
+
+describe("submitAgentInput speaker prefix", () => {
+  function makeInput(overrides: Record<string, unknown>) {
+    return {
+      message: "  посмотри на это  ",
+      attachments: [] as unknown[],
+      isAgentRunning: false,
+      canSubmit: true,
+      queueMessage: vi.fn(),
+      submitMessage: vi.fn(async () => undefined),
+      clearDraft: vi.fn(),
+      setUserInput: vi.fn(),
+      setAttachments: vi.fn(),
+      setSendError: vi.fn(),
+      setIsProcessing: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  it("attributes a queued message to the speaker", async () => {
+    const input = makeInput({ speaker: "os", isAgentRunning: true });
+
+    await submitAgentInput(input as never);
+
+    expect(input.queueMessage).toHaveBeenCalledWith({
+      message: "os:  посмотри на это",
+      attachments: [],
+    });
+  });
+
+  it("attributes a submitted message to the speaker", async () => {
+    const input = makeInput({ speaker: "os" });
+
+    await submitAgentInput(input as never);
+
+    expect(input.submitMessage).toHaveBeenCalledWith({
+      message: "os:  посмотри на это",
+      attachments: [],
+    });
+  });
+
+  it("leaves an empty message empty rather than a bare prefix", async () => {
+    const input = makeInput({ message: "", speaker: "os", allowEmptySubmit: true });
+
+    await submitAgentInput(input as never);
+
+    expect(input.submitMessage).toHaveBeenCalledWith({ message: "", attachments: [] });
+  });
+
+  it("puts the draft back as it was typed when the send fails", async () => {
+    const input = makeInput({
+      speaker: "os",
+      submitMessage: vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    });
+
+    await expect(submitAgentInput(input as never)).resolves.toBe("failed");
+
+    expect(input.submitMessage).toHaveBeenCalledWith({
+      message: "os:  посмотри на это",
+      attachments: [],
+    });
+    expect(input.setUserInput).toHaveBeenLastCalledWith("посмотри на это");
+  });
+
+  it("sends unattributed when no speaker is chosen", async () => {
+    const input = makeInput({});
+
+    await submitAgentInput(input as never);
+
+    expect(input.submitMessage).toHaveBeenCalledWith({
+      message: "посмотри на это",
+      attachments: [],
+    });
+  });
+});

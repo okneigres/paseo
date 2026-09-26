@@ -114,6 +114,10 @@ export const ptBR: TranslationResources = {
     },
   },
   composer: {
+    speaker: {
+      label: "Quem está falando",
+      empty: "Vazio",
+    },
     placeholders: {
       desktop: "Envie uma mensagem ao agente, marque @files ou use /commands e /skills",
       mobile: "Mensagem, @files, /commands",

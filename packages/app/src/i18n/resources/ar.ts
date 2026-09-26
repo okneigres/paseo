@@ -113,6 +113,10 @@ export const ar: TranslationResources = {
     },
   },
   composer: {
+    speaker: {
+      label: "Who is speaking",
+      empty: "Empty",
+    },
     placeholders: {
       desktop: "أرسل رسالة إلى الوكيل أو ضع علامة على @files أو استخدم /commands و /skills",
       mobile: "الرسالة، @files ، /commands",

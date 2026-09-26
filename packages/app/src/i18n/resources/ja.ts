@@ -114,6 +114,10 @@ export const ja: TranslationResources = {
     },
   },
   composer: {
+    speaker: {
+      label: "誰が話しているか",
+      empty: "なし",
+    },
     placeholders: {
       desktop: "エージェントにメッセージ、@ファイル、/コマンドや/スキルを入力",
       mobile: "メッセージ、@ファイル、/コマンド",

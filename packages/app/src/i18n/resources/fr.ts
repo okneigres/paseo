@@ -116,6 +116,10 @@ export const fr: TranslationResources = {
     },
   },
   composer: {
+    speaker: {
+      label: "Qui parle",
+      empty: "Vide",
+    },
     placeholders: {
       desktop: "Envoyez un message à l'agent, marquez@filesou utilisez/commandset/skills",
       mobile: "Message,@files,/commands",

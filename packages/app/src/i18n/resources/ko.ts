@@ -113,6 +113,10 @@ export const ko: TranslationResources = {
     },
   },
   composer: {
+    speaker: {
+      label: "누가 말하는지",
+      empty: "없음",
+    },
     placeholders: {
       desktop: "에이전트에게 메시지를 보내거나 @files 태그, /commands, /skills를 사용하세요",
       mobile: "메시지, @files, /commands",

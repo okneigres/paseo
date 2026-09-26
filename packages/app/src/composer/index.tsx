@@ -112,6 +112,7 @@ import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
 import type { MessageInputKeyboardActionKind } from "@/keyboard/actions";
 import { submitAgentInput } from "@/composer/submit";
+import { useComposerSpeaker } from "@/stores/composer-speaker-store";
 import { createMessageSubmissionWriter } from "@/composer/submission/writer";
 import { ComposerKeyboardScopeProvider, useComposerKeyboardScope } from "@/composer/keyboard-scope";
 import { useAppSettings } from "@/hooks/use-settings";
@@ -1616,6 +1617,7 @@ function ComposerContentImpl({
     appSettings.sendBehavior,
     hasPendingPermission,
   );
+  const speaker = useComposerSpeaker();
   const hasAgent = agentState.status !== null;
 
   const queueWriter = useMemo<QueueWriter>(
@@ -1665,6 +1667,7 @@ function ComposerContentImpl({
         forceSend,
         submitBehavior,
         isAgentRunning,
+        speaker,
         // Parent-managed submits are still valid submit paths even when the
         // transport is disconnected, because the parent decides the failure mode.
         canSubmit: Boolean(sendAgentMessageRef.current || onSubmitMessageRef.current),
@@ -1701,6 +1704,7 @@ function ComposerContentImpl({
       completeSubmit,
       hasExternalContent,
       isAgentRunning,
+      speaker,
       queueMessage,
       setSelectedAttachments,
       replaceUserInput,
