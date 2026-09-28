@@ -274,6 +274,11 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       if (params.reason === "error") {
         return;
       }
+      // A subagent's attention is its parent's story. Notifying for it opens a row the user never had
+      // on screen — by the time the banner is clicked, the agent it names is archived.
+      if (session?.agents?.get(params.agentId)?.parentAgentId) {
+        return;
+      }
 
       const timestampMs = new Date(params.timestamp).getTime();
       const lastNotified = attentionNotifiedRef.current.get(params.agentId);
