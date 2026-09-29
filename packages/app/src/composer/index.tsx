@@ -111,7 +111,7 @@ import { resolveActiveSendBehavior } from "./input/state";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
 import type { MessageInputKeyboardActionKind } from "@/keyboard/actions";
-import { submitAgentInput } from "@/composer/submit";
+import { submitAgentInput, withSpeakerPrefix } from "@/composer/submit";
 import { useComposerSpeaker } from "@/stores/composer-speaker-store";
 import { createMessageSubmissionWriter } from "@/composer/submission/writer";
 import { ComposerKeyboardScopeProvider, useComposerKeyboardScope } from "@/composer/keyboard-scope";
@@ -1540,8 +1540,15 @@ function ComposerContentImpl({
   const submitMessage = useCallback(
     async (text: string, submitAttachments: ComposerAttachment[]) => {
       onMessageSent?.();
+      // Every message that leaves by the user's hand passes here — an immediate send, a steer, a
+      // queued message going out, a parent-managed send — so this is where it gains the speaker's name.
+      const outgoingText = withSpeakerPrefix(text, speaker);
       if (onSubmitMessageRef.current) {
-        await onSubmitMessageRef.current({ text, attachments: submitAttachments, cwd });
+        await onSubmitMessageRef.current({
+          text: outgoingText,
+          attachments: submitAttachments,
+          cwd,
+        });
         return;
       }
       if (!sendAgentMessageRef.current) {
@@ -1549,12 +1556,12 @@ function ComposerContentImpl({
       }
       await sendAgentMessageRef.current(
         agentIdRef.current,
-        text,
+        outgoingText,
         submitAttachments,
         appSettings.sendBehavior === "steer" ? "steer" : "interrupt",
       );
     },
-    [appSettings.sendBehavior, cwd, onMessageSent, t],
+    [appSettings.sendBehavior, cwd, onMessageSent, speaker, t],
   );
 
   useEffect(() => {
@@ -1575,7 +1582,6 @@ function ComposerContentImpl({
         client,
         agentId: targetAgentId,
         text,
-        speaker,
         attachments: sendAttachments,
         attachmentSubmitFormat: resolveComposerAttachmentSubmitFormat({
           supportsForgeAttachments: supportsForgeSearch,
@@ -1593,15 +1599,7 @@ function ComposerContentImpl({
       });
       onAttentionPromptSend?.();
     };
-  }, [
-    appSettings.sendBehavior,
-    client,
-    onAttentionPromptSend,
-    serverId,
-    speaker,
-    supportsForgeSearch,
-    t,
-  ]);
+  }, [appSettings.sendBehavior, client, onAttentionPromptSend, serverId, supportsForgeSearch, t]);
 
   useEffect(() => {
     onSubmitMessageRef.current = onSubmitMessage;

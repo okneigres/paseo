@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { submitAgentInput } from "./submit";
+import { submitAgentInput, withSpeakerPrefix } from "./submit";
 
 function createDeferredPromise<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -249,5 +249,19 @@ describe("submitAgentInput", () => {
       attachments: [],
     });
     expect(clearDraft).toHaveBeenCalledWith("sent");
+  });
+});
+
+describe("withSpeakerPrefix", () => {
+  it("puts the speaker's name on its own line above the message", () => {
+    expect(withSpeakerPrefix("посмотри на это", "os")).toBe("os:\nпосмотри на это");
+  });
+
+  it("leaves a message alone when no one is speaking", () => {
+    expect(withSpeakerPrefix("посмотри на это", null)).toBe("посмотри на это");
+  });
+
+  it("does not make a bare prefix out of an empty message", () => {
+    expect(withSpeakerPrefix("", "os")).toBe("");
   });
 });
