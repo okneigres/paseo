@@ -48,6 +48,8 @@ import { getDesktopHost } from "@/desktop/host";
 import { readDesktopManagedLocalCredential } from "@/desktop/daemon/local-credential";
 import { CLIENT_CAPS } from "@getpaseo/protocol/client-capabilities";
 import { BROWSER_AUTOMATION_COMMAND_NAMES } from "@getpaseo/protocol/browser-automation/rpc-schemas";
+import { withSpeakerPrefix } from "@/composer/submit";
+import { useComposerSpeakerStore } from "@/stores/composer-speaker-store";
 import {
   useSessionStore,
   type Agent,
@@ -2336,10 +2338,13 @@ export class HostRuntimeStore {
       submitMessage: async ({ text, attachments }) => {
         const supportsForgeAttachments =
           useSessionStore.getState().sessions[serverId]?.serverInfo?.features?.forgeSearch === true;
+        // This drain is a queue's other way out — the composer's own submit is the first — so the
+        // message it sends needs the same speaker's name on it.
+        const outgoingText = withSpeakerPrefix(text, useComposerSpeakerStore.getState().speaker);
         await dispatchComposerAgentMessage({
           client,
           agentId,
-          text,
+          text: outgoingText,
           attachments,
           attachmentSubmitFormat: resolveComposerAttachmentSubmitFormat({
             supportsForgeAttachments,

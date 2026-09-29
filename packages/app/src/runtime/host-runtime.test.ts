@@ -16,6 +16,7 @@ import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
 import type { AgentPermissionRequest } from "@getpaseo/protocol/agent-types";
 import type { HostConnection, HostProfile } from "@/types/host-connection";
 import { defaultHostAppearance } from "@/hosts/appearance";
+import { useComposerSpeakerStore } from "@/stores/composer-speaker-store";
 import { useSessionStore, type Agent } from "@/stores/session-store";
 import { normalizeAgentSnapshot } from "@/utils/agent-snapshots";
 import { isAgentArchiving, setAgentArchiving } from "@/hooks/use-archive-agent";
@@ -2797,6 +2798,46 @@ describe("HostRuntimeStore", () => {
 
     store.syncHosts([]);
     useSessionStore.getState().clearSession(host.serverId);
+  });
+
+  it("puts the speaker's name on a message that drains out of the queue", async () => {
+    const host = makeHost({ serverId: "srv_drain_speaker" });
+    const fakeClient = new FakeDaemonClient();
+    const store = new HostRuntimeStore({
+      deps: {
+        createClient: () => fakeClient as unknown as DaemonClient,
+        connectToDaemon: async () => ({
+          client: fakeClient as unknown as DaemonClient,
+          serverId: host.serverId,
+          hostname: null,
+        }),
+        getClientId: async () => "cid_drain_speaker",
+      },
+    });
+    const sessionStore = useSessionStore.getState();
+    sessionStore.initializeSession(host.serverId, fakeClient as unknown as DaemonClient, 1);
+    sessionStore.updateSessionServerInfo(host.serverId, {
+      serverId: host.serverId,
+      hostname: null,
+      version: null,
+      features: { canonicalSubmittedPrompts: true },
+    });
+    sessionStore.setQueuedMessages(
+      host.serverId,
+      new Map([["agent", [{ id: "queued-speaking", text: "посмотри на это", attachments: [] }]]]),
+    );
+    useComposerSpeakerStore.getState().setSpeaker("os");
+
+    try {
+      store.drainQueuedAgentMessage(host.serverId, "agent");
+      await fakeClient.waitForSentMessages(1);
+
+      expect(fakeClient.sentAgentMessages[0]?.[1]).toBe("os:\nпосмотри на это");
+    } finally {
+      useComposerSpeakerStore.getState().setSpeaker(null);
+      store.syncHosts([]);
+      useSessionStore.getState().clearSession(host.serverId);
+    }
   });
 
   it("submits an automatically drained message through the submission producer", async () => {
