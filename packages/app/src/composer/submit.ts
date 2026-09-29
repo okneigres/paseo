@@ -3,15 +3,15 @@ import { i18n } from "@/i18n/i18next";
 export type AgentInputSubmitResult = "noop" | "queued" | "submitted" | "failed";
 
 /**
- * The speaker a message is attributed to, as the transcript keeps it. An empty speaker returns the
- * message untouched, and so does an empty message: a bare prefix with nothing behind it says
- * nothing about who spoke.
+ * The speaker a message is attributed to, as the transcript keeps it: their name on a line of its
+ * own, then what they said. An empty speaker returns the message untouched, and so does an empty
+ * message — a bare prefix with nothing behind it says nothing about who spoke.
  */
 export function withSpeakerPrefix(message: string, speaker: string | null): string {
   if (!speaker || message.length === 0) {
     return message;
   }
-  return `${speaker}:  ${message}`;
+  return `${speaker}:\n${message}`;
 }
 
 export interface AgentInputSubmitActionInput<TAttachment> {
@@ -23,8 +23,6 @@ export interface AgentInputSubmitActionInput<TAttachment> {
   forceSend?: boolean;
   isAgentRunning: boolean;
   canSubmit: boolean;
-  /** Who to attribute the message to. Absent or null sends it as typed. */
-  speaker?: string | null;
   queueMessage: (input: { message: string; attachments: TAttachment[] }) => void;
   submitMessage: (input: { message: string; attachments: TAttachment[] }) => Promise<void>;
   clearDraft: (lifecycle: "sent" | "abandoned") => void;
@@ -40,9 +38,6 @@ export async function submitAgentInput<TAttachment>(
   input: AgentInputSubmitActionInput<TAttachment>,
 ): Promise<AgentInputSubmitResult> {
   const trimmedMessage = input.message.trim();
-  // The draft keeps the text as typed — the prefix belongs to the message that leaves, not to the
-  // draft that a failed send puts back.
-  const attributedMessage = withSpeakerPrefix(trimmedMessage, input.speaker ?? null);
   const attachments = input.attachments;
   const shouldClearOnSubmit = input.submitBehavior !== "preserve-and-lock";
 
@@ -60,7 +55,7 @@ export async function submitAgentInput<TAttachment>(
   }
 
   if (input.isAgentRunning && !input.forceSend) {
-    input.queueMessage({ message: attributedMessage, attachments });
+    input.queueMessage({ message: trimmedMessage, attachments });
     if (shouldClearOnSubmit) {
       input.setUserInput("");
       input.setAttachments([]);
@@ -77,7 +72,7 @@ export async function submitAgentInput<TAttachment>(
   input.setIsProcessing(true);
 
   try {
-    await input.submitMessage({ message: attributedMessage, attachments });
+    await input.submitMessage({ message: trimmedMessage, attachments });
     input.clearDraft("sent");
     input.setIsProcessing(false);
     return "submitted";

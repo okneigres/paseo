@@ -436,6 +436,39 @@ describe("dispatchComposerAgentMessage", () => {
     expect(client.calls[0]?.options.activeTurnBehavior).toBe("steer");
   });
 
+  it("attributes the message to the speaker at the wire boundary", async () => {
+    const client = createFakeSendClient();
+    const stream = createFakeStream();
+
+    await dispatchComposerAgentMessage({
+      client,
+      agentId: "agent",
+      text: "посмотри на это",
+      speaker: "os",
+      attachments: [],
+      encodeImages: async () => [],
+      submission: stream,
+    });
+
+    expect(client.calls[0]?.text).toBe("os:\nпосмотри на это");
+  });
+
+  it("sends the message as typed when no speaker is chosen", async () => {
+    const client = createFakeSendClient();
+    const stream = createFakeStream();
+
+    await dispatchComposerAgentMessage({
+      client,
+      agentId: "agent",
+      text: "посмотри на это",
+      attachments: [],
+      encodeImages: async () => [],
+      submission: stream,
+    });
+
+    expect(client.calls[0]?.text).toBe("посмотри на это");
+  });
+
   it("stamps only a steer optimistic row with the daemon active turn ID", async () => {
     const client = createFakeSendClient();
     const stream = createFakeStream();

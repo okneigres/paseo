@@ -1535,6 +1535,8 @@ function ComposerContentImpl({
     onFocusInput?.(focusInput);
   }, [focusInput, onFocusInput]);
 
+  const speaker = useComposerSpeaker();
+
   const submitMessage = useCallback(
     async (text: string, submitAttachments: ComposerAttachment[]) => {
       onMessageSent?.();
@@ -1573,6 +1575,7 @@ function ComposerContentImpl({
         client,
         agentId: targetAgentId,
         text,
+        speaker,
         attachments: sendAttachments,
         attachmentSubmitFormat: resolveComposerAttachmentSubmitFormat({
           supportsForgeAttachments: supportsForgeSearch,
@@ -1590,7 +1593,15 @@ function ComposerContentImpl({
       });
       onAttentionPromptSend?.();
     };
-  }, [appSettings.sendBehavior, client, onAttentionPromptSend, serverId, supportsForgeSearch, t]);
+  }, [
+    appSettings.sendBehavior,
+    client,
+    onAttentionPromptSend,
+    serverId,
+    speaker,
+    supportsForgeSearch,
+    t,
+  ]);
 
   useEffect(() => {
     onSubmitMessageRef.current = onSubmitMessage;
@@ -1617,7 +1628,6 @@ function ComposerContentImpl({
     appSettings.sendBehavior,
     hasPendingPermission,
   );
-  const speaker = useComposerSpeaker();
   const hasAgent = agentState.status !== null;
 
   const queueWriter = useMemo<QueueWriter>(
@@ -1667,7 +1677,6 @@ function ComposerContentImpl({
         forceSend,
         submitBehavior,
         isAgentRunning,
-        speaker,
         // Parent-managed submits are still valid submit paths even when the
         // transport is disconnected, because the parent decides the failure mode.
         canSubmit: Boolean(sendAgentMessageRef.current || onSubmitMessageRef.current),
@@ -1704,7 +1713,6 @@ function ComposerContentImpl({
       completeSubmit,
       hasExternalContent,
       isAgentRunning,
-      speaker,
       queueMessage,
       setSelectedAttachments,
       replaceUserInput,

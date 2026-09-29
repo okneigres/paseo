@@ -1,3 +1,4 @@
+import { withSpeakerPrefix } from "@/composer/submit";
 import type { SelectedFile } from "@/attachments/selected-file";
 import type { ForgeSearchItem } from "@getpaseo/protocol/messages";
 import type { ActiveTurnBehavior } from "@getpaseo/protocol/messages";
@@ -188,6 +189,8 @@ export interface DispatchComposerAgentMessageInput {
   client: ComposerSendClient;
   agentId: string;
   text: string;
+  /** Who to attribute the message to. Absent or null sends it as typed. */
+  speaker?: string | null;
   attachments: ComposerAttachment[];
   attachmentSubmitFormat?: ComposerAttachmentSubmitFormat;
   encodeImages: (
@@ -201,13 +204,16 @@ export interface DispatchComposerAgentMessageInput {
 export async function dispatchComposerAgentMessage(
   input: DispatchComposerAgentMessageInput,
 ): Promise<void> {
+  // Every path that sends lands here — an immediate send, a steer, a queued message going out — so
+  // this is where the message gains the name of whoever is speaking.
+  const outgoingText = withSpeakerPrefix(input.text, input.speaker ?? null);
   const wirePayload = splitComposerAttachmentsForSubmit(input.attachments, {
     format: input.attachmentSubmitFormat,
   });
   const clientMessageId = generateMessageId();
   const userMessage = createUserMessage({
     clientMessageId,
-    text: input.text,
+    text: outgoingText,
     timestamp: new Date(),
     images: wirePayload.images,
     attachments: wirePayload.attachments,
@@ -218,7 +224,7 @@ export async function dispatchComposerAgentMessage(
   input.submission.begin(input.agentId, userMessage);
   try {
     const imagesData = await input.encodeImages(wirePayload.images);
-    await input.client.sendAgentMessage(input.agentId, input.text, {
+    await input.client.sendAgentMessage(input.agentId, outgoingText, {
       messageId: clientMessageId,
       ...(input.activeTurnBehavior ? { activeTurnBehavior: input.activeTurnBehavior } : {}),
       images: imagesData ?? [],
