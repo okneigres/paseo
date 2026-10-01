@@ -27,6 +27,7 @@ export const ru: TranslationResources = {
     total: "Совпадений: {{total}}",
   },
   common: {
+    bottomSheetBackdrop: "Фон нижней панели",
     back: "Назад",
     loading: "Загрузка...",
     actions: {
@@ -1180,6 +1181,9 @@ export const ru: TranslationResources = {
         remove: "Удалить",
       },
     },
+    footer: {
+      usage: "Использование",
+    },
     help: {
       trigger: "Помощь и поддержка",
       sectionHelp: "Помощь",
@@ -1670,6 +1674,17 @@ export const ru: TranslationResources = {
     hostPassword: {
       title: "Пароль для {{host}}",
       label: "Пароль хоста",
+    },
+    hostConfirmation: {
+      title: "Подключиться к этому хосту?",
+      description:
+        "Этот хост сможет выполнять код в приложении и обращаться к другим вашим подключённым хостам. Подключайтесь, только если узнаёте его.",
+      descriptionChanged:
+        "Эта ссылка меняет способ подключения к этому хосту. Хост сможет выполнять код в приложении и обращаться к другим вашим подключённым хостам. Подключайтесь, только если узнаёте его.",
+      hostLabel: "Хост",
+      fingerprintLabel: "Отпечаток ключа",
+      relayLabel: "Реле",
+      connect: "Подключить",
     },
     connectionMethods: {
       title: "Добавить подключение",
@@ -2227,9 +2242,16 @@ export const ru: TranslationResources = {
         description: "Показывать оглавление для перехода между запросами",
       },
       sidebar: {
-        title: "Боковая панель",
-        description:
-          "Выберите, какие элементы отображаются вверху боковой панели и в каком порядке",
+        header: {
+          title: "Верх",
+          description:
+            "Выберите, какие элементы отображаются вверху боковой панели и в каком порядке",
+        },
+        footer: {
+          title: "Низ",
+          description:
+            "Выберите, какие строки отображаются внизу боковой панели и в каком порядке. «Добавить проект» и ряд значков видны всегда",
+        },
         moveUp: "Переместить вверх",
         moveDown: "Переместить вниз",
       },
