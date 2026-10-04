@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useMemo, useReducer, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
@@ -1077,22 +1086,71 @@ function IndependentScrollBoundary({ children }: { children: React.ReactElement 
   );
 }
 
+/**
+ * Brings the selected model into view as the list appears. The browser is mounted per open, so this
+ * runs when the rows land rather than on a visibility flag. It aims once; the list's own failure
+ * handler takes over when the target has not been measured yet.
+ */
+function useScrollToSelectedModel(input: {
+  listRef: React.RefObject<FlatList<ProviderSelectionModelRow> | null>;
+  rows: ProviderSelectionModelRow[];
+  selectedProvider: string;
+  selectedModel: string;
+}): void {
+  const { listRef, rows, selectedProvider, selectedModel } = input;
+  const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (scrolledRef.current) {
+      return;
+    }
+    const index = rows.findIndex(
+      (row) => row.provider === selectedProvider && row.modelId === selectedModel,
+    );
+    if (index < 0) {
+      return;
+    }
+    scrolledRef.current = true;
+    listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
+  }, [listRef, rows, selectedModel, selectedProvider]);
+}
+
 function IndependentModelList({
   rows,
   renderItem,
   header,
+  selectedProvider,
+  selectedModel,
 }: {
   rows: ProviderSelectionModelRow[];
   renderItem: ({ item }: { item: ProviderSelectionModelRow }) => React.ReactElement;
   header?: React.ReactElement;
+  selectedProvider: string;
+  selectedModel: string;
 }) {
+  const listRef = useRef<FlatList<ProviderSelectionModelRow>>(null);
+  useScrollToSelectedModel({ listRef, rows, selectedProvider, selectedModel });
+  // Rows are not a fixed height — a model can carry profile rows under it — so a target the list has
+  // not measured yet has no offset. Park at the estimate and aim again once it does.
+  const handleScrollToIndexFailed = useCallback(
+    ({ index, averageItemLength }: { index: number; averageItemLength: number }) => {
+      listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
+      setTimeout(() => {
+        listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
+      }, 0);
+    },
+    [],
+  );
+
   return (
     <IndependentScrollBoundary>
       <FlatList
+        ref={listRef}
         data={rows}
         renderItem={renderItem}
         ListHeaderComponent={header}
         keyExtractor={getModelRowKey}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
         style={styles.virtualizedModelList}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -1187,7 +1245,15 @@ function ModelRowList({
   const keyExtractor = useCallback((row: ProviderSelectionModelRow) => row.favoriteKey, []);
 
   if (scrolling === "independent") {
-    return <IndependentModelList rows={rows} renderItem={renderItem} header={header} />;
+    return (
+      <IndependentModelList
+        rows={rows}
+        renderItem={renderItem}
+        header={header}
+        selectedProvider={selectedProvider}
+        selectedModel={selectedModel}
+      />
+    );
   }
 
   if (isCompact && isNative) {
