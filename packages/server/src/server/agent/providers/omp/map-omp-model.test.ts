@@ -13,7 +13,7 @@ function baseModel(overrides: Partial<OmpModel> = {}): OmpModel {
 }
 
 describe("mapOmpModel thinking options", () => {
-  test("limits thinking options to the model's reported efforts", () => {
+  test("offers off and auto alongside the model's reported efforts", () => {
     const model = baseModel({
       reasoning: true,
       thinking: {
@@ -26,7 +26,12 @@ describe("mapOmpModel thinking options", () => {
 
     const result = mapOmpModel(model, "omp");
 
-    expect(result.thinkingOptions?.map((option) => option.id)).toEqual(["auto", "high", "xhigh"]);
+    expect(result.thinkingOptions?.map((option) => option.id)).toEqual([
+      "auto",
+      "off",
+      "high",
+      "xhigh",
+    ]);
     expect(result.defaultThinkingOptionId).toBe("xhigh");
     expect(result.thinkingOptions?.find((option) => option.isDefault)?.id).toBe("xhigh");
   });
@@ -95,7 +100,12 @@ describe("mapOmpModel thinking options", () => {
 
     const result = mapOmpModel(model, "omp");
 
-    expect(result.thinkingOptions?.map((option) => option.id)).toEqual(["auto", "low", "high"]);
+    expect(result.thinkingOptions?.map((option) => option.id)).toEqual([
+      "auto",
+      "off",
+      "low",
+      "high",
+    ]);
     expect(result.defaultThinkingOptionId).toBe("low");
     expect(result.thinkingOptions?.find((option) => option.isDefault)?.id).toBe("low");
   });
@@ -110,6 +120,7 @@ describe("mapOmpModel thinking options", () => {
 
     expect(result.thinkingOptions?.map((option) => option.id)).toEqual([
       "auto",
+      "off",
       "low",
       "medium",
       "high",

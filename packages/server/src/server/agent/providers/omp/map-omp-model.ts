@@ -83,8 +83,15 @@ function resolveOmpThinkingConfig(model: OmpModel): {
     reportedDefault && filtered.some((option) => option.id === reportedDefault)
       ? reportedDefault
       : (filtered[0]?.id ?? DEFAULT_OMP_THINKING_LEVEL);
-  // `auto` is a session-level OMP mode, never a per-model effort, so models do not list it.
-  const options = [OMP_THINKING_OPTIONS[0], ...filtered.filter((option) => option.id !== "auto")];
+  // `auto` is a session-level OMP mode and `off` is a level a model's effort list may leave out,
+  // but both are valid for anything the runtime can set — omp's own selector offers off everywhere.
+  const pinned = OMP_THINKING_OPTIONS.filter(
+    (option) => option.id === "auto" || option.id === "off",
+  );
+  const options = [
+    ...pinned,
+    ...filtered.filter((option) => option.id !== "auto" && option.id !== "off"),
+  ];
   return {
     thinkingOptions: options.map((option) =>
       mapThinkingOption(option, option.id === defaultThinkingOptionId),
