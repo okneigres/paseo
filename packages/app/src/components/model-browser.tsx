@@ -18,6 +18,7 @@ import {
   View,
   type AccessibilityActionEvent,
   type GestureResponderEvent,
+  type LayoutChangeEvent,
   type PressableStateCallbackType,
   type StyleProp,
   type ViewStyle,
@@ -1086,77 +1087,91 @@ function IndependentScrollBoundary({ children }: { children: React.ReactElement 
   );
 }
 
-/** Room between the aims that follow a failed one: rendering the row takes a frame or two. */
-const FAILED_AIM_RETRY_DELAYS = [16, 50, 120, 250];
+// A row that carries no profile rows under it is this tall; a real row measures itself and corrects it.
+const DEFAULT_ROW_STRIDE = 44;
+
+/** Aims are always placeable — the layout below is what makes them so — so a failure is a no-op. */
+function handleScrollToIndexFailed(): void {}
 
 /**
  * Brings the selected model into view as the list appears.
  *
- * Rows are not a fixed height — a model can carry profile rows under it — so a row the list has not
- * measured yet cannot be jumped to directly. The list answers such an attempt with its own average
- * row length: the jump lands there, and one more aim — by then the row is rendered and measurable —
- * puts it where it belongs. One answer, one retry, no loop.
+ * A virtualized list can only scroll past the rows it has rendered if it is told where the rows are —
+ * without `getItemLayout` its content is only as tall as what is on screen, so an aim at a model far
+ * down the list has nowhere to go, and `scrollToIndex` reports that forever. The layout here is the
+ * running sum of the row stride, plus a stride for each profile row a model carries, and the stride
+ * is a real row's own height once one has laid out.
  */
-function IndependentModelList({
+export function IndependentModelList({
   rows,
   renderItem,
   header,
   selectedProvider,
   selectedModel,
+  profileRowsByKey,
 }: {
   rows: ProviderSelectionModelRow[];
   renderItem: ({ item }: { item: ProviderSelectionModelRow }) => React.ReactElement;
   header?: React.ReactElement;
   selectedProvider: string;
   selectedModel: string;
+  /** How many profile rows sit under each model, by row key. */
+  profileRowsByKey: Map<string, number>;
 }) {
   const listRef = useRef<FlatList<ProviderSelectionModelRow>>(null);
-  const aimedRef = useRef(false);
-  const failedAimsRef = useRef(0);
+  const [rowStride, setRowStride] = useState(DEFAULT_ROW_STRIDE);
+  const selectedIndex = useMemo(
+    () =>
+      rows.findIndex((row) => row.provider === selectedProvider && row.modelId === selectedModel),
+    [rows, selectedModel, selectedProvider],
+  );
+  const rowOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let offset = 0;
+    for (const row of rows) {
+      offsets.push(offset);
+      offset += rowStride * (1 + (profileRowsByKey.get(row.favoriteKey) ?? 0));
+    }
+    return offsets;
+  }, [profileRowsByKey, rowStride, rows]);
+
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<ProviderSelectionModelRow> | null | undefined, index: number) => ({
+      length: rowStride,
+      offset: rowOffsets[index] ?? index * rowStride,
+      index,
+    }),
+    [rowOffsets, rowStride],
+  );
+
+  const handleRowLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    setRowStride((current) => (height > 0 && current !== height ? height : current));
+  }, []);
+  const renderMeasuredRow = useCallback(
+    ({ item }: { item: ProviderSelectionModelRow }) => (
+      <View onLayout={handleRowLayout}>{renderItem({ item })}</View>
+    ),
+    [handleRowLayout, renderItem],
+  );
 
   useEffect(() => {
-    if (aimedRef.current) {
+    if (selectedIndex < 0) {
       return;
     }
-    const index = rows.findIndex(
-      (row) => row.provider === selectedProvider && row.modelId === selectedModel,
-    );
-    if (index < 0) {
-      return;
-    }
-    aimedRef.current = true;
-    listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
-  }, [rows, selectedModel, selectedProvider]);
-
-  // A row out of the rendered window has no offset, so the list answers the aim with its average row
-  // length. The jump goes there once; after that the same aim is repeated a few times with growing
-  // room between tries, because the row only becomes measurable after the list has rendered it. The
-  // ladder ends either way — this is not a loop.
-  const handleScrollToIndexFailed = useCallback(
-    ({ index, averageItemLength }: { index: number; averageItemLength: number }) => {
-      const attempt = failedAimsRef.current;
-      if (attempt >= FAILED_AIM_RETRY_DELAYS.length) {
-        return;
-      }
-      failedAimsRef.current = attempt + 1;
-      if (attempt === 0) {
-        listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
-      }
-      setTimeout(() => {
-        listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
-      }, FAILED_AIM_RETRY_DELAYS[attempt]);
-    },
-    [],
-  );
+    listRef.current?.scrollToIndex({ index: selectedIndex, animated: false, viewPosition: 0 });
+  }, [rowOffsets, selectedIndex]);
 
   return (
     <IndependentScrollBoundary>
       <FlatList
         ref={listRef}
         data={rows}
-        renderItem={renderItem}
+        renderItem={renderMeasuredRow}
         ListHeaderComponent={header}
         keyExtractor={getModelRowKey}
+        getItemLayout={getItemLayout}
+        // The layout above makes this aim placeable; a failure would mean the two disagree.
         onScrollToIndexFailed={handleScrollToIndexFailed}
         style={styles.virtualizedModelList}
         keyboardShouldPersistTaps="handled"
@@ -1251,6 +1266,16 @@ function ModelRowList({
     ],
   );
   const keyExtractor = useCallback((row: ProviderSelectionModelRow) => row.favoriteKey, []);
+  const profileRowCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      counts.set(
+        row.favoriteKey,
+        profiledLookup.get(`${row.provider}:${row.modelId}`)?.length ?? 0,
+      );
+    }
+    return counts;
+  }, [profiledLookup, rows]);
 
   if (scrolling === "independent") {
     return (
@@ -1260,6 +1285,7 @@ function ModelRowList({
         header={header}
         selectedProvider={selectedProvider}
         selectedModel={selectedModel}
+        profileRowsByKey={profileRowCounts}
       />
     );
   }
