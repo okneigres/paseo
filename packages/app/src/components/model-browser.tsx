@@ -18,7 +18,6 @@ import {
   View,
   type AccessibilityActionEvent,
   type GestureResponderEvent,
-  type LayoutChangeEvent,
   type PressableStateCallbackType,
   type StyleProp,
   type ViewStyle,
@@ -1087,67 +1086,57 @@ function IndependentScrollBoundary({ children }: { children: React.ReactElement 
   );
 }
 
-// A row without saved profiles under it is one stride tall. The compact sheet sizes its model
-// viewport with the same stride, so a jump to the selected model lands by the same ruler.
-const MODEL_ROW_STRIDE = 44;
-
 /**
- * The distance from the top of the list to the row showing the selected model: one stride per row
- * before it, plus a stride for every profile row a model carries. Rows do not report their heights,
- * so this is an estimate — the list is asked to go to a place, not to a measured item.
+ * Brings the selected model into view as the list appears.
+ *
+ * Rows are not a fixed height — a model can carry profile rows under it — so a row the list has not
+ * measured yet cannot be jumped to directly. The list answers such an attempt with its own average
+ * row length: the jump lands there, and one more aim — by then the row is rendered and measurable —
+ * puts it where it belongs. One answer, one retry, no loop.
  */
-function resolveSelectedModelOffset(input: {
-  rows: ProviderSelectionModelRow[];
-  profiledLookup: Map<string, AgentProfilePickerRowModel[]>;
-  selectedProvider: string;
-  selectedModel: string;
-}): number | null {
-  const { rows, profiledLookup, selectedProvider, selectedModel } = input;
-  let offset = 0;
-  for (const row of rows) {
-    if (row.provider === selectedProvider && row.modelId === selectedModel) {
-      return offset;
-    }
-    const profilesUnderRow = profiledLookup.get(`${row.provider}:${row.modelId}`)?.length ?? 0;
-    offset += MODEL_ROW_STRIDE * (1 + profilesUnderRow);
-  }
-  return null;
-}
-
 function IndependentModelList({
   rows,
   renderItem,
   header,
-  initialScrollOffset,
+  selectedProvider,
+  selectedModel,
 }: {
   rows: ProviderSelectionModelRow[];
   renderItem: ({ item }: { item: ProviderSelectionModelRow }) => React.ReactElement;
   header?: React.ReactElement;
-  initialScrollOffset: number | null;
+  selectedProvider: string;
+  selectedModel: string;
 }) {
   const listRef = useRef<FlatList<ProviderSelectionModelRow>>(null);
-  const didScrollRef = useRef(false);
-  // The rows and the header arrive independently — the catalog lands after the sheet opens, and a
-  // header lays out after both — so the jump waits for the pair rather than for either one.
-  const [headerHeight, setHeaderHeight] = useState<number | null>(header ? null : 0);
+  const aimedRef = useRef(false);
+  const retriedRef = useRef(false);
 
   useEffect(() => {
-    if (headerHeight === null || initialScrollOffset === null || didScrollRef.current) {
+    if (aimedRef.current) {
       return;
     }
-    didScrollRef.current = true;
-    listRef.current?.scrollToOffset({
-      offset: Math.max(0, headerHeight + initialScrollOffset),
-      animated: false,
-    });
-  }, [headerHeight, initialScrollOffset]);
+    const index = rows.findIndex(
+      (row) => row.provider === selectedProvider && row.modelId === selectedModel,
+    );
+    if (index < 0) {
+      return;
+    }
+    aimedRef.current = true;
+    listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
+  }, [rows, selectedModel, selectedProvider]);
 
-  const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
-    setHeaderHeight(event.nativeEvent.layout.height);
-  }, []);
-  const listHeader = useMemo(
-    () => (header ? <View onLayout={handleHeaderLayout}>{header}</View> : undefined),
-    [handleHeaderLayout, header],
+  const handleScrollToIndexFailed = useCallback(
+    ({ index, averageItemLength }: { index: number; averageItemLength: number }) => {
+      if (retriedRef.current) {
+        return;
+      }
+      retriedRef.current = true;
+      listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
+      setTimeout(() => {
+        listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
+      }, 0);
+    },
+    [],
   );
 
   return (
@@ -1156,8 +1145,9 @@ function IndependentModelList({
         ref={listRef}
         data={rows}
         renderItem={renderItem}
-        ListHeaderComponent={listHeader}
+        ListHeaderComponent={header}
         keyExtractor={getModelRowKey}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
         style={styles.virtualizedModelList}
         keyboardShouldPersistTaps="handled"
         // No keyboardDismissMode="on-drag" here: react-native-web dismisses the keyboard on any
@@ -1258,12 +1248,8 @@ function ModelRowList({
         rows={rows}
         renderItem={renderItem}
         header={header}
-        initialScrollOffset={resolveSelectedModelOffset({
-          rows,
-          profiledLookup,
-          selectedProvider,
-          selectedModel,
-        })}
+        selectedProvider={selectedProvider}
+        selectedModel={selectedModel}
       />
     );
   }
