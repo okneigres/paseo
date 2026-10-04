@@ -18,6 +18,7 @@ import {
   View,
   type AccessibilityActionEvent,
   type GestureResponderEvent,
+  type LayoutChangeEvent,
   type PressableStateCallbackType,
   type StyleProp,
   type ViewStyle,
@@ -1086,63 +1087,77 @@ function IndependentScrollBoundary({ children }: { children: React.ReactElement 
   );
 }
 
+// A row without saved profiles under it is one stride tall. The compact sheet sizes its model
+// viewport with the same stride, so a jump to the selected model lands by the same ruler.
+const MODEL_ROW_STRIDE = 44;
+
 /**
- * Brings the selected model into view as the list appears. The browser is mounted per open, so this
- * runs when the rows land rather than on a visibility flag. It aims once; the list's own failure
- * handler takes over when the target has not been measured yet.
+ * The distance from the top of the list to the row showing the selected model: one stride per row
+ * before it, plus a stride for every profile row a model carries. Rows do not report their heights,
+ * so this is an estimate — the list is asked to go to a place, not to a measured item.
  */
-function useScrollToSelectedModel(input: {
-  listRef: React.RefObject<FlatList<ProviderSelectionModelRow> | null>;
+function resolveSelectedModelOffset(input: {
   rows: ProviderSelectionModelRow[];
+  profiledLookup: Map<string, AgentProfilePickerRowModel[]>;
   selectedProvider: string;
   selectedModel: string;
-}): void {
-  const { listRef, rows, selectedProvider, selectedModel } = input;
-  const scrolledRef = useRef(false);
-
-  useEffect(() => {
-    if (scrolledRef.current) {
-      return;
+}): number | null {
+  const { rows, profiledLookup, selectedProvider, selectedModel } = input;
+  let offset = 0;
+  for (const row of rows) {
+    if (row.provider === selectedProvider && row.modelId === selectedModel) {
+      return offset;
     }
-    const index = rows.findIndex(
-      (row) => row.provider === selectedProvider && row.modelId === selectedModel,
-    );
-    if (index < 0) {
-      return;
-    }
-    scrolledRef.current = true;
-    listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
-  }, [listRef, rows, selectedModel, selectedProvider]);
+    const profilesUnderRow = profiledLookup.get(`${row.provider}:${row.modelId}`)?.length ?? 0;
+    offset += MODEL_ROW_STRIDE * (1 + profilesUnderRow);
+  }
+  return null;
 }
 
 function IndependentModelList({
   rows,
   renderItem,
   header,
-  selectedProvider,
-  selectedModel,
+  initialScrollOffset,
 }: {
   rows: ProviderSelectionModelRow[];
   renderItem: ({ item }: { item: ProviderSelectionModelRow }) => React.ReactElement;
   header?: React.ReactElement;
-  selectedProvider: string;
-  selectedModel: string;
+  initialScrollOffset: number | null;
 }) {
   const listRef = useRef<FlatList<ProviderSelectionModelRow>>(null);
-  const answeredScrollFailureRef = useRef(false);
-  useScrollToSelectedModel({ listRef, rows, selectedProvider, selectedModel });
-  // Rows are not a fixed height — a model can carry profile rows under it — so a target the list has
-  // not measured yet has no offset. Park at the estimate, once: without `getItemLayout` the list
-  // would report the same failure again on every aim, and the list would keep moving on its own.
-  const handleScrollToIndexFailed = useCallback(
-    ({ index, averageItemLength }: { index: number; averageItemLength: number }) => {
-      if (answeredScrollFailureRef.current) {
-        return;
-      }
-      answeredScrollFailureRef.current = true;
-      listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
+  const headerHeightRef = useRef(0);
+  const didScrollRef = useRef(false);
+
+  const scrollToSelection = useCallback(() => {
+    if (didScrollRef.current || initialScrollOffset === null) {
+      return;
+    }
+    didScrollRef.current = true;
+    listRef.current?.scrollToOffset({
+      offset: Math.max(0, headerHeightRef.current + initialScrollOffset),
+      animated: false,
+    });
+  }, [initialScrollOffset]);
+
+  useEffect(() => {
+    // With a header in the list the target sits below it, and the header's height is only known once
+    // it has laid out; with no header the jump can happen as soon as the list is there.
+    if (!header) {
+      scrollToSelection();
+    }
+  }, [header, scrollToSelection]);
+
+  const handleHeaderLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      headerHeightRef.current = event.nativeEvent.layout.height;
+      scrollToSelection();
     },
-    [],
+    [scrollToSelection],
+  );
+  const listHeader = useMemo(
+    () => (header ? <View onLayout={handleHeaderLayout}>{header}</View> : undefined),
+    [handleHeaderLayout, header],
   );
 
   return (
@@ -1151,9 +1166,8 @@ function IndependentModelList({
         ref={listRef}
         data={rows}
         renderItem={renderItem}
-        ListHeaderComponent={header}
+        ListHeaderComponent={listHeader}
         keyExtractor={getModelRowKey}
-        onScrollToIndexFailed={handleScrollToIndexFailed}
         style={styles.virtualizedModelList}
         keyboardShouldPersistTaps="handled"
         // No keyboardDismissMode="on-drag" here: react-native-web dismisses the keyboard on any
@@ -1254,8 +1268,12 @@ function ModelRowList({
         rows={rows}
         renderItem={renderItem}
         header={header}
-        selectedProvider={selectedProvider}
-        selectedModel={selectedModel}
+        initialScrollOffset={resolveSelectedModelOffset({
+          rows,
+          profiledLookup,
+          selectedProvider,
+          selectedModel,
+        })}
       />
     );
   }
