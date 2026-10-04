@@ -718,6 +718,7 @@ export const zhCN: TranslationResources = {
       },
     },
     header: {
+      board: "看板",
       actions: {
         workspaceActions: "Workspace 操作",
         newAgent: "新建 Agent",

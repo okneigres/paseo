@@ -722,6 +722,7 @@ export const ko: TranslationResources = {
       },
     },
     header: {
+      board: "보드",
       actions: {
         workspaceActions: "워크스페이스 작업",
         newAgent: "새 에이전트",

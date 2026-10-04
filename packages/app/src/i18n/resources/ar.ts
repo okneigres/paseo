@@ -722,6 +722,7 @@ export const ar: TranslationResources = {
       },
     },
     header: {
+      board: "Board",
       actions: {
         workspaceActions: "إجراءات Workspace",
         newAgent: "وكيل جديد",

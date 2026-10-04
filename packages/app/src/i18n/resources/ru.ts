@@ -729,6 +729,7 @@ export const ru: TranslationResources = {
       },
     },
     header: {
+      board: "Доска",
       actions: {
         workspaceActions: "Действия с рабочим пространством",
         newAgent: "Новый агент",

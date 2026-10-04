@@ -45,6 +45,7 @@ import {
 import { setupDarwinCompositorWatchdog } from "./window/compositor-watchdog/index.js";
 import { resolveDesktopWindowChromeMode, windowChromeModeArgument } from "./window/chrome.js";
 import { registerDialogHandlers } from "./features/dialogs.js";
+import { loadUnpackedExtensions } from "./features/extensions.js";
 import {
   registerNotificationHandlers,
   ensureNotificationCenterRegistration,
@@ -934,6 +935,9 @@ async function bootstrap(): Promise<void> {
   }
 
   await app.whenReady();
+
+  // Personal extensions run inside the app's own window; see features/extensions.ts.
+  await loadUnpackedExtensions();
 
   const appDistDir = getAppDistDir();
   protocol.handle(APP_SCHEME, (request) => {

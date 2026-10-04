@@ -717,6 +717,7 @@ export const en = {
       },
     },
     header: {
+      board: "Board",
       actions: {
         workspaceActions: "Workspace actions",
         newAgent: "New agent",

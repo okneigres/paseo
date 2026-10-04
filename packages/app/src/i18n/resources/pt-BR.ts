@@ -726,6 +726,7 @@ export const ptBR: TranslationResources = {
       },
     },
     header: {
+      board: "Quadro",
       actions: {
         workspaceActions: "Ações do workspace",
         newAgent: "Novo agente",

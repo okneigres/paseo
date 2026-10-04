@@ -729,6 +729,7 @@ export const es: TranslationResources = {
       },
     },
     header: {
+      board: "Tablero",
       actions: {
         workspaceActions: "AccionesWorkspace",
         newAgent: "Nuevo agente",

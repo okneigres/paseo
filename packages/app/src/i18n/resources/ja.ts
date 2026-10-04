@@ -726,6 +726,7 @@ export const ja: TranslationResources = {
       },
     },
     header: {
+      board: "ボード",
       actions: {
         workspaceActions: "ワークスペースアクション",
         newAgent: "新しいエージェント",
