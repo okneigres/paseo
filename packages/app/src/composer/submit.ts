@@ -11,6 +11,11 @@ export function withSpeakerPrefix(message: string, speaker: string | null): stri
   if (!speaker || message.length === 0) {
     return message;
   }
+  // A line that opens with `/` is a command for the agent, not something someone said, so it goes
+  // through as written.
+  if (message.trimStart().startsWith("/")) {
+    return message;
+  }
   return `${speaker}:\n${message}`;
 }
 

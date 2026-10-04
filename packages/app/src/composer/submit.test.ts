@@ -264,4 +264,9 @@ describe("withSpeakerPrefix", () => {
   it("does not make a bare prefix out of an empty message", () => {
     expect(withSpeakerPrefix("", "os")).toBe("");
   });
+
+  it("leaves a command line alone", () => {
+    expect(withSpeakerPrefix("/clear", "os")).toBe("/clear");
+    expect(withSpeakerPrefix("  /model gpt-6", "os")).toBe("  /model gpt-6");
+  });
 });
