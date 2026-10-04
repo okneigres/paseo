@@ -1129,15 +1129,18 @@ function IndependentModelList({
   selectedModel: string;
 }) {
   const listRef = useRef<FlatList<ProviderSelectionModelRow>>(null);
+  const answeredScrollFailureRef = useRef(false);
   useScrollToSelectedModel({ listRef, rows, selectedProvider, selectedModel });
   // Rows are not a fixed height — a model can carry profile rows under it — so a target the list has
-  // not measured yet has no offset. Park at the estimate and aim again once it does.
+  // not measured yet has no offset. Park at the estimate, once: without `getItemLayout` the list
+  // would report the same failure again on every aim, and the list would keep moving on its own.
   const handleScrollToIndexFailed = useCallback(
     ({ index, averageItemLength }: { index: number; averageItemLength: number }) => {
+      if (answeredScrollFailureRef.current) {
+        return;
+      }
+      answeredScrollFailureRef.current = true;
       listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
-      setTimeout(() => {
-        listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
-      }, 0);
     },
     [],
   );
@@ -1153,7 +1156,8 @@ function IndependentModelList({
         onScrollToIndexFailed={handleScrollToIndexFailed}
         style={styles.virtualizedModelList}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        // No keyboardDismissMode="on-drag" here: react-native-web dismisses the keyboard on any
+        // scroll under it, and this list scrolls itself to the selected model as it appears.
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.virtualizedModelListContent}
         nestedScrollEnabled
