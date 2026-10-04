@@ -1,5 +1,5 @@
 import { LayoutGrid } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { withUnistyles } from "react-native-unistyles";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
@@ -8,44 +8,20 @@ import {
   iconButtonChromeGlyphSize,
 } from "@/components/ui/icon-button-chrome";
 import { isWeb } from "@/constants/platform";
-import { isBigGoalsBoardAvailable, toggleBigGoalsBoard } from "@/utils/big-goals-board";
+import { toggleBigGoalsBoard } from "@/utils/big-goals-board";
 
 const ThemedLayoutGrid = withUnistyles(LayoutGrid);
-
-/**
- * The big-goals extension injects itself at `document_idle`, so its presence is watched rather than
- * assumed: the button appears once the extension is on the page, and never stands there dead.
- */
-function useBigGoalsBoardAvailable(): boolean {
-  const [available, setAvailable] = useState(() => isBigGoalsBoardAvailable());
-
-  useEffect(() => {
-    if (available || !isWeb || typeof document === "undefined") {
-      return;
-    }
-    const observer = new MutationObserver(() => {
-      if (isBigGoalsBoardAvailable()) {
-        setAvailable(true);
-      }
-    });
-    observer.observe(document.documentElement, { childList: true });
-    return () => observer.disconnect();
-  }, [available]);
-
-  return available;
-}
 
 /** Opens the big-goals board the way the extension's own button does: the key event it listens for. */
 export function BigGoalsBoardButton() {
   const { t } = useTranslation();
-  const available = useBigGoalsBoardAvailable();
   const label = t("workspace.header.board");
 
   const handlePress = useCallback(() => {
     toggleBigGoalsBoard();
   }, []);
 
-  if (!isWeb || !available) {
+  if (!isWeb) {
     return null;
   }
 

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { session } from "electron";
 import log from "electron-log/main";
+import { getDesktopSettingsStore } from "../settings/desktop-settings-electron.js";
 
 /**
  * Unpacked Chrome extensions to run inside the app's own window.
@@ -21,8 +22,19 @@ export function resolveUnpackedExtensionPaths(configured: string | undefined): s
     .filter((entry) => entry.length > 0);
 }
 
+async function readConfiguredExtensionPaths(): Promise<string[]> {
+  const fromEnvironment = resolveUnpackedExtensionPaths(process.env.PASEO_UNPACKED_EXTENSIONS);
+  try {
+    const settings = await getDesktopSettingsStore().get();
+    return [...fromEnvironment, ...settings.extensions.unpacked];
+  } catch (error) {
+    log.warn("[extensions] could not read settings", { error });
+    return fromEnvironment;
+  }
+}
+
 export async function loadUnpackedExtensions(): Promise<void> {
-  const extensionPaths = resolveUnpackedExtensionPaths(process.env.PASEO_UNPACKED_EXTENSIONS);
+  const extensionPaths = [...new Set(await readConfiguredExtensionPaths())];
   for (const extensionPath of extensionPaths) {
     try {
       const extension = await session.defaultSession.extensions.loadExtension(extensionPath);

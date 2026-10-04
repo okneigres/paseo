@@ -11,6 +11,10 @@ export interface DesktopSettings {
   notifications: {
     playSound: boolean;
   };
+  /** Unpacked Chrome extensions the app loads into its own session, by directory. */
+  extensions: {
+    unpacked: string[];
+  };
   daemon: {
     manageBuiltInDaemon: boolean;
     keepRunningAfterQuit: boolean;
@@ -20,6 +24,7 @@ export interface DesktopSettings {
 interface DesktopSettingsPatch {
   releaseChannel?: AppReleaseChannel;
   notifications?: Partial<DesktopSettings["notifications"]>;
+  extensions?: Partial<DesktopSettings["extensions"]>;
   daemon?: Partial<DesktopSettings["daemon"]>;
 }
 
@@ -33,6 +38,9 @@ export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   releaseChannel: "stable",
   notifications: {
     playSound: true,
+  },
+  extensions: {
+    unpacked: [],
   },
   daemon: {
     manageBuiltInDaemon: true,
@@ -50,6 +58,12 @@ const NotificationsSchema = z
   })
   .catch(() => ({ ...DEFAULT_DESKTOP_SETTINGS.notifications }));
 
+const ExtensionsSchema = z
+  .looseObject({
+    unpacked: z.array(z.string()).catch(DEFAULT_DESKTOP_SETTINGS.extensions.unpacked),
+  })
+  .catch(() => ({ ...DEFAULT_DESKTOP_SETTINGS.extensions }));
+
 const DaemonSchema = z
   .looseObject({
     manageBuiltInDaemon: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.daemon.manageBuiltInDaemon),
@@ -61,6 +75,7 @@ const DesktopSettingsSchema = z
   .looseObject({
     releaseChannel: ReleaseChannelSchema.catch(DEFAULT_DESKTOP_SETTINGS.releaseChannel),
     notifications: NotificationsSchema,
+    extensions: ExtensionsSchema,
     daemon: DaemonSchema,
   })
   .catch(() => buildDefaultSettings());
@@ -107,6 +122,7 @@ function buildDefaultSettings(): StoredDesktopSettings {
   return {
     releaseChannel: DEFAULT_DESKTOP_SETTINGS.releaseChannel,
     notifications: { ...DEFAULT_DESKTOP_SETTINGS.notifications },
+    extensions: { unpacked: [...DEFAULT_DESKTOP_SETTINGS.extensions.unpacked] },
     daemon: { ...DEFAULT_DESKTOP_SETTINGS.daemon },
   };
 }
@@ -126,6 +142,7 @@ function toDesktopSettings(stored: StoredDesktopSettings): DesktopSettings {
   return {
     releaseChannel: stored.releaseChannel,
     notifications: { playSound: stored.notifications.playSound },
+    extensions: { unpacked: [...stored.extensions.unpacked] },
     daemon: {
       manageBuiltInDaemon: stored.daemon.manageBuiltInDaemon,
       keepRunningAfterQuit: stored.daemon.keepRunningAfterQuit,
@@ -148,6 +165,18 @@ function coerceDesktopSettingsPatch(input: unknown): DesktopSettingsPatch {
     const playSound = coerceBoolean(input.notifications.playSound);
     if (playSound !== null) {
       patch.notifications = { playSound };
+    }
+  }
+
+  if (isRecord(input.extensions)) {
+    const unpacked = input.extensions.unpacked;
+    if (Array.isArray(unpacked)) {
+      patch.extensions = {
+        unpacked: unpacked
+          .filter((entry): entry is string => typeof entry === "string")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0),
+      };
     }
   }
 
@@ -198,6 +227,7 @@ function mergeDesktopSettings(
     ...current,
     releaseChannel: patch.releaseChannel ?? current.releaseChannel,
     notifications: { ...current.notifications, ...patch.notifications },
+    extensions: { ...current.extensions, ...patch.extensions },
     daemon: { ...current.daemon, ...patch.daemon },
   };
 }
