@@ -1086,6 +1086,9 @@ function IndependentScrollBoundary({ children }: { children: React.ReactElement 
   );
 }
 
+/** Room between the aims that follow a failed one: rendering the row takes a frame or two. */
+const FAILED_AIM_RETRY_DELAYS = [16, 50, 120, 250];
+
 /**
  * Brings the selected model into view as the list appears.
  *
@@ -1109,7 +1112,7 @@ function IndependentModelList({
 }) {
   const listRef = useRef<FlatList<ProviderSelectionModelRow>>(null);
   const aimedRef = useRef(false);
-  const retriedRef = useRef(false);
+  const failedAimsRef = useRef(0);
 
   useEffect(() => {
     if (aimedRef.current) {
@@ -1125,16 +1128,23 @@ function IndependentModelList({
     listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
   }, [rows, selectedModel, selectedProvider]);
 
+  // A row out of the rendered window has no offset, so the list answers the aim with its average row
+  // length. The jump goes there once; after that the same aim is repeated a few times with growing
+  // room between tries, because the row only becomes measurable after the list has rendered it. The
+  // ladder ends either way — this is not a loop.
   const handleScrollToIndexFailed = useCallback(
     ({ index, averageItemLength }: { index: number; averageItemLength: number }) => {
-      if (retriedRef.current) {
+      const attempt = failedAimsRef.current;
+      if (attempt >= FAILED_AIM_RETRY_DELAYS.length) {
         return;
       }
-      retriedRef.current = true;
-      listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
+      failedAimsRef.current = attempt + 1;
+      if (attempt === 0) {
+        listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
+      }
       setTimeout(() => {
         listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
-      }, 0);
+      }, FAILED_AIM_RETRY_DELAYS[attempt]);
     },
     [],
   );
