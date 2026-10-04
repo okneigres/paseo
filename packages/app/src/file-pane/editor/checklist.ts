@@ -11,10 +11,10 @@ export const CHECKED_CHECKLIST_BOX = "✔";
 /** Typing either pair leaves an empty box behind. */
 const TYPED_PAIRS = new Set(["[]", "хъ"]);
 
-/** Only these files carry boxes. */
+/** The files this editor treats as prose: boxes and the Inter face both belong to them. */
 const CHECKLIST_EXTENSIONS = [".md", ".markdown", ".txt"];
 
-export function isChecklistFile(filename: string): boolean {
+export function isMarkdownOrTextFile(filename: string): boolean {
   const name = filename.trim().toLowerCase();
   return CHECKLIST_EXTENSIONS.some((extension) => name.endsWith(extension));
 }
@@ -67,5 +67,5 @@ const boxClick = EditorView.domEventHandlers({
 
 /** Boxes in the files that carry them, and nowhere else. */
 export function checklistExtensionsForFile(filename: string): Extension[] {
-  return isChecklistFile(filename) ? [boxTyping, boxClick] : [];
+  return isMarkdownOrTextFile(filename) ? [boxTyping, boxClick] : [];
 }

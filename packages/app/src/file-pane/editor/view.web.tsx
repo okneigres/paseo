@@ -8,6 +8,9 @@ import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
 import type { WorkspaceFileLocation } from "@/workspace/file-open";
 import type { FileEditorModel } from "./model";
 import { checklistExtensionsForFile } from "./checklist";
+import { proseFontExtension } from "./prose-font";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/600.css";
 import { editorBaseExtensions, editorTheme, type EditorVisualTheme } from "./extensions.web";
 
 interface FileEditorViewProps {
@@ -25,6 +28,7 @@ const languageCompartment = new Compartment();
 const wrappingCompartment = new Compartment();
 const themeCompartment = new Compartment();
 const vimCompartment = new Compartment();
+const proseFontCompartment = new Compartment();
 
 function wrappingForFile(filename: string) {
   return isRenderedMarkdownFile(filename) ? EditorView.lineWrapping : [];
@@ -59,6 +63,7 @@ export function FileEditorView({
           vimCompartment.of(values.vimEnabled ? vim() : []),
           find.extension,
           ...checklistExtensionsForFile(values.filename),
+          proseFontCompartment.of(proseFontExtension(values.filename)),
           ...editorBaseExtensions(() => void values.model.save()),
           languageCompartment.of(getLanguageForFile(values.filename)?.extension ?? []),
           wrappingCompartment.of(wrappingForFile(values.filename)),
@@ -119,6 +124,7 @@ export function FileEditorView({
       effects: [
         languageCompartment.reconfigure(getLanguageForFile(filename)?.extension ?? []),
         wrappingCompartment.reconfigure(wrappingForFile(filename)),
+        proseFontCompartment.reconfigure(proseFontExtension(filename)),
       ],
     });
   }, [filename]);
