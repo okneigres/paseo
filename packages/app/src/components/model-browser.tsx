@@ -1126,35 +1126,25 @@ function IndependentModelList({
   initialScrollOffset: number | null;
 }) {
   const listRef = useRef<FlatList<ProviderSelectionModelRow>>(null);
-  const headerHeightRef = useRef(0);
   const didScrollRef = useRef(false);
+  // The rows and the header arrive independently — the catalog lands after the sheet opens, and a
+  // header lays out after both — so the jump waits for the pair rather than for either one.
+  const [headerHeight, setHeaderHeight] = useState<number | null>(header ? null : 0);
 
-  const scrollToSelection = useCallback(() => {
-    if (didScrollRef.current || initialScrollOffset === null) {
+  useEffect(() => {
+    if (headerHeight === null || initialScrollOffset === null || didScrollRef.current) {
       return;
     }
     didScrollRef.current = true;
     listRef.current?.scrollToOffset({
-      offset: Math.max(0, headerHeightRef.current + initialScrollOffset),
+      offset: Math.max(0, headerHeight + initialScrollOffset),
       animated: false,
     });
-  }, [initialScrollOffset]);
+  }, [headerHeight, initialScrollOffset]);
 
-  useEffect(() => {
-    // With a header in the list the target sits below it, and the header's height is only known once
-    // it has laid out; with no header the jump can happen as soon as the list is there.
-    if (!header) {
-      scrollToSelection();
-    }
-  }, [header, scrollToSelection]);
-
-  const handleHeaderLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      headerHeightRef.current = event.nativeEvent.layout.height;
-      scrollToSelection();
-    },
-    [scrollToSelection],
-  );
+  const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
+    setHeaderHeight(event.nativeEvent.layout.height);
+  }, []);
   const listHeader = useMemo(
     () => (header ? <View onLayout={handleHeaderLayout}>{header}</View> : undefined),
     [handleHeaderLayout, header],
