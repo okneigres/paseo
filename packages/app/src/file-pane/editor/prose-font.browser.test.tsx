@@ -72,6 +72,7 @@ describe("prose typography", () => {
   it("reads markdown at the reading size, not the code size", () => {
     const view = mountEditor("notes.md");
     expect(getComputedStyle(view.contentDOM).fontSize).toBe(`${READING_SIZE}px`);
+    expect(getComputedStyle(view.contentDOM).fontFamily).toContain("JetBrains Mono NL");
   });
 
   it("keeps the code size for a source file", () => {

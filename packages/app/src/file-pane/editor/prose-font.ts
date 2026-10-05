@@ -3,11 +3,11 @@ import { EditorView } from "@codemirror/view";
 import { isMarkdownOrTextFile } from "./checklist";
 
 /** The face the notes call for the prose files. The files it is drawn from load from prose-font-assets. */
-const PROSE_FONT_FAMILY = '"Roboto Condensed", system-ui, -apple-system, "Segoe UI", sans-serif';
+const PROSE_FONT_FAMILY = '"JetBrains Mono NL", system-ui, -apple-system, "Segoe UI", monospace';
 
 /**
- * Markdown and text files are read as prose, so they take Roboto Condensed at the size the rendered
- * view reads at, where the code files take the editor's mono face at its code size.
+ * Markdown and text files are read as prose, so they take the no-ligature JetBrains Mono at the size
+ * the rendered view reads at, where the code files take the editor's mono face at its code size.
  */
 export function proseFontExtension(filename: string, proseFontSize: number): Extension {
   if (!isMarkdownOrTextFile(filename)) {
