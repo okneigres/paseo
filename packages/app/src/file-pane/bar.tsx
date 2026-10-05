@@ -28,7 +28,11 @@ function ProseSizeStepper({ size, onChange }: { size: number; onChange: (size: n
   const decrease = useCallback(() => onChange(size - 1), [onChange, size]);
   const increase = useCallback(() => onChange(size + 1), [onChange, size]);
   return (
-    <View style={styles.proseSize}>
+    <View
+      style={styles.proseSize}
+      accessibilityLabel={t("panels.file.editor.proseSize", { size })}
+      testID="file-prose-size"
+    >
       <ToolbarButton
         label={t("panels.file.editor.decreaseProseSize")}
         testID="file-prose-size-decrease"
@@ -37,13 +41,6 @@ function ProseSizeStepper({ size, onChange }: { size: number; onChange: (size: n
       >
         <ThemedMinus size={iconSize} uniProps={extraMutedIconColorMapping} />
       </ToolbarButton>
-      <Text
-        style={styles.whisper}
-        accessibilityLabel={t("panels.file.editor.proseSize", { size })}
-        testID="file-prose-size"
-      >
-        {size}
-      </Text>
       <ToolbarButton
         label={t("panels.file.editor.increaseProseSize")}
         testID="file-prose-size-increase"
