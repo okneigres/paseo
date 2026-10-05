@@ -9,8 +9,8 @@ import type { WorkspaceFileLocation } from "@/workspace/file-open";
 import type { FileEditorModel } from "./model";
 import { checklistExtensionsForFile } from "./checklist";
 import { proseFontExtension } from "./prose-font";
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/600.css";
+import "@fontsource/roboto-condensed/400.css";
+import "@fontsource/roboto-condensed/600.css";
 import { editorBaseExtensions, editorTheme, type EditorVisualTheme } from "./extensions.web";
 
 interface FileEditorViewProps {
