@@ -8,7 +8,8 @@ import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
 import type { WorkspaceFileLocation } from "@/workspace/file-open";
 import type { FileEditorModel } from "./model";
 import { checklistExtensionsForFile } from "./checklist";
-import { loadProseFont, proseFontExtension } from "./prose-font";
+import { loadProseFont } from "./prose-font-assets";
+import { proseFontExtension } from "./prose-font";
 import { editorBaseExtensions, editorTheme, type EditorVisualTheme } from "./extensions.web";
 
 interface FileEditorViewProps {
@@ -65,7 +66,7 @@ export function FileEditorView({
           vimCompartment.of(values.vimEnabled ? vim() : []),
           find.extension,
           ...checklistExtensionsForFile(values.filename),
-          proseFontCompartment.of(proseFontExtension(values.filename)),
+          proseFontCompartment.of(proseFontExtension(values.filename, values.theme.proseFontSize)),
           ...editorBaseExtensions(() => void values.model.save()),
           languageCompartment.of(getLanguageForFile(values.filename)?.extension ?? []),
           wrappingCompartment.of(wrappingForFile(values.filename)),
@@ -126,10 +127,10 @@ export function FileEditorView({
       effects: [
         languageCompartment.reconfigure(getLanguageForFile(filename)?.extension ?? []),
         wrappingCompartment.reconfigure(wrappingForFile(filename)),
-        proseFontCompartment.reconfigure(proseFontExtension(filename)),
+        proseFontCompartment.reconfigure(proseFontExtension(filename, theme.proseFontSize)),
       ],
     });
-  }, [filename]);
+  }, [filename, theme.proseFontSize]);
 
   useEffect(() => {
     viewRef.current?.dispatch({ effects: themeCompartment.reconfigure(editorTheme(theme)) });

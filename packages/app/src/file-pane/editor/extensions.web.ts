@@ -24,6 +24,8 @@ export interface EditorVisualTheme {
   selection: string;
   monoFont: string;
   codeFontSize: number;
+  /** The size the rendered view reads at, which the prose files take in the editor. */
+  proseFontSize: number;
   syntax: Record<HighlightStyle, string>;
 }
 

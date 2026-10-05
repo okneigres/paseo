@@ -100,6 +100,7 @@ function ReadonlySource({
       selection: theme.colors.terminal.selectionBackground,
       monoFont: theme.fontFamily.mono,
       codeFontSize: theme.fontSize.code,
+      proseFontSize: theme.fontSize.content,
       syntax: theme.colors.syntax,
     }),
     [theme],
@@ -534,6 +535,7 @@ function EditableFilePane({
       selection: theme.colors.terminal.selectionBackground,
       monoFont: theme.fontFamily.mono,
       codeFontSize: theme.fontSize.code,
+      proseFontSize: theme.fontSize.content,
       syntax: theme.colors.syntax,
     }),
     [
@@ -547,6 +549,7 @@ function EditableFilePane({
       theme.colorScheme,
       theme.fontFamily.mono,
       theme.fontSize.code,
+      theme.fontSize.content,
     ],
   );
 
