@@ -1,15 +1,60 @@
+import { useCallback } from "react";
 import { Text, View } from "react-native";
+import { Minus, Plus } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
+import { extraMutedIconColorMapping } from "@/components/ui/icon-button-chrome";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { PaneContentToolbar } from "@/components/ui/pane-content-toolbar";
+import {
+  paneContentToolbarIconSize,
+  PaneContentToolbar,
+  ToolbarButton,
+} from "@/components/ui/pane-content-toolbar";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { MAX_PROSE_FONT_SIZE, MIN_PROSE_FONT_SIZE } from "@/hooks/use-settings";
 import type { Theme } from "@/styles/theme";
 import { FileConflictAlert, type FileConflictAlertState } from "./conflict-alert";
 import type { FileEditorStatus } from "./editor/model";
 
 const ThemedSpinner = withUnistyles(LoadingSpinner);
+const ThemedMinus = withUnistyles(Minus);
+const ThemedPlus = withUnistyles(Plus);
 const spinnerMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+
+/** Steps the size the prose files read at, within the bounds the setting is kept in. */
+function ProseSizeStepper({ size, onChange }: { size: number; onChange: (size: number) => void }) {
+  const { t } = useTranslation();
+  const iconSize = paneContentToolbarIconSize(false);
+  const decrease = useCallback(() => onChange(size - 1), [onChange, size]);
+  const increase = useCallback(() => onChange(size + 1), [onChange, size]);
+  return (
+    <View style={styles.proseSize}>
+      <ToolbarButton
+        label={t("panels.file.editor.decreaseProseSize")}
+        testID="file-prose-size-decrease"
+        disabled={size <= MIN_PROSE_FONT_SIZE}
+        onPress={decrease}
+      >
+        <ThemedMinus size={iconSize} uniProps={extraMutedIconColorMapping} />
+      </ToolbarButton>
+      <Text
+        style={styles.whisper}
+        accessibilityLabel={t("panels.file.editor.proseSize", { size })}
+        testID="file-prose-size"
+      >
+        {size}
+      </Text>
+      <ToolbarButton
+        label={t("panels.file.editor.increaseProseSize")}
+        testID="file-prose-size-increase"
+        disabled={size >= MAX_PROSE_FONT_SIZE}
+        onPress={increase}
+      >
+        <ThemedPlus size={iconSize} uniProps={extraMutedIconColorMapping} />
+      </ToolbarButton>
+    </View>
+  );
+}
 
 export function FilePanelBar({
   size,
@@ -20,6 +65,8 @@ export function FilePanelBar({
   cursor,
   vimMode,
   conflict,
+  proseSize,
+  onProseSizeChange,
 }: {
   size: number;
   lineCount?: number;
@@ -29,6 +76,9 @@ export function FilePanelBar({
   cursor?: { line: number; column: number };
   vimMode?: string | null;
   conflict?: FileConflictAlertState;
+  /** Set for the files that read as prose, which is where the size applies. */
+  proseSize?: number;
+  onProseSizeChange?(size: number): void;
 }) {
   const { t } = useTranslation();
   const previewModes = [
@@ -99,6 +149,9 @@ export function FilePanelBar({
               </Text>
             ) : null}
           </View>
+          {proseSize !== undefined && onProseSizeChange ? (
+            <ProseSizeStepper size={proseSize} onChange={onProseSizeChange} />
+          ) : null}
           {mode && onModeChange ? (
             <SegmentedControl
               size="xs"
@@ -153,6 +206,12 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
+  },
+  proseSize: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
   },
   vim: {
     color: theme.colors.foregroundMuted,

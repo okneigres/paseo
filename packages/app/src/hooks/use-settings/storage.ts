@@ -68,6 +68,10 @@ export const MAX_CONTENT_FONT_SIZE = 21;
 export const DEFAULT_CODE_FONT_SIZE = 12; // == FONT_SIZE.code
 export const MIN_CODE_FONT_SIZE = 9;
 export const MAX_CODE_FONT_SIZE = 22; // line-height 1.5×22=33 stays safe
+// The size markdown and text files read at in the editor; it opens at the code size.
+export const DEFAULT_PROSE_FONT_SIZE = DEFAULT_CODE_FONT_SIZE;
+export const MIN_PROSE_FONT_SIZE = MIN_CODE_FONT_SIZE;
+export const MAX_PROSE_FONT_SIZE = MAX_CODE_FONT_SIZE;
 export const MAX_FONT_FAMILY_LENGTH = 200;
 export { DEFAULT_CONTENT_MAX_WIDTH };
 export const MIN_CONTENT_MAX_WIDTH = 600;
@@ -87,6 +91,7 @@ export interface AppSettings {
   uiBaseFontSize: number; // clamped px, platform default 14 or 15
   contentFontSize: number; // clamped px, platform default 15 or 16
   codeFontSize: number; // clamped px, default 12
+  proseFontSize: number; // clamped px, default 12 — what .md/.txt read at in the editor
   /** Max width of chat and markdown content in px; null follows the current default. */
   contentMaxWidth: number | null;
   syntaxTheme: SyntaxThemeId; // default "one"
@@ -147,6 +152,7 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   uiBaseFontSize: DEFAULT_UI_BASE_FONT_SIZE,
   contentFontSize: DEFAULT_CONTENT_FONT_SIZE,
   codeFontSize: DEFAULT_CODE_FONT_SIZE,
+  proseFontSize: DEFAULT_PROSE_FONT_SIZE,
   contentMaxWidth: null,
   syntaxTheme: "one",
   workspaceTitleSource: "title",
@@ -236,6 +242,9 @@ const StoredAppSettingsSchema = z
     codeFontSize: clampedNumber(MIN_CODE_FONT_SIZE, MAX_CODE_FONT_SIZE).catch(
       DEFAULT_CODE_FONT_SIZE,
     ),
+    proseFontSize: clampedNumber(MIN_PROSE_FONT_SIZE, MAX_PROSE_FONT_SIZE)
+      .optional()
+      .catch(DEFAULT_PROSE_FONT_SIZE),
     contentMaxWidth: z
       .null()
       .or(clampedNumber(MIN_CONTENT_MAX_WIDTH, MAX_CONTENT_MAX_WIDTH))
@@ -294,7 +303,8 @@ const StoredAppSettingsSchema = z
     const { legacyPullRequestsInSidePane, ...openInSidePane } = stored.openInSidePane;
     const needsWrite =
       (stored.uiBaseFontSize === undefined && stored.uiFontSize !== undefined) ||
-      stored.contentFontSize === undefined;
+      stored.contentFontSize === undefined ||
+      stored.proseFontSize === undefined;
     const uiBaseFontSize =
       stored.uiBaseFontSize ??
       (stored.uiFontSize === undefined
@@ -314,6 +324,7 @@ const StoredAppSettingsSchema = z
         stored.pullRequestOpenLocation ?? (legacyPullRequestsInSidePane ? "side" : "explorer"),
       uiBaseFontSize,
       contentFontSize: stored.contentFontSize ?? uiBaseFontSize,
+      proseFontSize: stored.proseFontSize ?? DEFAULT_PROSE_FONT_SIZE,
       sidebarChecksDisplay,
       sidebarRowItems: {
         ...stored.sidebarRowItems,

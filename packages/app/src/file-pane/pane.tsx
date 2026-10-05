@@ -32,6 +32,7 @@ import { FileHtmlPreview } from "./html-preview";
 import { FileMarkdownPreview } from "./markdown-preview";
 import { FileEditorModel, getFileConflictCallout, type FileConflictCallout } from "./editor/model";
 import { createFileObservationSource } from "./editor/observation-source";
+import { isMarkdownOrTextFile } from "./editor/checklist";
 import { FileEditorView } from "./editor/view";
 import { FileSourceView } from "./source/view";
 import type { FileConflictAlertState } from "./conflict-alert";
@@ -89,6 +90,7 @@ function ReadonlySource({
 }) {
   const theme = UnistylesRuntime.getTheme();
   const { t } = useTranslation();
+  const { settings } = useAppSettings();
   const visualTheme = useMemo(
     () => ({
       colorScheme: theme.colorScheme,
@@ -100,10 +102,10 @@ function ReadonlySource({
       selection: theme.colors.terminal.selectionBackground,
       monoFont: theme.fontFamily.mono,
       codeFontSize: theme.fontSize.code,
-      proseFontSize: theme.fontSize.content,
+      proseFontSize: settings.proseFontSize,
       syntax: theme.colors.syntax,
     }),
-    [theme],
+    [settings.proseFontSize, theme],
   );
   return (
     <FileSourceView
@@ -486,8 +488,12 @@ function EditableFilePane({
   location: WorkspaceFileLocation;
   navigationRevision: number;
 }) {
-  const { settings } = useAppSettings();
+  const { settings, updateSettings } = useAppSettings();
   const { t } = useTranslation();
+  const handleProseSizeChange = useCallback(
+    (next: number) => void updateSettings({ proseFontSize: next }),
+    [updateSettings],
+  );
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const [vimMode, setVimMode] = useState<string | null>(settings.vimKeybindings ? "NORMAL" : null);
   const session = useMemo(
@@ -535,7 +541,7 @@ function EditableFilePane({
       selection: theme.colors.terminal.selectionBackground,
       monoFont: theme.fontFamily.mono,
       codeFontSize: theme.fontSize.code,
-      proseFontSize: theme.fontSize.content,
+      proseFontSize: settings.proseFontSize,
       syntax: theme.colors.syntax,
     }),
     [
@@ -549,7 +555,7 @@ function EditableFilePane({
       theme.colorScheme,
       theme.fontFamily.mono,
       theme.fontSize.code,
-      theme.fontSize.content,
+      settings.proseFontSize,
     ],
   );
 
@@ -604,6 +610,8 @@ function EditableFilePane({
         conflict={conflict}
         mode={mode}
         onModeChange={onModeChange}
+        proseSize={isMarkdownOrTextFile(filename) ? settings.proseFontSize : undefined}
+        onProseSizeChange={handleProseSizeChange}
       />
       {showSource ? (
         <FileEditorView

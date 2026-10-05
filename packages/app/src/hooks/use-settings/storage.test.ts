@@ -7,7 +7,9 @@ import {
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_CODE_FONT_SIZE,
   DEFAULT_CONTENT_FONT_SIZE,
+  DEFAULT_PROSE_FONT_SIZE,
   DEFAULT_UI_BASE_FONT_SIZE,
+  MAX_PROSE_FONT_SIZE,
   defaultUiBaseFontSize,
   defaultContentFontSize,
   loadAppSettingsFromStorage,
@@ -71,7 +73,26 @@ describe("loadAppSettingsFromStorage", () => {
     expect(result.theme).toBe("dark");
     expect(result.sendBehavior).toBe(DEFAULT_CLIENT_SETTINGS.sendBehavior);
     expect(result.sidebarRowItems.host).toBe(false);
-    expect(JSON.parse(deps.storage.entries.get(APP_SETTINGS_KEY) ?? "null")).toEqual(stored);
+    const written = JSON.parse(deps.storage.entries.get(APP_SETTINGS_KEY) ?? "null");
+    expect(written.futureSetting).toEqual({ enabled: true });
+    expect(written.sendBehavior).toBe(DEFAULT_CLIENT_SETTINGS.sendBehavior);
+    expect(written.proseFontSize).toBe(DEFAULT_PROSE_FONT_SIZE);
+  });
+
+  it("keeps the prose size in bounds and defaults it when it is absent", async () => {
+    const clamped = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ proseFontSize: 500 }),
+      }),
+    });
+    expect((await loadAppSettingsFromStorage(clamped)).proseFontSize).toBe(MAX_PROSE_FONT_SIZE);
+
+    const absent = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ theme: "dark" }),
+      }),
+    });
+    expect((await loadAppSettingsFromStorage(absent)).proseFontSize).toBe(DEFAULT_PROSE_FONT_SIZE);
   });
   it("migrates a stored interrupt to steer and persists it", async () => {
     const deps = makeDeps({
