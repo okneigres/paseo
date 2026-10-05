@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { filePreviewRenderKind, isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
+import {
+  defaultFilePreviewMode,
+  filePreviewRenderKind,
+  isRenderedMarkdownFile,
+} from "@/components/file-pane-render-mode";
 
 describe("isRenderedMarkdownFile", () => {
   it("detects .md files", () => {
@@ -36,5 +40,17 @@ describe("filePreviewRenderKind", () => {
     expect(filePreviewRenderKind("src/index.ts")).toBe(null);
     expect(filePreviewRenderKind("page.mdx")).toBe(null);
     expect(filePreviewRenderKind("index.html.erb")).toBe(null);
+  });
+});
+
+describe("defaultFilePreviewMode", () => {
+  it("opens notes in the editor", () => {
+    expect(defaultFilePreviewMode("README.md")).toBe("source");
+    expect(defaultFilePreviewMode("docs/notes.markdown")).toBe("source");
+  });
+
+  it("opens a page as a page, and anything unrenderable the same way", () => {
+    expect(defaultFilePreviewMode("plan.html")).toBe("preview");
+    expect(defaultFilePreviewMode("src/index.ts")).toBe("preview");
   });
 });

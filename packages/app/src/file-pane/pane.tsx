@@ -14,7 +14,7 @@ import { StyleSheet, UnistylesRuntime, withUnistyles } from "react-native-unisty
 import { useTranslation } from "react-i18next";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useSessionStore, type ExplorerFile } from "@/stores/session-store";
-import { filePreviewRenderKind } from "@/components/file-pane-render-mode";
+import { defaultFilePreviewMode, filePreviewRenderKind } from "@/components/file-pane-render-mode";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import { getFileNameFromPath } from "@/attachments/utils";
 import { resolveFilePreviewReadTarget } from "@/file-explorer/preview-target";
@@ -235,7 +235,9 @@ export function FilePane({
 }) {
   const { t } = useTranslation();
   const isMobile = useIsCompactFormFactor();
-  const [previewMode, setPreviewMode] = useState<"preview" | "source">("preview");
+  const [previewMode, setPreviewMode] = useState<"preview" | "source">(() =>
+    defaultFilePreviewMode(location.path),
+  );
 
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
   // COMPAT(workspaceFileEditing): added in v0.2.0, remove after 2027-01-18 once daemon floor >= v0.2.0.
@@ -279,7 +281,10 @@ export function FilePane({
     liveFileSnapshot: liveFile.snapshot,
   });
 
-  useEffect(() => setPreviewMode("preview"), [targetKey]);
+  useEffect(
+    () => setPreviewMode(defaultFilePreviewMode(location.path)),
+    [location.path, targetKey],
+  );
 
   const { file: preview, imageAttachment } = resolveFilePreviewLifecycle(previewLifecycle);
   const imagePreviewUri = useAttachmentPreviewUrl(imageAttachment);

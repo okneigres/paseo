@@ -15,3 +15,11 @@ export function filePreviewRenderKind(filePath: string): FilePreviewRenderKind |
   if (isRenderedHtmlFile(filePath)) return "html";
   return null;
 }
+
+/**
+ * Which mode a renderable file opens in. Notes open as source, in the editor, where they are written;
+ * a rendered page is the only way to read HTML, so that one opens as a page.
+ */
+export function defaultFilePreviewMode(filePath: string): "preview" | "source" {
+  return filePreviewRenderKind(filePath) === "markdown" ? "source" : "preview";
+}
