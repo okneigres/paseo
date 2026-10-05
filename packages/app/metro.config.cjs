@@ -23,6 +23,12 @@ const defaultResolveRequest = config.resolver.resolveRequest ?? resolve;
 // node crawler is the path used when Watchman is absent.
 config.resolver.useWatchman = false;
 
+// Metro knows otf and ttf but not the face files the editor's prose font ships, and an unknown
+// extension is not resolved at all — the require fails, and a stylesheet's url() is left alone for
+// the dev server to answer with the app's HTML. Declaring it here is what puts those files in the
+// bundle and hands back a URL the browser can fetch.
+config.resolver.assetExts = [...config.resolver.assetExts, "woff2"];
+
 const escapedAppSrcRoot = appSrcRoot
   .split(path.sep)
   .map((segment) => segment.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&"))

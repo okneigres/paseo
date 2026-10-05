@@ -8,9 +8,7 @@ import { isRenderedMarkdownFile } from "@/components/file-pane-render-mode";
 import type { WorkspaceFileLocation } from "@/workspace/file-open";
 import type { FileEditorModel } from "./model";
 import { checklistExtensionsForFile } from "./checklist";
-import { proseFontExtension } from "./prose-font";
-import "@fontsource/roboto-condensed/400.css";
-import "@fontsource/roboto-condensed/600.css";
+import { loadProseFont, proseFontExtension } from "./prose-font";
 import { editorBaseExtensions, editorTheme, type EditorVisualTheme } from "./extensions.web";
 
 interface FileEditorViewProps {
@@ -51,6 +49,10 @@ export function FileEditorView({
   const initial = useRef({ filename, model, theme, vimEnabled, content: snapshot.content });
   const onCursorChangeRef = useRef(onCursorChange);
   onCursorChangeRef.current = onCursorChange;
+
+  useEffect(() => {
+    void loadProseFont();
+  }, []);
 
   useEffect(() => {
     if (!hostRef.current) return;
