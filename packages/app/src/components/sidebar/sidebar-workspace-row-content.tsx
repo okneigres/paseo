@@ -26,6 +26,7 @@ import { useAppSettings } from "@/hooks/use-settings";
 import { useIsSidebarProjectMarked } from "@/stores/sidebar-project-marks-store";
 import { useHosts } from "@/runtime/host-runtime";
 import { isWeb } from "@/constants/platform";
+import { density, densityFontSize, densityIconBox } from "@/styles/density";
 import type { Theme } from "@/styles/theme";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { getProjectMarkDotColor, getStatusDotColor } from "@/utils/status-dot-color";
@@ -691,8 +692,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   workspaceStatusDot: {
     position: "relative",
-    width: theme.iconSize.md,
-    height: 20,
+    width: densityIconBox("md"),
+    height: density.rowLineHeight,
     borderRadius: theme.borderRadius.full,
     flexShrink: 0,
     alignItems: "center",
@@ -731,9 +732,9 @@ const styles = StyleSheet.create((theme) => ({
   // to the meta row, so it takes the full width the trailing slot leaves behind.
   workspaceBranchText: {
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
+    fontSize: densityFontSize(theme, "base"),
     fontWeight: "400",
-    lineHeight: 20,
+    lineHeight: density.rowLineHeight,
     opacity: 0.76,
     flex: 1,
     minWidth: 0,
