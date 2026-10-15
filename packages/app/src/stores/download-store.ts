@@ -7,8 +7,6 @@ import { buildDaemonWebSocketUrl } from "@/utils/daemon-endpoints";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { isWeb } from "@/constants/platform";
 import { i18n } from "@/i18n/i18next";
-import { encodeBytesToBase64 } from "@/utils/bytes-base64";
-import type { FileReadResult } from "@getpaseo/client/internal/daemon-client";
 
 interface DownloadProgress {
   percent: number;
@@ -16,6 +14,16 @@ interface DownloadProgress {
   totalBytes: number;
   speed: number;
   eta: number;
+}
+
+// The session path holds the file in memory two to three times over (client chunks, the
+// concatenated result, then the Blob or native write). Lift once the client streams chunks to disk.
+export const MAX_SESSION_DOWNLOAD_BYTES = 64 * 1024 * 1024;
+
+export interface DownloadedBytes {
+  bytes: Uint8Array;
+  fileName: string;
+  mimeType: string | null;
 }
 
 export interface Download {
@@ -39,18 +47,18 @@ interface DownloadState {
     fileName: string;
     path: string;
     daemonProfile: HostProfile | undefined;
+    /** Connection the host runtime is using right now; `null` while disconnected. */
+    activeConnectionId: string | null;
     requestFileDownloadToken: (path: string) => Promise<{
       token: string | null;
       fileName: string | null;
       mimeType: string | null;
+      size: number | null;
       error: string | null;
     }>;
-    /**
-     * Reads a file over the client's own connection. A daemon reached only through the relay has no
-     * address to download from, and the local address of one in a container is not this machine's, so
-     * the file is read over the connection instead.
-     */
-    readFile?: (path: string) => Promise<FileReadResult>;
+    /** Reads the whole file over the session socket; used when no direct HTTP endpoint is active. */
+    readFile: (path: string, maxBytes: number) => Promise<{ bytes: Uint8Array; size: number }>;
+    saveFile?: typeof saveDownloadedBytes;
   }) => Promise<void>;
 
   updateProgress: (id: string, progress: DownloadProgress) => void;
@@ -74,8 +82,10 @@ export const useDownloadStore = create<DownloadState>()((set, get) => ({
     fileName,
     path,
     daemonProfile,
+    activeConnectionId,
     requestFileDownloadToken,
     readFile,
+    saveFile = saveDownloadedBytes,
   }) => {
     const id = generateDownloadId();
     const download: Download = {
@@ -98,12 +108,42 @@ export const useDownloadStore = create<DownloadState>()((set, get) => ({
         throw new Error(tokenResponse.error ?? i18n.t("downloads.requestTokenFailed"));
       }
 
-      const downloadTarget = resolveDaemonDownloadTarget(daemonProfile);
+      const resolvedFileName = tokenResponse.fileName ?? fileName;
+      const downloadTarget = resolveDaemonDownloadTarget(daemonProfile, activeConnectionId);
+      if (!downloadTarget) {
+        // Relay, SSH, socket and pipe hosts have no HTTP endpoint: read the file over the
+        // session socket that is already connected (#543).
+        if (
+          typeof tokenResponse.size === "number" &&
+          tokenResponse.size > MAX_SESSION_DOWNLOAD_BYTES
+        ) {
+          throw new Error(
+            i18n.t("composer.errors.fileTooLarge", { fileName: resolvedFileName, size: "64 MB" }),
+          );
+        }
+        const { bytes, size } = await readFile(path, MAX_SESSION_DOWNLOAD_BYTES);
+        // A daemon without a binary channel answers `encoding: "none"` for a binary file: no
+        // content, real size. Never save that as a complete download.
+        if (bytes.byteLength !== size) {
+          throw new Error(
+            `File transfer incomplete: expected ${size} bytes, received ${bytes.byteLength}.`,
+          );
+        }
+        const savedUri = await saveFile({
+          bytes,
+          fileName: resolvedFileName,
+          mimeType: tokenResponse.mimeType,
+        });
+        get().completeDownload(id);
+        if (savedUri !== null) {
+          await shareSavedFile(savedUri, tokenResponse.mimeType, resolvedFileName);
+        }
+        return;
+      }
       if (!downloadTarget.baseUrl) {
         throw new Error(i18n.t("downloads.hostUnavailable"));
       }
 
-      const resolvedFileName = tokenResponse.fileName ?? fileName;
       const downloadUrl = buildDownloadUrl(
         downloadTarget.baseUrl,
         tokenResponse.token,
@@ -155,31 +195,8 @@ export const useDownloadStore = create<DownloadState>()((set, get) => ({
 
       get().completeDownload(id);
 
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(result.uri, {
-          mimeType: tokenResponse.mimeType ?? undefined,
-          dialogTitle: resolvedFileName
-            ? i18n.t("downloads.shareFileNamed", { fileName: resolvedFileName })
-            : i18n.t("downloads.shareFile"),
-        });
-      }
+      await shareSavedFile(result.uri, tokenResponse.mimeType, resolvedFileName);
     } catch (error) {
-      // The address a daemon runs on is not always one this machine can reach. Its connection is,
-      // so read the file over that and write it here; when even that is not possible, the download's
-      // own failure is the one to report.
-      try {
-        if (readFile) {
-          await readDownloadOverConnection({ path, fileName, readFile });
-          get().completeDownload(id);
-          return;
-        }
-      } catch (connectionError) {
-        console.warn(
-          "[DownloadStore] Reading the file over the connection failed:",
-          connectionError instanceof Error ? connectionError.message : connectionError,
-        );
-      }
-
       const message = error instanceof Error ? error.message : i18n.t("downloads.failed");
       if (isWeb) {
         console.warn("[DownloadStore] Download failed:", message);
@@ -270,64 +287,17 @@ interface DownloadTarget {
 }
 
 /**
- * Saves a file by reading it over the client's own connection, where the daemon has no reachable
- * address of its own. Returns the name it was written under.
+ * The HTTP download route is only reachable over a direct TCP connection. Returns `null` when
+ * the connection in use is anything else (relay, SSH, socket, pipe, or none yet), so the caller
+ * reads the file over the session socket instead.
  */
-async function readDownloadOverConnection(input: {
-  path: string;
-  fileName: string;
-  readFile: (path: string) => Promise<FileReadResult>;
-}): Promise<string> {
-  const file = await input.readFile(input.path);
-  const fileName = input.fileName || fileNameFromPath(file.path);
-
-  if (isWeb) {
-    triggerBrowserDownloadFromBytes(file.bytes, fileName, file.mime);
-    return fileName;
-  }
-
-  const targetFile = resolveDownloadTargetFile(fileName);
-  await LegacyFileSystem.writeAsStringAsync(targetFile.uri, encodeBytesToBase64(file.bytes), {
-    encoding: "base64",
-  });
-
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(targetFile.uri, {
-      mimeType: file.mime || undefined,
-      dialogTitle: i18n.t("downloads.shareFileNamed", { fileName }),
-    });
-  }
-
-  return fileName;
-}
-
-/** The last segment of a path, for a file read out of the daemon rather than off a URL. */
-function fileNameFromPath(path: string): string {
-  const segments = path.split("/").filter((segment) => segment.length > 0);
-  return segments[segments.length - 1] ?? "";
-}
-
-/** Saves bytes the browser already holds, for a file that never had a URL of its own. */
-function triggerBrowserDownloadFromBytes(
-  bytes: Uint8Array,
-  fileName: string,
-  mimeType: string,
-): void {
-  if (typeof document === "undefined") {
-    return;
-  }
-  // `slice` hands the Blob an exact-length buffer: the bytes may be a view over a larger one, and
-  // BlobPart refuses a buffer that might be shared.
-  const blob = new Blob([bytes.slice()], mimeType ? { type: mimeType } : undefined);
-  const url = URL.createObjectURL(blob);
-  triggerBrowserDownload(url, fileName);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-function resolveDaemonDownloadTarget(daemon?: HostProfile): DownloadTarget {
-  const connection = daemon?.connections.find((conn) => conn.type === "directTcp") ?? null;
-  if (!connection) {
-    return { baseUrl: null, authHeader: null, authCredentials: null };
+function resolveDaemonDownloadTarget(
+  daemon: HostProfile | undefined,
+  activeConnectionId: string | null,
+): DownloadTarget | null {
+  const connection = daemon?.connections.find((conn) => conn.id === activeConnectionId);
+  if (connection?.type !== "directTcp") {
+    return null;
   }
 
   let parsed: URL;
@@ -377,6 +347,47 @@ function buildDownloadUrl(
     url.password = authCredentials.password;
   }
   return url.toString();
+}
+
+/**
+ * Saves bytes read over the session. Web and Electron hand them to the browser's download
+ * manager and return `null`; native writes the file and returns its URI for the share sheet.
+ */
+async function saveDownloadedBytes({
+  bytes,
+  fileName,
+  mimeType,
+}: DownloadedBytes): Promise<string | null> {
+  if (isWeb) {
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    const url = URL.createObjectURL(
+      new Blob([buffer], { type: mimeType ?? "application/octet-stream" }),
+    );
+    triggerBrowserDownload(url, fileName);
+    // The browser may still be reading the blob while its save prompt is open.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return null;
+  }
+  // Resolve and write in one tick so two downloads of the same name cannot pick the same path.
+  const targetFile = resolveDownloadTargetFile(fileName);
+  targetFile.write(bytes);
+  return targetFile.uri;
+}
+
+async function shareSavedFile(
+  uri: string,
+  mimeType: string | null,
+  fileName: string,
+): Promise<void> {
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri, {
+      mimeType: mimeType ?? undefined,
+      dialogTitle: fileName
+        ? i18n.t("downloads.shareFileNamed", { fileName })
+        : i18n.t("downloads.shareFile"),
+    });
+  }
 }
 
 function triggerBrowserDownload(url: string, fileName: string) {

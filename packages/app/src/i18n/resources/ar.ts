@@ -635,7 +635,7 @@ export const ar: TranslationResources = {
       },
       switcher: {
         trigger: "تبديل علامات التبويب (فتح{{count}})",
-        title: "علامة التبويب التبديل",
+        title: "علامات تبويب الـ Workspace",
         searchPlaceholder: "علامات تبويب البحث",
       },
       menu: {
