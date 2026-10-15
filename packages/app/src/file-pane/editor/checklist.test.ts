@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CHECKED_CHECKLIST_BOX,
+  CROSSED_CHECKLIST_BOX,
   EMPTY_CHECKLIST_BOX,
   isMarkdownOrTextFile,
   isChecklistTypedPair,
@@ -24,9 +25,10 @@ describe("checklist boxes", () => {
     expect(isChecklistTypedPair("x]")).toBe(false);
   });
 
-  it("flips a box both ways and leaves other characters alone", () => {
+  it("walks a box through empty, done, crossed and back, and leaves other characters alone", () => {
     expect(nextChecklistBox(EMPTY_CHECKLIST_BOX)).toBe(CHECKED_CHECKLIST_BOX);
-    expect(nextChecklistBox(CHECKED_CHECKLIST_BOX)).toBe(EMPTY_CHECKLIST_BOX);
+    expect(nextChecklistBox(CHECKED_CHECKLIST_BOX)).toBe(CROSSED_CHECKLIST_BOX);
+    expect(nextChecklistBox(CROSSED_CHECKLIST_BOX)).toBe(EMPTY_CHECKLIST_BOX);
     expect(nextChecklistBox("x")).toBeNull();
     expect(nextChecklistBox(" ")).toBeNull();
   });

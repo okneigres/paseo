@@ -2,11 +2,13 @@ import { EditorSelection, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
 /**
- * The two plain-text symbols this editor understands, the way the notes editor does: an empty box and
- * a done one. They are ordinary characters in the file — nothing but this extension gives them meaning.
+ * The three plain-text symbols this editor understands, the way the notes editor does: an empty box, a
+ * done one, and a crossed one for what turned out not to be wanted. They are ordinary characters in
+ * the file — nothing but this extension gives them meaning.
  */
 export const EMPTY_CHECKLIST_BOX = "❏";
 export const CHECKED_CHECKLIST_BOX = "✔";
+export const CROSSED_CHECKLIST_BOX = "✘";
 
 /** Typing either pair leaves an empty box behind. */
 const TYPED_PAIRS = new Set(["[]", "хъ"]);
@@ -23,10 +25,11 @@ export function isChecklistTypedPair(pair: string): boolean {
   return TYPED_PAIRS.has(pair);
 }
 
-/** What a click on a box makes of it: empty becomes done, done becomes empty, anything else stays. */
+/** What a click on a box makes of it: empty, then done, then crossed, then empty again. */
 export function nextChecklistBox(char: string): string | null {
   if (char === EMPTY_CHECKLIST_BOX) return CHECKED_CHECKLIST_BOX;
-  if (char === CHECKED_CHECKLIST_BOX) return EMPTY_CHECKLIST_BOX;
+  if (char === CHECKED_CHECKLIST_BOX) return CROSSED_CHECKLIST_BOX;
+  if (char === CROSSED_CHECKLIST_BOX) return EMPTY_CHECKLIST_BOX;
   return null;
 }
 
