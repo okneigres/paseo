@@ -153,6 +153,9 @@ export interface CreateTerminalOptions {
   title?: string;
   command?: string;
   args?: string[];
+  // Rendered output written to the emulator before the shell starts, so a
+  // restored terminal keeps its earlier history above the new prompt.
+  initialOutput?: string;
 }
 
 function toTerminalActivity(snapshot: {
@@ -980,6 +983,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     title: presetTitle,
     command,
     args = [],
+    initialOutput,
   } = options;
   const resolvedShell = shell ?? resolveDefaultTerminalShell();
 
@@ -1019,6 +1023,9 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     scrollback: 1000,
     allowProposedApi: true,
   });
+  if (initialOutput) {
+    terminal.write(initialOutput);
+  }
 
   ensureNodePtySpawnHelperExecutableForCurrentPlatform();
 

@@ -31,6 +31,7 @@ export interface WorkerCreateTerminalOptions {
   cols?: number;
   activityToken?: string;
   activityUrl?: string | null;
+  initialOutput?: string;
 }
 
 export interface WorkerKillAndWaitOptions {

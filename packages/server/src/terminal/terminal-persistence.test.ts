@@ -1,7 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   TerminalListItem,
   TerminalManager,
@@ -13,6 +13,8 @@ function createFakeManager() {
   const items = new Map<string, TerminalListItem>();
   const listeners = new Set<TerminalsChangedListener>();
   const created: string[] = [];
+  const createdOptions: Array<{ id?: string; initialOutput?: string }> = [];
+  const outputListeners = new Map<string, (message: { type: "output"; data: string }) => void>();
   function emit(cwd: string) {
     const terminals = Array.from(items.values()).filter((item) => item.cwd === cwd);
     for (const listener of listeners) listener({ cwd, terminals });
@@ -24,7 +26,9 @@ function createFakeManager() {
       workspaceId: string;
       name?: string;
       title?: string;
+      initialOutput?: string;
     }) {
+      createdOptions.push(options);
       const id = options.id ?? `t${items.size + 1}`;
       created.push(id);
       items.set(id, {
@@ -37,6 +41,26 @@ function createFakeManager() {
       });
       emit(options.cwd);
       return { id } as never;
+    },
+    getTerminal(id: string) {
+      return {
+        subscribe(listener: (message: { type: "output"; data: string }) => void) {
+          outputListeners.set(id, listener);
+          return () => outputListeners.delete(id);
+        },
+      };
+    },
+    async getTerminalState() {
+      return {
+        revision: 1,
+        state: {
+          rows: 1,
+          cols: 20,
+          grid: [[{ char: "h" }, { char: "i" }]],
+          scrollback: [],
+          cursor: { row: 0, col: 2 },
+        },
+      };
     },
     async getTerminals() {
       return [];
@@ -54,7 +78,13 @@ function createFakeManager() {
       items.clear();
     },
   };
-  return { manager: manager as unknown as TerminalManager, created, kill: manager.killTerminal };
+  return {
+    manager: manager as unknown as TerminalManager,
+    created,
+    createdOptions,
+    output: (id: string) => outputListeners.get(id)?.({ type: "output", data: "x" }),
+    kill: manager.killTerminal,
+  };
 }
 
 describe("withTerminalPersistence", () => {
@@ -79,6 +109,33 @@ describe("withTerminalPersistence", () => {
     expect(
       JSON.parse(readFileSync(path, "utf8")).terminals.map((t: { id: string }) => t.id),
     ).toEqual([a.id]);
+  });
+
+  it("replays saved history into the restored terminal and drops it on close", async () => {
+    dir = mkdtempSync(join(tmpdir(), "terminal-persistence-"));
+    const path = join(dir, "terminals.json");
+    vi.useFakeTimers();
+    try {
+      const first = createFakeManager();
+      const firstWrapped = withTerminalPersistence(first.manager, { path });
+      const a = await firstWrapped.createTerminal({ cwd: "/w", workspaceId: "ws", name: "A" });
+      first.output(a.id);
+      await vi.advanceTimersByTimeAsync(2500);
+      firstWrapped.killAll();
+      await vi.advanceTimersByTimeAsync(10);
+
+      const second = createFakeManager();
+      const secondWrapped = withTerminalPersistence(second.manager, { path });
+      await secondWrapped.getTerminals("/w");
+      expect(second.createdOptions[0]?.id).toBe(a.id);
+      expect(second.createdOptions[0]?.initialOutput).toContain("hi");
+      expect(second.createdOptions[0]?.initialOutput).toContain("restored");
+
+      second.kill(a.id);
+      expect(existsSync(join(dir, "terminal-history", `${a.id}.ansi`))).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("starts empty when the file is corrupt", async () => {

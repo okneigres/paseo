@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { renderTerminalSnapshotToAnsi } from "@getpaseo/protocol/terminal-snapshot";
 import type { TerminalListItem, TerminalManager } from "./terminal-manager.js";
 
 interface PersistedTerminal {
@@ -62,6 +63,25 @@ function toPersisted(item: TerminalListItem): PersistedTerminal {
   };
 }
 
+const HISTORY_SCROLLBACK_LINES = 1000;
+const HISTORY_IDLE_SAVE_MS = 2000;
+const HISTORY_MAX_WAIT_MS = 10000;
+const HISTORY_FLUSH_TIMEOUT_MS = 1500;
+const RESTORED_MARKER = "\r\n\u001b[2m── restored after daemon restart ──\u001b[0m\r\n";
+
+function historyPathFor(terminalsPath: string, id: string): string {
+  return join(dirname(terminalsPath), "terminal-history", `${id}.ansi`);
+}
+
+function readHistory(terminalsPath: string, id: string): string | undefined {
+  try {
+    const raw = readFileSync(historyPathFor(terminalsPath, id), "utf8");
+    return raw ? raw + RESTORED_MARKER : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Keeps terminal identities (id, name, title, cwd, workspace) across daemon
  * restarts. Processes are not preserved: each recorded terminal comes back as a
@@ -74,6 +94,94 @@ export function withTerminalPersistence(
   const { path, logger } = options;
   const entries = new Map<string, PersistedTerminal>();
   let frozen = true;
+  const watched = new Set<string>();
+  const dirty = new Set<string>();
+  const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const maxWaitTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  async function saveHistory(id: string): Promise<void> {
+    dirty.delete(id);
+    try {
+      const snapshot = await inner.getTerminalState(id, {
+        scrollbackLines: HISTORY_SCROLLBACK_LINES,
+        includeWrapFlags: true,
+      });
+      if (!snapshot) {
+        return;
+      }
+      const file = historyPathFor(path, id);
+      mkdirSync(dirname(file), { recursive: true });
+      const tmp = `${file}.${process.pid}.tmp`;
+      writeFileSync(tmp, renderTerminalSnapshotToAnsi(snapshot.state));
+      renameSync(tmp, file);
+    } catch (error) {
+      logger?.warn({ err: error, terminalId: id }, "Failed to persist terminal history");
+    }
+  }
+
+  function clearHistoryTimers(id: string): void {
+    clearTimeout(idleTimers.get(id));
+    clearTimeout(maxWaitTimers.get(id));
+    idleTimers.delete(id);
+    maxWaitTimers.delete(id);
+  }
+
+  function runScheduledHistorySave(id: string): void {
+    clearHistoryTimers(id);
+    if (!frozen && dirty.has(id)) {
+      void saveHistory(id);
+    }
+  }
+
+  function markHistoryDirty(id: string): void {
+    dirty.add(id);
+    clearTimeout(idleTimers.get(id));
+    idleTimers.set(
+      id,
+      setTimeout(() => runScheduledHistorySave(id), HISTORY_IDLE_SAVE_MS),
+    );
+    if (!maxWaitTimers.has(id)) {
+      maxWaitTimers.set(
+        id,
+        setTimeout(() => runScheduledHistorySave(id), HISTORY_MAX_WAIT_MS),
+      );
+    }
+  }
+
+  function watchHistory(id: string): void {
+    if (watched.has(id)) {
+      return;
+    }
+    const session = inner.getTerminal(id);
+    if (!session) {
+      return;
+    }
+    watched.add(id);
+    session.subscribe((message) => {
+      if (message.type === "output") {
+        markHistoryDirty(id);
+      }
+    });
+  }
+
+  function forgetHistory(id: string): void {
+    watched.delete(id);
+    dirty.delete(id);
+    clearHistoryTimers(id);
+    try {
+      rmSync(historyPathFor(path, id), { force: true });
+    } catch {
+      // no-op
+    }
+  }
+
+  async function flushHistories(): Promise<void> {
+    const ids = Array.from(dirty);
+    await Promise.race([
+      Promise.all(ids.map((id) => saveHistory(id))),
+      new Promise((resolve) => setTimeout(resolve, HISTORY_FLUSH_TIMEOUT_MS)),
+    ]);
+  }
 
   function save(): void {
     try {
@@ -90,10 +198,14 @@ export function withTerminalPersistence(
     for (const [id, entry] of entries) {
       if (entry.cwd === event.cwd) {
         entries.delete(id);
+        if (!event.terminals.some((item) => item.id === id)) {
+          forgetHistory(id);
+        }
       }
     }
     for (const item of event.terminals) {
       entries.set(item.id, toPersisted(item));
+      watchHistory(item.id);
     }
     save();
   });
@@ -101,6 +213,7 @@ export function withTerminalPersistence(
   const restored = (async () => {
     const recorded = readPersistedTerminals(path);
     for (const entry of recorded) {
+      const history = readHistory(path, entry.id);
       try {
         await inner.createTerminal({
           id: entry.id,
@@ -108,8 +221,10 @@ export function withTerminalPersistence(
           workspaceId: entry.workspaceId,
           name: entry.name,
           ...(entry.title ? { title: entry.title } : {}),
+          ...(history ? { initialOutput: history } : {}),
         });
         entries.set(entry.id, entry);
+        watchHistory(entry.id);
       } catch (error) {
         logger?.warn({ err: error, terminalId: entry.id }, "Failed to restore terminal");
       }
@@ -132,9 +247,14 @@ export function withTerminalPersistence(
       return inner.createTerminal(createOptions);
     },
     killAll() {
-      // Shutdown, not a user close: keep the file so the next start restores it.
+      // Shutdown, not a user close: keep the files so the next start restores
+      // them. Give pending histories a moment to land before the shells go.
+      const pending = flushHistories();
       frozen = true;
-      inner.killAll();
+      for (const id of Array.from(idleTimers.keys())) {
+        clearHistoryTimers(id);
+      }
+      void pending.finally(() => inner.killAll());
     },
   };
 }
