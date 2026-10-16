@@ -90,6 +90,13 @@ interface FinalizingVoiceTurn {
   fired: boolean;
 }
 
+// Audio kept from before the detector confirms speech. The detector needs about
+// 800 ms to confirm, so the words that started the turn are already in the past
+// when speech_started fires. Everything older stays out of the transcriber: a
+// long run of silence in front of an utterance makes the offline model return
+// an empty transcript.
+const STT_PREROLL_MS = 2000;
+
 export function createVoiceTurnController(params: {
   logger: Logger;
   turnDetection: TurnDetectionProvider;
@@ -113,6 +120,27 @@ export function createVoiceTurnController(params: {
   let reconnectAttemptedForTurn = false;
   const sealedTranscriptSegmentIds = new Set<string>();
   let currentFinalizingTurn: FinalizingVoiceTurn | null = null;
+  let prerollChunks: Buffer[] = [];
+  let prerollBytes = 0;
+
+  function holdPreroll(session: StreamingTranscriptionSession, chunk: Buffer): void {
+    const maxBytes = Math.round((session.requiredSampleRate * 2 * STT_PREROLL_MS) / 1000);
+    prerollChunks.push(chunk);
+    prerollBytes += chunk.length;
+    while (prerollChunks.length > 1 && prerollBytes - prerollChunks[0].length >= maxBytes) {
+      prerollBytes -= prerollChunks[0].length;
+      prerollChunks.shift();
+    }
+  }
+
+  function flushPreroll(session: StreamingTranscriptionSession): void {
+    const chunks = prerollChunks;
+    prerollChunks = [];
+    prerollBytes = 0;
+    for (const chunk of chunks) {
+      session.appendPcm16(chunk);
+    }
+  }
 
   function fail(error: unknown): void {
     params.callbacks.onError(error instanceof Error ? error : new Error(String(error)));
@@ -405,6 +433,14 @@ export function createVoiceTurnController(params: {
 
     await params.callbacks.onSpeechStarted();
 
+    if (sttSession) {
+      try {
+        flushPreroll(sttSession);
+      } catch (error) {
+        handleSttError(error);
+      }
+    }
+
     const startedAt = Date.now();
     activeTranscriptSegmentId = null;
     partialTranscriptFired = false;
@@ -492,6 +528,8 @@ export function createVoiceTurnController(params: {
         resampler = null;
         sttResampler = null;
         sttSession = null;
+        prerollChunks = [];
+        prerollBytes = 0;
         currentFinalizingTurn = null;
         state = { status: "idle" };
       });
@@ -530,9 +568,13 @@ export function createVoiceTurnController(params: {
           detector.appendPcm16(detectorPcm16);
         }
 
-        if (sttPcm16 && sttPcm16.length > 0) {
+        if (sttPcm16 && sttPcm16.length > 0 && currentSttSession) {
           try {
-            currentSttSession?.appendPcm16(sttPcm16);
+            if (state.status === "capturing") {
+              currentSttSession.appendPcm16(sttPcm16);
+            } else {
+              holdPreroll(currentSttSession, sttPcm16);
+            }
           } catch (error) {
             handleSttError(error);
           }

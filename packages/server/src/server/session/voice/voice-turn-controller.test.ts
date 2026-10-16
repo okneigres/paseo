@@ -195,6 +195,49 @@ describe("voice turn controller", () => {
     expect(harness.onError).not.toHaveBeenCalled();
   });
 
+  it("keeps only the last two seconds of audio from before speech was confirmed", async () => {
+    const harness = createControllerHarness();
+    const oneSecond = 16000 * 2;
+
+    await harness.controller.start();
+    for (let second = 0; second < 6; second += 1) {
+      await harness.controller.appendClientChunk({
+        audioBase64: Buffer.alloc(oneSecond, second + 1).toString("base64"),
+        format: "audio/pcm;rate=16000;bits=16",
+      });
+    }
+    expect(harness.sttSessions[0]?.appendedChunks).toEqual([]);
+
+    harness.detector.emit("speech_started");
+    await settleSerialQueue();
+    await harness.controller.appendClientChunk({
+      audioBase64: Buffer.alloc(oneSecond, 9).toString("base64"),
+      format: "audio/pcm;rate=16000;bits=16",
+    });
+
+    expect(harness.sttSessions[0]?.appendedChunks).toEqual([
+      Buffer.alloc(oneSecond, 5),
+      Buffer.alloc(oneSecond, 6),
+      Buffer.alloc(oneSecond, 9),
+    ]);
+  });
+
+  it("holds audio between turns back from the transcriber", async () => {
+    const harness = createControllerHarness();
+
+    await harness.controller.start();
+    harness.detector.emit("speech_started");
+    await settleSerialQueue();
+    harness.detector.emit("speech_stopped");
+    await settleSerialQueue();
+    await harness.controller.appendClientChunk({
+      audioBase64: Buffer.alloc(32000, 1).toString("base64"),
+      format: "audio/pcm;rate=16000;bits=16",
+    });
+
+    expect(harness.sttSessions[0]?.appendedChunks).toEqual([]);
+  });
+
   it("does not barge in on silence-only chunks", async () => {
     const harness = createControllerHarness();
 
