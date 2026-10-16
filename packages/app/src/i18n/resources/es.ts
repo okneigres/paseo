@@ -2226,6 +2226,14 @@ export const es: TranslationResources = {
           queue: "Cola",
         },
       },
+      audioOutput: {
+        title: "Audio",
+        label: "Dispositivo de salida de voz",
+        hint: "Dónde reproduce Paseo las respuestas habladas. Se aplica al modo de voz.",
+        systemDefault: "Predeterminado del sistema",
+        deviceFallback: "Dispositivo de salida {{number}}",
+        unavailable: "Dispositivo no disponible",
+      },
       serviceUrls: {
         options: {
           ask: "Preguntar",

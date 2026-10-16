@@ -3,6 +3,12 @@ import { isElectronRuntime } from "@/desktop/host";
 import type { AudioEngine, AudioEngineCallbacks, AudioPlaybackSource } from "./audio-engine-types";
 
 import { createPlaybackQueue } from "./playback";
+import { CAPTURE_TARGET_RATE, CAPTURE_WORKLET_NAME, loadCaptureWorklet } from "./capture-worklet";
+import {
+  applyAudioOutputDevice,
+  getPreferredAudioOutputDevice,
+  subscribeAudioOutputDevice,
+} from "./output-device";
 
 function getAudioContextCtor(): typeof AudioContext | null {
   if (typeof window === "undefined") {
@@ -53,7 +59,7 @@ export function createAudioEngine(
     captureContext: AudioContext | null;
     stream: MediaStream | null;
     source: MediaStreamAudioSourceNode | null;
-    processor: ScriptProcessorNode | null;
+    processor: AudioNode | null;
     gain: GainNode | null;
     started: boolean;
     muted: boolean;
@@ -72,7 +78,12 @@ export function createAudioEngine(
     if (!refs.playbackContext) {
       const AudioContextCtor = getAudioContextCtor();
       if (!AudioContextCtor) throw new Error("AudioContext unavailable");
-      refs.playbackContext = new AudioContextCtor();
+      const created = new AudioContextCtor();
+      refs.playbackContext = created;
+      const deviceId = getPreferredAudioOutputDevice();
+      if (deviceId !== "") {
+        void applyAudioOutputDevice(created, deviceId);
+      }
     }
     const context = refs.playbackContext;
     if (context.state === "suspended") {
@@ -93,6 +104,12 @@ export function createAudioEngine(
     }
     return context;
   }
+
+  const unsubscribeOutputDevice = subscribeAudioOutputDevice((deviceId) => {
+    if (refs.playbackContext) {
+      void applyAudioOutputDevice(refs.playbackContext, deviceId);
+    }
+  });
 
   async function ensureCaptureContext(): Promise<AudioContext> {
     if (refs.captureContext) {
@@ -165,6 +182,11 @@ export function createAudioEngine(
     refs.started = false;
 
     try {
+      const workletPort = (refs.processor as { port?: MessagePort } | null)?.port;
+      if (workletPort) {
+        workletPort.onmessage = null;
+        workletPort.close();
+      }
       refs.processor?.disconnect();
       refs.source?.disconnect();
       refs.gain?.disconnect();
@@ -202,6 +224,7 @@ export function createAudioEngine(
     },
 
     async destroy() {
+      unsubscribeOutputDevice();
       playback.destroy();
       await stopCapture();
 
@@ -249,32 +272,56 @@ export function createAudioEngine(
           },
         });
         const source = context.createMediaStreamSource(stream);
-        const processor = context.createScriptProcessor(4096, 1, 1);
         const gain = context.createGain();
         gain.gain.value = 0;
 
-        processor.onaudioprocess = (event) => {
-          if (!refs.started) {
-            return;
-          }
-
-          const input = event.inputBuffer.getChannelData(0);
-          let sumSquares = 0;
-          for (let i = 0; i < input.length; i += 1) {
-            const sample = input[i];
-            sumSquares += sample * sample;
-          }
-          const rms = Math.sqrt(sumSquares / Math.max(1, input.length));
-          const normalized = Math.min(1, Math.max(0, rms * 2));
-          callbacks.onVolumeLevel(normalized);
-
-          if (refs.muted) {
-            return;
-          }
-
-          const pcm = resampleToPcm16(input, context.sampleRate, 16000);
-          callbacks.onCaptureData(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+        const handleVolume = (rms: number) => {
+          callbacks.onVolumeLevel(Math.min(1, Math.max(0, rms * 2)));
         };
+
+        let processor: AudioNode;
+        if (await loadCaptureWorklet(context)) {
+          const node = new AudioWorkletNode(context, CAPTURE_WORKLET_NAME, {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            outputChannelCount: [1],
+            processorOptions: { targetRate: CAPTURE_TARGET_RATE },
+          });
+          node.port.onmessage = (event: MessageEvent<{ pcm: ArrayBuffer; rms: number }>) => {
+            if (!refs.started) {
+              return;
+            }
+            handleVolume(event.data.rms);
+            if (refs.muted) {
+              return;
+            }
+            callbacks.onCaptureData(new Uint8Array(event.data.pcm));
+          };
+          processor = node;
+        } else {
+          const scriptProcessor = context.createScriptProcessor(4096, 1, 1);
+          scriptProcessor.onaudioprocess = (event) => {
+            if (!refs.started) {
+              return;
+            }
+
+            const input = event.inputBuffer.getChannelData(0);
+            let sumSquares = 0;
+            for (let i = 0; i < input.length; i += 1) {
+              const sample = input[i];
+              sumSquares += sample * sample;
+            }
+            handleVolume(Math.sqrt(sumSquares / Math.max(1, input.length)));
+
+            if (refs.muted) {
+              return;
+            }
+
+            const pcm = resampleToPcm16(input, context.sampleRate, CAPTURE_TARGET_RATE);
+            callbacks.onCaptureData(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+          };
+          processor = scriptProcessor;
+        }
 
         source.connect(processor);
         processor.connect(gain);

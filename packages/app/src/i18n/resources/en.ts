@@ -2299,6 +2299,14 @@ export const en = {
           queue: "Queue",
         },
       },
+      audioOutput: {
+        title: "Audio",
+        label: "Voice output device",
+        hint: "Where Paseo plays its spoken replies. Applies to voice mode.",
+        systemDefault: "System default",
+        deviceFallback: "Output device {{number}}",
+        unavailable: "Unavailable device",
+      },
       serviceUrls: {
         options: {
           ask: "Ask",

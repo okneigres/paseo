@@ -9,6 +9,8 @@ import {
 } from "@/utils/thinking-tone.native-pcm";
 
 const PCM_MIME_TYPE = "audio/pcm;rate=16000;bits=16";
+// Longest stretch of microphone audio kept while the server is not ready: 15 s of 16 kHz PCM16.
+const MAX_HELD_CAPTURE_BYTES = 16000 * 2 * 15;
 const KEEP_AWAKE_TAG = "paseo:voice";
 const THINKING_TONE_REPEAT_GAP_MS = 350;
 /**
@@ -489,24 +491,65 @@ export function createVoiceRuntime(deps: VoiceRuntimeDeps): VoiceRuntime {
     cue.timeout = setTimeout(playNext, THINKING_TONE_MIN_SILENCE_MS);
   }
 
+  // The microphone starts before the server has finished enabling voice mode, and
+  // again after a reconnect. Audio from those windows is kept, so the first words
+  // are not lost, and sent in order once the transport is ready.
+  let heldCapture: Uint8Array[] = [];
+  let heldCaptureBytes = 0;
+
+  function canAcceptCapture(): boolean {
+    return state.snapshot.isVoiceMode || state.snapshot.phase === "starting";
+  }
+
+  function holdCapture(chunk: Uint8Array): void {
+    heldCapture.push(chunk);
+    heldCaptureBytes += chunk.byteLength;
+    while (heldCapture.length > 1 && heldCaptureBytes > MAX_HELD_CAPTURE_BYTES) {
+      heldCaptureBytes -= heldCapture.shift()!.byteLength;
+    }
+  }
+
+  function sendCapture(session: RuntimeSessionState, chunk: Uint8Array): void {
+    const base64 = Buffer.from(chunk).toString("base64");
+    void session.adapter.sendVoiceAudioChunk(base64, PCM_MIME_TYPE).catch((error) => {
+      console.error(`[VoiceRuntime#${instanceId}] Failed to send audio chunk:`, error);
+    });
+  }
+
+  function flushHeldCapture(): void {
+    const session = getActiveSession();
+    const chunks = heldCapture;
+    heldCapture = [];
+    heldCaptureBytes = 0;
+    if (!session) {
+      return;
+    }
+    for (const chunk of chunks) {
+      sendCapture(session, chunk);
+    }
+  }
+
+  function markTransportReady(): void {
+    state.transportReady = true;
+    flushHeldCapture();
+  }
+
   const uploader: ContinuousVoiceUploader = {
-    reset() {},
+    reset() {
+      heldCapture = [];
+      heldCaptureBytes = 0;
+    },
     pushPcmChunk(chunk) {
       const activeSession = getActiveSession();
-      if (
-        !activeSession ||
-        !state.transportReady ||
-        !state.snapshot.isVoiceMode ||
-        chunk.byteLength === 0
-      ) {
+      if (!activeSession || chunk.byteLength === 0 || !canAcceptCapture()) {
         return;
       }
-
-      const base64 = Buffer.from(chunk).toString("base64");
-
-      void activeSession.adapter.sendVoiceAudioChunk(base64, PCM_MIME_TYPE).catch((error) => {
-        console.error(`[VoiceRuntime#${instanceId}] Failed to send audio chunk:`, error);
-      });
+      if (!state.transportReady) {
+        holdCapture(chunk);
+        return;
+      }
+      flushHeldCapture();
+      sendCapture(activeSession, chunk);
     },
   };
 
@@ -571,7 +614,7 @@ export function createVoiceRuntime(deps: VoiceRuntimeDeps): VoiceRuntime {
     patchSnapshot((prev) => ({ ...prev, isVoiceSwitching: true }));
     try {
       await activeSession.adapter.setVoiceMode(true, state.snapshot.activeAgentId);
-      state.transportReady = true;
+      markTransportReady();
     } finally {
       patchSnapshot((prev) => ({ ...prev, isVoiceSwitching: false }));
     }
@@ -632,7 +675,7 @@ export function createVoiceRuntime(deps: VoiceRuntimeDeps): VoiceRuntime {
     },
 
     handleCapturePcm(chunk) {
-      if (!state.snapshot.isVoiceMode || state.snapshot.isMuted) {
+      if (!canAcceptCapture() || state.snapshot.isMuted) {
         return;
       }
       uploader.pushPcmChunk(chunk);
@@ -727,6 +770,7 @@ export function createVoiceRuntime(deps: VoiceRuntimeDeps): VoiceRuntime {
       let enabledCurrentVoiceMode = false;
       state.generation = generation;
       state.transportReady = false;
+      uploader.reset();
       patchSnapshot((prev) => ({
         ...prev,
         isVoiceSwitching: true,
@@ -760,9 +804,8 @@ export function createVoiceRuntime(deps: VoiceRuntimeDeps): VoiceRuntime {
           return;
         }
 
-        state.transportReady = true;
+        markTransportReady();
         state.turnInProgress = false;
-        uploader.reset();
         resetCaptureTelemetry();
         patchSnapshot((prev) => ({
           ...prev,

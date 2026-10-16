@@ -9,6 +9,8 @@ import {
 } from "react";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useSessionStore } from "@/stores/session-store";
+import { useAppSettings } from "@/hooks/use-settings";
+import { setPreferredAudioOutputDevice } from "@/audio/output-device";
 import { createAudioEngine } from "@/audio";
 import type { AudioEngine } from "@/audio";
 import {
@@ -153,6 +155,12 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
   const engine = engineRef.current;
   const runtime = runtimeRef.current!;
+
+  const { settings } = useAppSettings();
+  const audioOutputDeviceId = settings.audioOutputDeviceId;
+  useEffect(() => {
+    setPreferredAudioOutputDevice(audioOutputDeviceId);
+  }, [audioOutputDeviceId]);
 
   useEffect(() => {
     return () => {

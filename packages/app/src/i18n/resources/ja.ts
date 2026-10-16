@@ -2195,6 +2195,14 @@ export const ja: TranslationResources = {
           queue: "キュー",
         },
       },
+      audioOutput: {
+        title: "オーディオ",
+        label: "音声の出力デバイス",
+        hint: "Paseo が音声の返答を再生する場所です。音声モードで使われます。",
+        systemDefault: "システムの既定",
+        deviceFallback: "出力デバイス {{number}}",
+        unavailable: "利用できないデバイス",
+      },
       serviceUrls: {
         options: {
           ask: "確認する",

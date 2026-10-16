@@ -2224,6 +2224,14 @@ export const fr: TranslationResources = {
           queue: "File d’attente",
         },
       },
+      audioOutput: {
+        title: "Audio",
+        label: "Périphérique de sortie vocale",
+        hint: "Où Paseo lit ses réponses vocales. S'applique au mode vocal.",
+        systemDefault: "Par défaut du système",
+        deviceFallback: "Périphérique de sortie {{number}}",
+        unavailable: "Périphérique indisponible",
+      },
       serviceUrls: {
         options: {
           ask: "Demander",

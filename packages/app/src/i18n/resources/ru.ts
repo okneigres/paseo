@@ -2210,6 +2210,14 @@ export const ru: TranslationResources = {
           queue: "Поставить в очередь",
         },
       },
+      audioOutput: {
+        title: "Звук",
+        label: "Устройство вывода голоса",
+        hint: "Куда Paseo воспроизводит голосовые ответы. Действует в голосовом режиме.",
+        systemDefault: "Системное по умолчанию",
+        deviceFallback: "Устройство вывода {{number}}",
+        unavailable: "Недоступное устройство",
+      },
       serviceUrls: {
         options: {
           ask: "Спрашивать",

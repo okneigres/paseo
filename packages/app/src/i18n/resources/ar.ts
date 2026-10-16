@@ -2175,6 +2175,14 @@ export const ar: TranslationResources = {
           queue: "طابور",
         },
       },
+      audioOutput: {
+        title: "الصوت",
+        label: "جهاز إخراج الصوت",
+        hint: "المكان الذي يشغّل فيه Paseo الردود المنطوقة. ينطبق على الوضع الصوتي.",
+        systemDefault: "الافتراضي للنظام",
+        deviceFallback: "جهاز الإخراج {{number}}",
+        unavailable: "جهاز غير متاح",
+      },
       serviceUrls: {
         options: {
           ask: "بسأل",

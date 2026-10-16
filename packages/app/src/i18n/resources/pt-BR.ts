@@ -2209,6 +2209,14 @@ export const ptBR: TranslationResources = {
           queue: "Fila",
         },
       },
+      audioOutput: {
+        title: "Áudio",
+        label: "Dispositivo de saída de voz",
+        hint: "Onde o Paseo reproduz as respostas faladas. Vale para o modo de voz.",
+        systemDefault: "Padrão do sistema",
+        deviceFallback: "Dispositivo de saída {{number}}",
+        unavailable: "Dispositivo indisponível",
+      },
       serviceUrls: {
         options: {
           ask: "Perguntar",

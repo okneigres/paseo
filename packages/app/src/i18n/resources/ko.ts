@@ -2186,6 +2186,14 @@ export const ko: TranslationResources = {
           queue: "대기열",
         },
       },
+      audioOutput: {
+        title: "오디오",
+        label: "음성 출력 장치",
+        hint: "Paseo가 음성 응답을 재생하는 장치입니다. 음성 모드에 적용됩니다.",
+        systemDefault: "시스템 기본값",
+        deviceFallback: "출력 장치 {{number}}",
+        unavailable: "사용할 수 없는 장치",
+      },
       serviceUrls: {
         options: {
           ask: "물어보기",

@@ -2150,6 +2150,14 @@ export const zhCN: TranslationResources = {
           queue: "排队",
         },
       },
+      audioOutput: {
+        title: "音频",
+        label: "语音输出设备",
+        hint: "Paseo 播放语音回复的位置，适用于语音模式。",
+        systemDefault: "系统默认",
+        deviceFallback: "输出设备 {{number}}",
+        unavailable: "设备不可用",
+      },
       serviceUrls: {
         options: {
           ask: "询问",

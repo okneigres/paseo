@@ -520,6 +520,62 @@ describe("voice runtime", () => {
     expect(adapter.setVoiceMode).toHaveBeenCalledWith(true, "agent-1");
   });
 
+  it("keeps microphone audio captured while voice mode is still being enabled", async () => {
+    const adapter = createSessionAdapter();
+    const engine = createAudioEngineMock();
+    const { runtime } = createRuntime({ engine });
+    runtime.registerSession(adapter);
+    const early = new Uint8Array([1, 2, 3, 4]);
+    vi.mocked(engine.startCapture).mockImplementation(async () => {
+      runtime.handleCapturePcm(early);
+    });
+
+    await runtime.startVoice("server-1", "agent-1");
+
+    expect(adapter.sendVoiceAudioChunk).toHaveBeenCalledTimes(1);
+    expect(adapter.sendVoiceAudioChunk).toHaveBeenCalledWith(
+      Buffer.from(early).toString("base64"),
+      "audio/pcm;rate=16000;bits=16",
+    );
+  });
+
+  it("holds audio while the connection is down and sends it in order after recovery", async () => {
+    const adapter = createSessionAdapter();
+    const { runtime } = createRuntime();
+    runtime.registerSession(adapter);
+    await runtime.startVoice("server-1", "agent-1");
+
+    runtime.updateSessionConnection("server-1", false);
+    runtime.handleCapturePcm(new Uint8Array([1]));
+    runtime.handleCapturePcm(new Uint8Array([2]));
+    expect(adapter.sendVoiceAudioChunk).not.toHaveBeenCalled();
+
+    runtime.updateSessionConnection("server-1", true);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const sent = vi.mocked(adapter.sendVoiceAudioChunk).mock.calls.map(([audio]) => audio);
+    expect(sent).toEqual([
+      Buffer.from([1]).toString("base64"),
+      Buffer.from([2]).toString("base64"),
+    ]);
+  });
+
+  it("drops held audio when voice mode stops", async () => {
+    const adapter = createSessionAdapter();
+    const { runtime } = createRuntime();
+    runtime.registerSession(adapter);
+    await runtime.startVoice("server-1", "agent-1");
+
+    runtime.updateSessionConnection("server-1", false);
+    runtime.handleCapturePcm(new Uint8Array([1]));
+    await runtime.stopVoice();
+    runtime.updateSessionConnection("server-1", true);
+    await Promise.resolve();
+
+    expect(adapter.sendVoiceAudioChunk).not.toHaveBeenCalled();
+  });
+
   it("does not emit when the snapshot is unchanged", async () => {
     const adapter = createSessionAdapter();
     const { runtime } = createRuntime();
