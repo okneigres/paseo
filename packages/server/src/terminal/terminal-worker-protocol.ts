@@ -32,6 +32,7 @@ export interface WorkerCreateTerminalOptions {
   activityToken?: string;
   activityUrl?: string | null;
   initialOutput?: string;
+  detachDir?: string;
 }
 
 export interface WorkerKillAndWaitOptions {

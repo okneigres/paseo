@@ -1,7 +1,9 @@
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes, randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { renderTerminalSnapshotToAnsi } from "@getpaseo/protocol/terminal-snapshot";
 import type { TerminalListItem, TerminalManager } from "./terminal-manager.js";
+import { isDetachedSessionAlive, resolveDtachBinary } from "./terminal-detach.js";
 
 interface PersistedTerminal {
   id: string;
@@ -9,6 +11,9 @@ interface PersistedTerminal {
   cwd: string;
   workspaceId: string;
   title?: string;
+  // The shell's environment keeps the token it was started with, so a shell
+  // that outlives the daemon needs the same token back.
+  activityToken?: string;
 }
 
 interface PersistedTerminalFile {
@@ -74,14 +79,27 @@ const TERMINAL_MODE_RESET =
   "\u001b[?1049l\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[?2004l\u001b[?1l\u001b>\u001b[0m\u001b[?25h\u001b[?7h";
 const RESTORED_MARKER = `${TERMINAL_MODE_RESET}\r\n\u001b[2m── restored after daemon restart ──\u001b[0m\r\n`;
 
+function sessionsDirFor(terminalsPath: string): string {
+  return join(dirname(terminalsPath), "terminal-sessions");
+}
+
 function historyPathFor(terminalsPath: string, id: string): string {
   return join(dirname(terminalsPath), "terminal-history", `${id}.ansi`);
 }
 
-function readHistory(terminalsPath: string, id: string): string | undefined {
+function readHistory(
+  terminalsPath: string,
+  id: string,
+  options: { shellSurvived: boolean },
+): string | undefined {
   try {
     const raw = readFileSync(historyPathFor(terminalsPath, id), "utf8");
-    return raw ? raw + RESTORED_MARKER : undefined;
+    if (!raw) {
+      return undefined;
+    }
+    // A shell that kept running continues right under its old prompt; a fresh
+    // one starts below a marker with the full-screen modes reset.
+    return options.shellSurvived ? raw : raw + RESTORED_MARKER;
   } catch {
     return undefined;
   }
@@ -94,9 +112,14 @@ function readHistory(terminalsPath: string, id: string): string | undefined {
  */
 export function withTerminalPersistence(
   inner: TerminalManager,
-  options: { path: string; logger?: Logger },
+  options: { path: string; logger?: Logger; detach?: boolean },
 ): TerminalManager {
   const { path, logger } = options;
+  const detachDir = options.detach !== false && resolveDtachBinary() ? sessionsDirFor(path) : null;
+  if (options.detach !== false && !detachDir) {
+    logger?.warn({}, "dtach is not installed; terminal shells will not outlive the daemon");
+  }
+  const tokens = new Map<string, string>();
   const entries = new Map<string, PersistedTerminal>();
   let frozen = true;
   const watched = new Set<string>();
@@ -190,7 +213,13 @@ export function withTerminalPersistence(
 
   function save(): void {
     try {
-      writePersistedTerminals(path, Array.from(entries.values()));
+      writePersistedTerminals(
+        path,
+        Array.from(entries.values()).map((entry) => {
+          const activityToken = tokens.get(entry.id);
+          return activityToken ? { ...entry, activityToken } : entry;
+        }),
+      );
     } catch (error) {
       logger?.warn({ err: error }, "Failed to persist terminals");
     }
@@ -205,6 +234,7 @@ export function withTerminalPersistence(
         entries.delete(id);
         if (!event.terminals.some((item) => item.id === id)) {
           forgetHistory(id);
+          tokens.delete(id);
         }
       }
     }
@@ -218,10 +248,16 @@ export function withTerminalPersistence(
   const restored = (async () => {
     const recorded = readPersistedTerminals(path);
     for (const entry of recorded) {
-      const history = readHistory(path, entry.id);
+      const shellSurvived = detachDir !== null && isDetachedSessionAlive(detachDir, entry.id);
+      const history = readHistory(path, entry.id, { shellSurvived });
+      if (entry.activityToken) {
+        tokens.set(entry.id, entry.activityToken);
+      }
       try {
         await inner.createTerminal({
           id: entry.id,
+          ...(entry.activityToken ? { activityToken: entry.activityToken } : {}),
+          ...(detachDir ? { detachDir } : {}),
           cwd: entry.cwd,
           workspaceId: entry.workspaceId,
           name: entry.name,
@@ -249,7 +285,18 @@ export function withTerminalPersistence(
     },
     async createTerminal(createOptions) {
       await restored;
-      return inner.createTerminal(createOptions);
+      if (!detachDir) {
+        return inner.createTerminal(createOptions);
+      }
+      const id = createOptions.id ?? randomUUID();
+      const activityToken = createOptions.activityToken ?? randomBytes(32).toString("base64url");
+      tokens.set(id, activityToken);
+      try {
+        return await inner.createTerminal({ ...createOptions, id, activityToken, detachDir });
+      } catch (error) {
+        tokens.delete(id);
+        throw error;
+      }
     },
     killAll() {
       // Shutdown, not a user close: keep the files so the next start restores

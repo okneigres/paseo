@@ -65,6 +65,7 @@ export interface TerminalManager {
     activityToken?: string;
     activityUrl?: string | null;
     initialOutput?: string;
+    detachDir?: string;
   }): Promise<TerminalSession>;
   registerCwdEnv(options: { cwd: string; env: Record<string, string> }): void;
   validateTerminalActivityToken(terminalId: string, token: string): "valid" | "unknown" | "invalid";
@@ -117,7 +118,7 @@ export function createTerminalManager(
     new Set<TerminalWorkspaceContributionChangedListener>();
   const defaultEnvByRootCwd = new Map<string, Record<string, string>>();
 
-  function removeSessionById(id: string, options: { kill: boolean }): void {
+  function removeSessionById(id: string, options: { kill: boolean; detach?: boolean }): void {
     const session = terminalsById.get(id);
     if (!session) {
       return;
@@ -153,7 +154,9 @@ export function createTerminalManager(
       }
     }
 
-    if (options.kill) {
+    if (options.detach) {
+      session.detach();
+    } else if (options.kill) {
       session.kill();
     }
 
@@ -323,6 +326,7 @@ export function createTerminalManager(
       activityToken?: string;
       activityUrl?: string | null;
       initialOutput?: string;
+      detachDir?: string;
     }): Promise<TerminalSession> {
       assertAbsolutePath(options.cwd);
 
@@ -355,6 +359,7 @@ export function createTerminalManager(
             ...(options.command ? { command: options.command } : {}),
             ...(options.args ? { args: options.args } : {}),
             ...(options.initialOutput ? { initialOutput: options.initialOutput } : {}),
+            ...(options.detachDir ? { detachDir: options.detachDir } : {}),
             ...(options.rows !== undefined ? { rows: options.rows } : {}),
             ...(options.cols !== undefined ? { cols: options.cols } : {}),
             ...(mergedEnv ? { env: mergedEnv } : {}),
@@ -468,7 +473,7 @@ export function createTerminalManager(
 
     killAll(): void {
       for (const id of Array.from(terminalsById.keys())) {
-        removeSessionById(id, { kill: true });
+        removeSessionById(id, { kill: true, detach: true });
       }
     },
 

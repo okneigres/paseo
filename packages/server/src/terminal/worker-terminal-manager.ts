@@ -379,6 +379,9 @@ export function createWorkerTerminalManager(
       getExitInfo(): TerminalExitInfo | null {
         return record.exitInfo;
       },
+      detach(): void {
+        // Detaching is the worker's job: its killAll lets go of every pty at shutdown.
+      },
       kill(): void {
         sendBestEffortRequest({ type: "killTerminal", terminalId: record.info.id });
       },
@@ -690,7 +693,7 @@ export function createWorkerTerminalManager(
       options: WorkerCreateTerminalOptions & { workspaceId: string },
     ): Promise<TerminalSession> {
       const terminalId = options.id ?? randomUUID();
-      const activityToken = createActivityToken();
+      const activityToken = options.activityToken ?? createActivityToken();
       const terminalActivityUrl = managerOptions.getTerminalActivityUrl?.() ?? null;
       terminalActivityTokenById.set(terminalId, activityToken);
       const creation = { session: null as TerminalSession | null };

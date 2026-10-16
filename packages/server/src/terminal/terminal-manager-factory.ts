@@ -6,6 +6,7 @@ export interface ConfiguredTerminalManagerOptions {
   getTerminalActivityUrl?: () => string | null;
   persistence?: {
     path: string;
+    detach?: boolean;
     logger?: { warn(obj: unknown, msg?: string): void; info(obj: unknown, msg?: string): void };
   };
 }

@@ -22,6 +22,14 @@ import {
 } from "../executable-resolution/executable-resolution.js";
 import type { TerminalCell, TerminalState } from "@getpaseo/protocol/messages";
 import { TerminalInputModeTracker } from "@getpaseo/protocol/terminal-input-mode";
+import {
+  detachedSessionPaths,
+  killDetachedShell,
+  prepareDetachDirectory,
+  removeDetachedSessionFiles,
+  resolveDtachBinary,
+  wrapCommandForDetach,
+} from "./terminal-detach.js";
 import { TerminalActivityTracker } from "./activity/terminal-activity-tracker.js";
 import type { TerminalActivity, TerminalActivityState } from "@getpaseo/protocol/terminal-activity";
 
@@ -121,6 +129,8 @@ export interface TerminalSession {
   getExitInfo(): TerminalExitInfo | null;
   kill(): void;
   killAndWait(options?: { gracefulTimeoutMs?: number; forceTimeoutMs?: number }): Promise<void>;
+  // Let go of the pty but leave a detached shell running; kill() ends it.
+  detach(): void;
 }
 
 function parseCommandFinishedOsc(data: string): TerminalCommandFinishedInfo | null {
@@ -156,6 +166,9 @@ export interface CreateTerminalOptions {
   // Rendered output written to the emulator before the shell starts, so a
   // restored terminal keeps its earlier history above the new prompt.
   initialOutput?: string;
+  // Run the shell under dtach with its socket and pid file in this directory,
+  // so it outlives this process. Ignored when dtach is not installed.
+  detachDir?: string;
 }
 
 function toTerminalActivity(snapshot: {
@@ -984,6 +997,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     command,
     args = [],
     initialOutput,
+    detachDir,
   } = options;
   const resolvedShell = shell ?? resolveDefaultTerminalShell();
 
@@ -1044,7 +1058,23 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
 
   await assertTerminalCommandCanStart({ command, cwd, env: terminalEnv });
 
-  const ptyProcess = pty.spawn(spawnCommand, spawnArgs, {
+  const dtachBinary = detachDir ? resolveDtachBinary() : null;
+  const detachPaths = dtachBinary && detachDir ? detachedSessionPaths(detachDir, id) : null;
+  if (detachPaths && detachDir) {
+    prepareDetachDirectory(detachDir);
+  }
+  const launch =
+    detachPaths && dtachBinary
+      ? wrapCommandForDetach({
+          dtach: dtachBinary,
+          paths: detachPaths,
+          command: spawnCommand,
+          args: Array.isArray(spawnArgs) ? spawnArgs : [spawnArgs],
+        })
+      : { command: spawnCommand, args: spawnArgs };
+  let detaching = false;
+
+  const ptyProcess = pty.spawn(launch.command, launch.args, {
     name: "xterm-256color",
     cols,
     rows,
@@ -1300,6 +1330,9 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
   ptyProcess.onExit((event) => {
     killed = true;
     processExited = true;
+    if (detachPaths && !detaching) {
+      removeDetachedSessionFiles(detachPaths);
+    }
     for (const waiter of Array.from(processExitWaiters)) {
       try {
         waiter();
@@ -1560,7 +1593,21 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     void waitForProcessExit(1000).finally(disposeResources);
   }
 
+  function detach(): void {
+    if (!detachPaths) {
+      kill();
+      return;
+    }
+    detaching = true;
+    if (!processExited) {
+      ptyProcess.kill();
+    }
+  }
+
   function killPtyProcess(signal?: NodeJS.Signals): void {
+    if (detachPaths && !detaching) {
+      killDetachedShell(detachPaths, signal ?? "SIGHUP");
+    }
     if (process.platform === "win32") {
       ptyProcess.kill();
       return;
@@ -1652,5 +1699,6 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     getExitInfo,
     kill,
     killAndWait,
+    detach,
   };
 }
