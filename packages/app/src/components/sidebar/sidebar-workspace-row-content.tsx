@@ -37,6 +37,10 @@ import {
   STATUS_INDICATOR_FILLED_DOT_SIZE,
 } from "@/utils/status-indicator-geometry";
 import { resolveWorkspaceStatusVisual } from "@/utils/workspace-status-visual";
+import { isVoiceModeWorkspaceTarget } from "@/utils/voice-mode-workspace";
+import { useVoiceOptional } from "@/contexts/voice-context";
+import { useSessionStore } from "@/stores/session-store";
+import { VoiceModeDot } from "@/components/sidebar/voice-mode-dot";
 import { StatusRing } from "@/components/status-ring";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
@@ -292,8 +296,9 @@ function ProjectCollapseControl({
 
 /**
  * The leading slot of a row: the collapse control, when the row stands in for its project row, and
- * the status dot every row carries. Only that project row reports the project's mark, so the
- * workspaces under it keep their own status.
+ * the status dot every row carries — or the voice-mode mark, which owns that dot while it runs.
+ * Only that project row reports the project's mark, so the workspaces under it keep their own
+ * status.
  */
 function SidebarWorkspaceLeadingVisual({
   workspace,
@@ -312,6 +317,7 @@ function SidebarWorkspaceLeadingVisual({
   const isProjectMarked = useIsSidebarProjectMarked(
     isProjectHeaderRow ? workspace.projectViewKey : null,
   );
+  const isVoiceModeWorkspace = useIsVoiceModeWorkspace(workspace);
 
   return (
     <>
@@ -322,15 +328,48 @@ function SidebarWorkspaceLeadingVisual({
           projectViewKey={workspace.projectViewKey}
         />
       ) : null}
-      <WorkspaceStatusIndicator
-        bucket={workspace.statusBucket}
-        workspaceKind={workspace.workspaceKind}
-        loading={isLoading}
-        reserveIdleSpace={reserveIdleStatusIndicatorSpace}
-        marked={isProjectMarked}
-      />
+      {/* Voice mode takes the status slot while it runs: it is what the row is doing, and it is
+          the same rail the busy ring sits on, so the marker lands where the eye already looks for
+          this row's state instead of nudging the title sideways. */}
+      {isVoiceModeWorkspace ? (
+        <VoiceModeDot />
+      ) : (
+        <WorkspaceStatusIndicator
+          bucket={workspace.statusBucket}
+          workspaceKind={workspace.workspaceKind}
+          loading={isLoading}
+          reserveIdleSpace={reserveIdleStatusIndicatorSpace}
+          marked={isProjectMarked}
+        />
+      )}
     </>
   );
+}
+
+/**
+ * Whether this row's workspace is the one running voice mode. Voice mode is per agent, so the
+ * agent has to be resolved back to a workspace: the link is the agent's own `workspaceId`, the
+ * same field the workspace tabs use to decide which agents belong to a workspace. The session
+ * store is read only while a voice session is live on this row's host.
+ */
+function useIsVoiceModeWorkspace(workspace: SidebarWorkspaceEntry): boolean {
+  const voice = useVoiceOptional();
+  const voiceServerId = voice?.isVoiceMode ? voice.activeServerId : null;
+  const voiceAgentId = voice?.isVoiceMode ? voice.activeAgentId : null;
+  const agentWorkspaceId = useSessionStore((state) => {
+    const session = voiceServerId ? state.sessions[voiceServerId] : undefined;
+    const agent =
+      voiceAgentId === null
+        ? undefined
+        : (session?.agents.get(voiceAgentId) ?? session?.agentDetails.get(voiceAgentId));
+    return agent?.workspaceId ?? null;
+  });
+  return isVoiceModeWorkspaceTarget({
+    voice,
+    agentWorkspaceId,
+    serverId: workspace.serverId,
+    workspaceId: workspace.workspaceId,
+  });
 }
 
 function WorkspaceStatusIndicator({
