@@ -15,6 +15,7 @@ import {
 } from "../../dictation/dictation-stream-manager.js";
 import { createVoiceTurnController, type VoiceTurnController } from "./voice-turn-controller.js";
 import { openVoiceInputDump, type VoiceInputDump } from "./voice-input-dump.js";
+import { readVoiceMergeGraceMs } from "./voice-merge-flag.js";
 import { buildVoiceModeSystemPrompt, stripVoiceModeSystemPrompt } from "../../voice-config.js";
 import type { VoiceCallerContext, VoiceSpeakHandler } from "../../voice-types.js";
 import type { ManagedAgent } from "../../agent/agent-manager.js";
@@ -587,6 +588,7 @@ export class VoiceSession {
       turnDetection,
       stt,
       sttLanguage: this.sttLanguage,
+      mergeGraceMs: readVoiceMergeGraceMs(),
       callbacks: {
         onSpeechStarted: async () => {
           // Voice STT providers return final transcripts only. Use the detector's

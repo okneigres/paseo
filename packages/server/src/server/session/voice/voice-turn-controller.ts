@@ -99,13 +99,23 @@ interface FinalizingVoiceTurn {
 // an empty transcript.
 const STT_PREROLL_MS = 2000;
 
+// Merging is bounded: audio older than this is delivered on its own.
+const MAX_MERGED_AUDIO_MS = 30_000;
+
 export function createVoiceTurnController(params: {
   logger: Logger;
   turnDetection: TurnDetectionProvider;
   stt: SpeechToTextProvider;
   sttLanguage?: string;
+  /**
+   * When positive, a finished turn is held this long before it is delivered. If the
+   * user starts speaking again in that time, the earlier audio is transcribed again
+   * together with the new speech and only the combined text is delivered.
+   */
+  mergeGraceMs?: number;
   callbacks: VoiceTurnControllerCallbacks;
 }): VoiceTurnController {
+  const mergeGraceMs = Math.max(0, params.mergeGraceMs ?? 0);
   const detector = params.turnDetection.createSession({
     logger: params.logger.child({ component: "turn-detection" }),
   });
@@ -124,9 +134,41 @@ export function createVoiceTurnController(params: {
   let currentFinalizingTurn: FinalizingVoiceTurn | null = null;
   let prerollChunks: Buffer[] = [];
   let prerollBytes = 0;
+  // Audio given to the transcriber for the utterance in progress, kept only when merging.
+  let turnAudio: Buffer[] = [];
+  let turnAudioBytes = 0;
+  let pendingDelivery: {
+    transcript: VoiceFinalTranscript;
+    audio: Buffer[];
+    audioBytes: number;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
+
+  function feedStt(session: StreamingTranscriptionSession, chunk: Buffer): void {
+    session.appendPcm16(chunk);
+    if (mergeGraceMs > 0) {
+      turnAudio.push(chunk);
+      turnAudioBytes += chunk.length;
+    }
+  }
+
+  function deliverPending(): void {
+    const pending = pendingDelivery;
+    if (!pending) {
+      return;
+    }
+    pendingDelivery = null;
+    clearTimeout(pending.timer);
+    void runSerial(async () => {
+      await params.callbacks.onFinalTranscript(pending.transcript);
+    });
+  }
 
   function holdPreroll(session: StreamingTranscriptionSession, chunk: Buffer): void {
-    const maxBytes = Math.round((session.requiredSampleRate * 2 * STT_PREROLL_MS) / 1000);
+    // While merging, the quiet stretch between two utterances must still be there to join them.
+    const prerollMs =
+      mergeGraceMs > 0 ? Math.max(STT_PREROLL_MS, mergeGraceMs + 1500) : STT_PREROLL_MS;
+    const maxBytes = Math.round((session.requiredSampleRate * 2 * prerollMs) / 1000);
     prerollChunks.push(chunk);
     prerollBytes += chunk.length;
     while (prerollChunks.length > 1 && prerollBytes - prerollChunks[0].length >= maxBytes) {
@@ -140,7 +182,7 @@ export function createVoiceTurnController(params: {
     prerollChunks = [];
     prerollBytes = 0;
     for (const chunk of chunks) {
-      session.appendPcm16(chunk);
+      feedStt(session, chunk);
     }
   }
 
@@ -244,6 +286,17 @@ export function createVoiceTurnController(params: {
         },
         "voice_turn.final_transcript_timeout",
       );
+    }
+
+    if (mergeGraceMs > 0) {
+      deliverPending();
+      pendingDelivery = {
+        transcript: finalTranscript,
+        audio: turnAudio,
+        audioBytes: turnAudioBytes,
+        timer: setTimeout(deliverPending, mergeGraceMs),
+      };
+      return;
     }
 
     void runSerial(async () => {
@@ -444,6 +497,31 @@ export function createVoiceTurnController(params: {
 
     if (sttSession) {
       try {
+        if (mergeGraceMs > 0) {
+          const previous = pendingDelivery;
+          const maxBytes = Math.round(
+            (sttSession.requiredSampleRate * 2 * MAX_MERGED_AUDIO_MS) / 1000,
+          );
+          turnAudio = [];
+          turnAudioBytes = 0;
+          if (previous && previous.audioBytes + prerollBytes <= maxBytes) {
+            pendingDelivery = null;
+            clearTimeout(previous.timer);
+            for (const chunk of previous.audio) {
+              feedStt(sttSession, chunk);
+            }
+            params.logger.info(
+              {
+                carriedMs: Math.round(
+                  ((previous.audioBytes / 2) * 1000) / sttSession.requiredSampleRate,
+                ),
+              },
+              "voice_turn.merged_previous",
+            );
+          } else {
+            deliverPending();
+          }
+        }
         flushPreroll(sttSession);
       } catch (error) {
         handleSttError(error);
@@ -546,6 +624,12 @@ export function createVoiceTurnController(params: {
         sttSession = null;
         prerollChunks = [];
         prerollBytes = 0;
+        if (pendingDelivery) {
+          clearTimeout(pendingDelivery.timer);
+          pendingDelivery = null;
+        }
+        turnAudio = [];
+        turnAudioBytes = 0;
         currentFinalizingTurn = null;
         state = { status: "idle" };
       });
@@ -587,7 +671,7 @@ export function createVoiceTurnController(params: {
         if (sttPcm16 && sttPcm16.length > 0 && currentSttSession) {
           try {
             if (state.status === "capturing") {
-              currentSttSession.appendPcm16(sttPcm16);
+              feedStt(currentSttSession, sttPcm16);
             } else {
               holdPreroll(currentSttSession, sttPcm16);
             }

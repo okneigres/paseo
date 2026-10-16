@@ -102,7 +102,7 @@ async function settleSerialQueue(): Promise<void> {
   await Promise.resolve();
 }
 
-function createControllerHarness(options?: { sttLanguage?: string }) {
+function createControllerHarness(options?: { sttLanguage?: string; mergeGraceMs?: number }) {
   const detector = new FakeTurnDetectionSession();
   const sttSessions: FakeSttSession[] = [];
   let lastSttLanguage: string | undefined;
@@ -132,6 +132,7 @@ function createControllerHarness(options?: { sttLanguage?: string }) {
     turnDetection: createFakeTurnDetectionProvider(detector),
     stt,
     sttLanguage: options?.sttLanguage,
+    mergeGraceMs: options?.mergeGraceMs,
     callbacks: {
       onSpeechStarted,
       onSpeechSustained,
@@ -275,6 +276,110 @@ describe("voice turn controller", () => {
     await settleSerialQueue();
 
     expect(harness.onSpeechSustained).not.toHaveBeenCalled();
+  });
+
+  describe("merging speech that follows a finished turn", () => {
+    const chunk = (value: number) => ({
+      audioBase64: Buffer.alloc(3200, value).toString("base64"),
+      format: "audio/pcm;rate=16000;bits=16",
+    });
+
+    async function finishTurn(
+      harness: ReturnType<typeof createControllerHarness>,
+      text: string,
+      segmentId: string,
+    ) {
+      harness.detector.emit("speech_stopped");
+      await settleSerialQueue();
+      harness.sttSessions[0]?.emitCommitted({ segmentId, previousSegmentId: null });
+      harness.sttSessions[0]?.emitTranscript({
+        segmentId,
+        transcript: text,
+        isFinal: true,
+      });
+      await settleSerialQueue();
+    }
+
+    it("holds a finished turn for the grace period before delivering it", async () => {
+      vi.useFakeTimers();
+      try {
+        const harness = createControllerHarness({ mergeGraceMs: 1500 });
+        await harness.controller.start();
+        harness.detector.emit("speech_started");
+        await settleSerialQueue();
+        await harness.controller.appendClientChunk(chunk(1));
+        await finishTurn(harness, "один", "segment-1");
+
+        expect(harness.onFinalTranscript).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1600);
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+        expect(harness.onFinalTranscript.mock.calls[0][0].transcript).toBe("один");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("transcribes earlier audio again with new speech and delivers only the combined text", async () => {
+      vi.useFakeTimers();
+      try {
+        const harness = createControllerHarness({ mergeGraceMs: 1500 });
+        await harness.controller.start();
+        harness.detector.emit("speech_started");
+        await settleSerialQueue();
+        await harness.controller.appendClientChunk(chunk(1));
+        await finishTurn(harness, "раз", "segment-1");
+        await vi.advanceTimersByTimeAsync(500);
+
+        // The user keeps talking before the grace period ends.
+        await harness.controller.appendClientChunk(chunk(2));
+        harness.detector.emit("speech_started");
+        await settleSerialQueue();
+        await harness.controller.appendClientChunk(chunk(3));
+
+        const fed = harness.sttSessions[0]?.appendedChunks.map((buffer) => buffer[0]);
+        // First utterance, then the same audio again, the gap, and the new speech.
+        expect(fed).toEqual([1, 1, 2, 3]);
+
+        await finishTurn(harness, "раз два", "segment-2");
+        await vi.advanceTimersByTimeAsync(1600);
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+        expect(harness.onFinalTranscript.mock.calls[0][0].transcript).toBe("раз два");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("starts fresh once the grace period has passed", async () => {
+      vi.useFakeTimers();
+      try {
+        const harness = createControllerHarness({ mergeGraceMs: 1500 });
+        await harness.controller.start();
+        harness.detector.emit("speech_started");
+        await settleSerialQueue();
+        await harness.controller.appendClientChunk(chunk(1));
+        await finishTurn(harness, "раз", "segment-1");
+        await vi.advanceTimersByTimeAsync(1600);
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+
+        harness.detector.emit("speech_started");
+        await settleSerialQueue();
+        await harness.controller.appendClientChunk(chunk(2));
+
+        expect(harness.sttSessions[0]?.appendedChunks.map((buffer) => buffer[0])).toEqual([1, 2]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("delivers immediately when merging is off", async () => {
+      const harness = createControllerHarness();
+      await harness.controller.start();
+      harness.detector.emit("speech_started");
+      await settleSerialQueue();
+      await finishTurn(harness, "раз", "segment-1");
+
+      expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("does not barge in on silence-only chunks", async () => {
