@@ -11,6 +11,24 @@ interface SherpaOnnxCatalogEntry {
   requiredFiles: string[];
   description: string;
   defaultFor?: DefaultModelRole;
+  // TTS engine; models that omit it are Kokoro.
+  ttsEngine?: "kokoro" | "vits";
+  // Weights file inside extractedDir for engines that name it per voice.
+  modelFile?: string;
+}
+
+function piperRussianVoice(voice: string, description: string) {
+  const extractedDir = `vits-piper-ru_RU-${voice}-medium`;
+  const modelFile = `ru_RU-${voice}-medium.onnx`;
+  return {
+    kind: "tts",
+    archiveUrl: `https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/${extractedDir}.tar.bz2`,
+    extractedDir,
+    requiredFiles: [modelFile, "tokens.txt", "espeak-ng-data"],
+    description,
+    ttsEngine: "vits",
+    modelFile,
+  } as const satisfies SherpaOnnxCatalogEntry;
 }
 
 export const SHERPA_ONNX_MODEL_CATALOG = {
@@ -41,6 +59,22 @@ export const SHERPA_ONNX_MODEL_CATALOG = {
     description: "Kokoro TTS (higher quality; larger).",
     defaultFor: "tts",
   },
+  "piper-ru-irina-medium": piperRussianVoice(
+    "irina",
+    "Piper TTS, Russian, female voice (irina, medium).",
+  ),
+  "piper-ru-denis-medium": piperRussianVoice(
+    "denis",
+    "Piper TTS, Russian, male voice (denis, medium).",
+  ),
+  "piper-ru-dmitri-medium": piperRussianVoice(
+    "dmitri",
+    "Piper TTS, Russian, male voice (dmitri, medium).",
+  ),
+  "piper-ru-ruslan-medium": piperRussianVoice(
+    "ruslan",
+    "Piper TTS, Russian, male voice (ruslan, medium).",
+  ),
 } as const satisfies Record<string, SherpaOnnxCatalogEntry>;
 
 export type SherpaOnnxModelId = keyof typeof SHERPA_ONNX_MODEL_CATALOG;

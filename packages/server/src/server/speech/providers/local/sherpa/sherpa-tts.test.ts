@@ -58,6 +58,35 @@ function holdNativeSynthesis() {
   return { pending, wait };
 }
 
+describe("SherpaOnnxTTS Piper", () => {
+  it("configures the vits engine from the voice's own weights file", () => {
+    const modelDir = mkdtempSync(join(tmpdir(), "paseo-tts-piper-"));
+    directories.push(modelDir);
+    for (const name of ["ru_RU-irina-medium.onnx", "tokens.txt"])
+      writeFileSync(join(modelDir, name), "");
+    mkdirSync(join(modelDir, "espeak-ng-data"));
+    let nativeConfig: { model: Record<string, unknown> } | undefined;
+    new SherpaOnnxTTS(
+      { preset: "piper-ru-irina-medium", modelDir },
+      pino({ level: "silent" }),
+      () => ({
+        OfflineTts: class {
+          constructor(config: { model: Record<string, unknown> }) {
+            nativeConfig = config;
+          }
+        },
+      }),
+    );
+    expect(nativeConfig?.model.kokoro).toBeUndefined();
+    expect(nativeConfig?.model.vits).toEqual({
+      model: join(modelDir, "ru_RU-irina-medium.onnx"),
+      tokens: join(modelDir, "tokens.txt"),
+      dataDir: join(modelDir, "espeak-ng-data"),
+      lengthScale: 1,
+    });
+  });
+});
+
 describe("SherpaOnnxTTS", () => {
   it("requests Electron-compatible copied samples and returns PCM audio", async () => {
     const { tts, requests } = createTts();

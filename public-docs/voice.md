@@ -74,6 +74,30 @@ For multilingual local dictation, set the model to v3 — it auto-detects the la
 
 The `language` field applies only to the OpenAI STT provider: set `features.dictation.stt.language` for dictation and `features.voiceMode.stt.language` for voice mode. If voice language is omitted, Paseo uses the dictation language before falling back to `en`. It has no effect on the local Parakeet models.
 
+### Local TTS models and language support
+
+| Model ID                 | Language and voice                       |
+| ------------------------ | ---------------------------------------- |
+| `kokoro-en-v0_19`        | English (default), speaker 0 / voice 00. |
+| `piper-ru-irina-medium`  | Russian, female (Piper).                 |
+| `piper-ru-denis-medium`  | Russian, male (Piper).                   |
+| `piper-ru-dmitri-medium` | Russian, male (Piper).                   |
+| `piper-ru-ruslan-medium` | Russian, male (Piper).                   |
+
+The Piper voices are single-speaker, so `speakerId` is not needed. For Russian voice mode, pair a Piper voice with `parakeet-tdt-0.6b-v3-int8` for speech recognition:
+
+```json
+{
+  "version": 1,
+  "features": {
+    "voiceMode": {
+      "stt": { "provider": "local", "model": "parakeet-tdt-0.6b-v3-int8" },
+      "tts": { "provider": "local", "model": "piper-ru-irina-medium" }
+    }
+  }
+}
+```
+
 ## OpenAI Voice Option
 
 You can switch dictation, voice STT, and voice TTS to OpenAI by setting provider fields to `openai` and providing OpenAI credentials.
