@@ -14,6 +14,7 @@ import {
   type DictationStreamOutboundMessage,
 } from "../../dictation/dictation-stream-manager.js";
 import { createVoiceTurnController, type VoiceTurnController } from "./voice-turn-controller.js";
+import { openVoiceInputDump, type VoiceInputDump } from "./voice-input-dump.js";
 import { buildVoiceModeSystemPrompt, stripVoiceModeSystemPrompt } from "../../voice-config.js";
 import type { VoiceCallerContext, VoiceSpeakHandler } from "../../voice-types.js";
 import type { ManagedAgent } from "../../agent/agent-manager.js";
@@ -180,6 +181,7 @@ export class VoiceSession {
   private readonly dictationStreamManager: DictationStreamManager;
   private readonly resolveVoiceTurnDetection: () => TurnDetectionProvider | null;
   private voiceTurnController: VoiceTurnController | null = null;
+  private voiceInputDump: VoiceInputDump | null = null;
   private voiceInputChunkCount = 0;
   private voiceInputBytes = 0;
   private voiceInputWindowStartedAt = Date.now();
@@ -590,6 +592,7 @@ export class VoiceSession {
           // Voice STT providers return final transcripts only. Use the detector's
           // confirmed speech event so interruption does not wait for transcription.
           this.sessionLogger.debug("Voice VAD speech_started");
+          this.voiceInputDump?.note("speech_started");
           this.emit({
             type: "voice_input_state",
             payload: {
@@ -605,6 +608,7 @@ export class VoiceSession {
           );
         },
         onSpeechStopped: async () => {
+          this.voiceInputDump?.note("speech_stopped");
           this.handleVoiceSpeechStopped();
           this.setPhase("transcribing");
           this.emit({
@@ -626,6 +630,9 @@ export class VoiceSession {
         }) => {
           const requestId = uuidv4();
           const transcriptText = isLowConfidence ? "" : transcript.trim();
+          this.voiceInputDump?.note(
+            `final (${durationMs}ms${isLowConfidence ? ", low-confidence, dropped" : ""}): ${transcript}`,
+          );
           if (isLowConfidence) {
             this.sessionLogger.debug(
               { text: transcript, avgLogprob },
@@ -658,6 +665,14 @@ export class VoiceSession {
 
     this.sessionLogger.info("startVoiceTurnController connecting controller");
     this.voiceTurnController = controller;
+    this.voiceInputDump?.close();
+    this.voiceInputDump = openVoiceInputDump();
+    if (this.voiceInputDump) {
+      this.sessionLogger.info(
+        { path: this.voiceInputDump.path },
+        "Recording voice input for debugging",
+      );
+    }
     await controller.start();
     if (this.closed) await controller.stop();
     this.sessionLogger.info("startVoiceTurnController connected");
@@ -670,6 +685,8 @@ export class VoiceSession {
 
     const controller = this.voiceTurnController;
     this.voiceTurnController = null;
+    this.voiceInputDump?.close();
+    this.voiceInputDump = null;
     await controller.stop();
   }
 
@@ -747,6 +764,7 @@ export class VoiceSession {
       this.voiceInputChunkCount = 0;
       this.voiceInputBytes = 0;
     }
+    this.voiceInputDump?.writeChunk(Buffer.from(msg.audio, "base64"), chunkFormat);
     await this.voiceTurnController.appendClientChunk({
       audioBase64: msg.audio,
       format: chunkFormat,
