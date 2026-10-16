@@ -67,7 +67,12 @@ const HISTORY_SCROLLBACK_LINES = 1000;
 const HISTORY_IDLE_SAVE_MS = 2000;
 const HISTORY_MAX_WAIT_MS = 10000;
 const HISTORY_FLUSH_TIMEOUT_MS = 1500;
-const RESTORED_MARKER = "\r\n\u001b[2m── restored after daemon restart ──\u001b[0m\r\n";
+// Undo what an interrupted full-screen program (htop, vim) leaves behind: alt
+// screen, hidden cursor, mouse reporting, bracketed paste, application keys.
+// Not RIS: that would wipe the restored scrollback.
+const TERMINAL_MODE_RESET =
+  "\u001b[?1049l\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[?2004l\u001b[?1l\u001b>\u001b[0m\u001b[?25h\u001b[?7h";
+const RESTORED_MARKER = `${TERMINAL_MODE_RESET}\r\n\u001b[2m── restored after daemon restart ──\u001b[0m\r\n`;
 
 function historyPathFor(terminalsPath: string, id: string): string {
   return join(dirname(terminalsPath), "terminal-history", `${id}.ansi`);

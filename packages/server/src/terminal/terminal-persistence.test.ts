@@ -130,6 +130,7 @@ describe("withTerminalPersistence", () => {
       expect(second.createdOptions[0]?.id).toBe(a.id);
       expect(second.createdOptions[0]?.initialOutput).toContain("hi");
       expect(second.createdOptions[0]?.initialOutput).toContain("restored");
+      expect(second.createdOptions[0]?.initialOutput).toContain("\u001b[?25h");
 
       second.kill(a.id);
       expect(existsSync(join(dir, "terminal-history", `${a.id}.ansi`))).toBe(false);
