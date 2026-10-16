@@ -54,48 +54,9 @@ interface SendActionContext {
   handleQueueMessage: () => void;
 }
 
-interface DictationTranscriptContext {
-  value: string;
-  defaultSendBehavior: SendBehavior;
-  isAgentRunning: boolean;
-  onQueue: ((payload: MessagePayload) => void) | undefined;
-  onSubmit: (payload: MessagePayload) => void;
-  replaceText: (text: string) => void;
-  attachments: MessagePayload["attachments"];
-  cwd: string;
-  autoSend: boolean;
-}
-
-export function applyDictationTranscript(text: string, ctx: DictationTranscriptContext): void {
-  if (!text) return;
-  const shouldPad = ctx.value.length > 0 && !/\s$/.test(ctx.value);
-  const nextValue = `${ctx.value}${shouldPad ? " " : ""}${text}`;
-
-  if (!ctx.autoSend) {
-    ctx.replaceText(nextValue);
-    return;
-  }
-
-  ctx.replaceText(nextValue);
-
-  if (ctx.defaultSendBehavior === "queue" && ctx.isAgentRunning && ctx.onQueue) {
-    ctx.onQueue({ text: nextValue, attachments: ctx.attachments, cwd: ctx.cwd });
-    ctx.replaceText("");
-    return;
-  }
-
-  ctx.onSubmit({
-    text: nextValue,
-    attachments: ctx.attachments,
-    cwd: ctx.cwd,
-    forceSend: ctx.isAgentRunning || undefined,
-  });
-}
-
 interface MessageInputKeyboardActions {
   focusInput: () => void;
   isDictationRecording: () => boolean;
-  markTranscriptForSend: () => void;
   confirmDictation: () => void | Promise<void>;
   cancelDictation: () => void | Promise<void>;
   startDictation: () => void | Promise<void>;
@@ -145,7 +106,6 @@ export function runMessageInputKeyboardAction(
   }
   if (action === "send" || action === "dictation-confirm") {
     if (actions.isDictationRecording()) {
-      actions.markTranscriptForSend();
       void actions.confirmDictation();
       return true;
     }
@@ -170,7 +130,6 @@ export function runMessageInputKeyboardAction(
   }
   if (action === "dictation-toggle") {
     if (actions.isDictationRecording()) {
-      actions.markTranscriptForSend();
       void actions.confirmDictation();
     } else {
       void actions.startDictation();

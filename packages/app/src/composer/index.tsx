@@ -149,6 +149,7 @@ import {
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { useIsDictationReady } from "@/hooks/use-is-dictation-ready";
+import type { DictationRecording } from "@/hooks/use-dictation-recording";
 import { useForgeSearchQuery } from "@/git/use-forge-search-query";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { useCheckoutPrStatusQuery } from "@/git/use-pr-status-query";
@@ -1814,6 +1815,18 @@ function ComposerContentImpl({
     [addFiles, client, t],
   );
 
+  const handleAttachDictationRecording = useCallback(
+    (recording: DictationRecording) => {
+      const file: SelectedFile = {
+        fileName: `dictation-${new Date().toISOString()}.wav`,
+        mimeType: "audio/wav",
+        readBytes: async () => recording.bytes,
+      };
+      void uploadSelectedFiles([file]);
+    },
+    [uploadSelectedFiles],
+  );
+
   const handlePickFile = useCallback(async () => {
     if (!client) {
       toastErrorRef.current(t("composer.errors.daemonClientDisconnected"));
@@ -2462,6 +2475,7 @@ function ComposerContentImpl({
                   onAttachButtonRef={handleAttachButtonRef}
                   onAddImages={addImages}
                   onPasteImages={handleNativePasteImages}
+                  onAttachRecording={handleAttachDictationRecording}
                   client={client}
                   isReadyForDictation={isDictationReady}
                   placeholder={messagePlaceholder}

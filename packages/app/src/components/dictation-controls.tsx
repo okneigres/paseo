@@ -2,23 +2,21 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useMemo } from "react";
 import { View, Text, Pressable } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { X, ArrowUp, RefreshCcw, Check, Mic, Pencil } from "lucide-react-native";
+import { X, RefreshCcw, Paperclip } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { VolumeMeter } from "./volume-meter";
 import { FOOTER_HEIGHT } from "@/constants/layout";
-import type { DictationStatus } from "@/hooks/use-dictation";
+import type { DictationRecordingStatus } from "@/hooks/use-dictation-recording";
 
 interface DictationControlsProps {
   volume: number;
   duration: number;
-  transcript?: string;
   isRecording: boolean;
   isProcessing: boolean;
-  status: DictationStatus;
+  status: DictationRecordingStatus;
   onStart: () => void;
   onCancel: () => void;
-  onAccept: () => void;
-  onAcceptAndSend: () => void;
+  onAttach: () => void;
   onRetry?: () => void;
   onDiscard?: () => void;
   disabled?: boolean;
@@ -30,114 +28,6 @@ function formatDuration(seconds: number): string {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
-export function DictationControls({
-  volume,
-  duration,
-  isRecording,
-  isProcessing,
-  status,
-  onStart,
-  onCancel,
-  onAccept,
-  onAcceptAndSend,
-  onRetry,
-  onDiscard,
-  disabled = false,
-}: DictationControlsProps) {
-  const { theme } = useUnistyles();
-  const { t } = useTranslation();
-  const isFailed = status === "failed";
-  const showActiveState = isRecording || isProcessing || isFailed;
-  const actionsDisabled = isProcessing;
-  const handleCancel = isFailed && onDiscard ? onDiscard : onCancel;
-
-  const micButtonStyle = useMemo(
-    () => [styles.micButton, disabled && styles.buttonDisabled],
-    [disabled],
-  );
-  const timerTextStyle = useMemo(
-    () => [styles.timerText, { color: theme.colors.foreground }],
-    [theme.colors.foreground],
-  );
-  const cancelButtonStyle = useMemo(
-    () => [
-      styles.actionButton,
-      styles.actionButtonCancel,
-      actionsDisabled && !isFailed ? styles.buttonDisabled : undefined,
-    ],
-    [actionsDisabled, isFailed],
-  );
-
-  if (!showActiveState) {
-    return (
-      <Pressable
-        onPress={onStart}
-        disabled={disabled}
-        accessibilityRole="button"
-        accessibilityLabel={t("message.dictation.start")}
-        style={micButtonStyle}
-      >
-        <Mic size={theme.iconSize.md} color={theme.colors.foreground} />
-      </Pressable>
-    );
-  }
-
-  return (
-    <View style={styles.activeContainer}>
-      <View style={styles.meterWrapper}>
-        <VolumeMeter volume={volume} isMuted={false} isSpeaking={false} orientation="horizontal" />
-      </View>
-      <Text style={timerTextStyle}>{formatDuration(duration)}</Text>
-      <View style={styles.actionGroup}>
-        <Pressable
-          onPress={handleCancel}
-          disabled={actionsDisabled && !isFailed}
-          accessibilityLabel={t("message.dictation.cancel")}
-          style={cancelButtonStyle}
-        >
-          <X size={theme.iconSize.sm} color={theme.colors.foreground} />
-        </Pressable>
-        {actionsDisabled ? (
-          <View style={styles.loadingContainer}>
-            <LoadingSpinner size="small" color={theme.colors.foreground} />
-          </View>
-        ) : null}
-        {!actionsDisabled && isFailed ? (
-          <Pressable
-            onPress={onRetry}
-            accessibilityLabel={t("message.dictation.retry")}
-            style={[styles.actionButton, styles.actionButtonConfirm]}
-          >
-            <RefreshCcw size={theme.iconSize.sm} color={theme.colors.surface0} />
-          </Pressable>
-        ) : null}
-        {!actionsDisabled && !isFailed ? (
-          <>
-            <Pressable
-              onPress={onAccept}
-              accessibilityLabel={t("message.dictation.insert")}
-              style={[styles.actionButton, styles.actionButtonSecondary]}
-            >
-              <Check size={theme.iconSize.sm} color={theme.colors.foreground} />
-            </Pressable>
-            <Pressable
-              onPress={onAcceptAndSend}
-              accessibilityLabel={t("message.dictation.insertAndSend")}
-              style={[styles.actionButton, styles.actionButtonConfirm]}
-            >
-              <ArrowUp size={theme.iconSize.sm} color={theme.colors.surface0} />
-            </Pressable>
-          </>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-/**
- * Full-width overlay variant for the agent input footer.
- * Uses blue background with white icons.
- */
 export function DictationOverlay({
   volume,
   duration,
@@ -146,11 +36,10 @@ export function DictationOverlay({
   status,
   errorText,
   onCancel,
-  onAccept,
-  onAcceptAndSend,
+  onAttach,
   onRetry,
   onDiscard,
-}: Omit<DictationControlsProps, "onStart" | "disabled" | "transcript"> & { errorText?: string }) {
+}: Omit<DictationControlsProps, "onStart" | "disabled"> & { errorText?: string }) {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
   const isFailed = status === "failed";
@@ -181,7 +70,6 @@ export function DictationOverlay({
     () => [overlayStyles.actionButton, { backgroundColor: theme.colors.accentForeground }],
     [theme.colors.accentForeground],
   );
-  const overlayConfirmButtonStyle = overlayRetryButtonStyle;
 
   if (!showActiveState) {
     return null;
@@ -236,100 +124,23 @@ export function DictationOverlay({
           </Pressable>
         ) : null}
         {!actionsDisabled && !isFailed ? (
-          <>
-            <Pressable
-              onPress={onAccept}
-              accessibilityRole="button"
-              accessibilityLabel={t("message.dictation.insert")}
-              style={[overlayStyles.actionButton, OVERLAY_ACCEPT_BUTTON_BG]}
-            >
-              <Pencil
-                size={theme.iconSize.lg}
-                color={theme.colors.accentForeground}
-                strokeWidth={2.5}
-              />
-            </Pressable>
-            <Pressable
-              onPress={onAcceptAndSend}
-              accessibilityRole="button"
-              accessibilityLabel={t("message.dictation.insertAndSend")}
-              style={overlayConfirmButtonStyle}
-            >
-              <ArrowUp size={theme.iconSize.lg} color={theme.colors.accent} strokeWidth={2.5} />
-            </Pressable>
-          </>
+          <Pressable
+            onPress={onAttach}
+            accessibilityRole="button"
+            accessibilityLabel={t("message.dictation.attach")}
+            style={[overlayStyles.actionButton, OVERLAY_ACCEPT_BUTTON_BG]}
+          >
+            <Paperclip
+              size={theme.iconSize.lg}
+              color={theme.colors.accentForeground}
+              strokeWidth={2.5}
+            />
+          </Pressable>
         ) : null}
       </View>
     </View>
   );
 }
-
-const BUTTON_SIZE = 32;
-
-const styles = StyleSheet.create((theme) => ({
-  micButton: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: theme.borderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface0,
-  },
-  activeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[3],
-  },
-  meterWrapper: {
-    width: 80,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  timerText: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.semibold,
-    fontVariant: ["tabular-nums"],
-  },
-  actionGroup: {
-    flexDirection: "row",
-    gap: theme.spacing[2],
-  },
-  actionButton: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: theme.borderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: theme.borderWidth[1],
-  },
-  actionButtonCancel: {
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface0,
-  },
-  actionButtonSecondary: {
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface0,
-  },
-  actionButtonConfirm: {
-    borderColor: theme.colors.foreground,
-    backgroundColor: theme.colors.foreground,
-  },
-  buttonDisabled: {
-    opacity: 0.4,
-  },
-  loadingContainer: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusLabel: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.semibold,
-  },
-}));
 
 const OVERLAY_BUTTON_SIZE = 44;
 const OVERLAY_VERTICAL_PADDING = (FOOTER_HEIGHT - OVERLAY_BUTTON_SIZE) / 2;

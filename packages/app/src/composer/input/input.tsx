@@ -27,7 +27,8 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { ArrowUp, Mic, MicOff, CornerDownLeft, Plus, Square } from "lucide-react-native";
-import { useDictation } from "@/hooks/use-dictation";
+import { useDictationRecording } from "@/hooks/use-dictation-recording";
+import type { DictationRecording } from "@/hooks/use-dictation-recording";
 import { DictationOverlay } from "@/components/dictation-controls";
 import { RealtimeVoiceOverlay } from "@/components/realtime-voice-overlay";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -80,7 +81,6 @@ import {
   resolveVoiceTooltipText,
 } from "./labels";
 import {
-  applyDictationTranscript,
   computeCanStartDictation,
   resolveComposerSurfacePresentation,
   resolveComposerSurfaceText,
@@ -138,6 +138,8 @@ export interface MessageInputProps {
   onAttachButtonRef?: (node: View | null) => void;
   onAddImages?: (images: ImageAttachment[]) => void;
   onPasteImages?: (files: readonly NativePastedFile[]) => void;
+  /** Receives the WAV recorded by the dictation button so the composer can attach it. */
+  onAttachRecording?: (recording: DictationRecording) => void;
   client: DaemonClient | null;
   /** Dictation start gate from host runtime (socket connected + directory ready). */
   isReadyForDictation?: boolean;
@@ -540,8 +542,7 @@ function MessageInputOverlay({
   dictationStatus,
   dictationError,
   onCancelRecording,
-  onAcceptRecording,
-  onAcceptAndSendRecording,
+  onConfirmRecording,
   onRetryFailedRecording,
   onDiscardFailedRecording,
   onRealtimeVoiceStop,
@@ -563,8 +564,7 @@ function MessageInputOverlay({
   dictationStatus: React.ComponentProps<typeof DictationOverlay>["status"];
   dictationError: string | null;
   onCancelRecording: () => Promise<void>;
-  onAcceptRecording: () => Promise<void>;
-  onAcceptAndSendRecording: () => Promise<void>;
+  onConfirmRecording: () => Promise<void>;
   onRetryFailedRecording: () => void;
   onDiscardFailedRecording: () => void;
   onRealtimeVoiceStop: () => void;
@@ -579,8 +579,7 @@ function MessageInputOverlay({
         status={dictationStatus}
         errorText={dictationStatus === "failed" ? (dictationError ?? undefined) : undefined}
         onCancel={onCancelRecording}
-        onAccept={onAcceptRecording}
-        onAcceptAndSend={onAcceptAndSendRecording}
+        onAttach={onConfirmRecording}
         onRetry={dictationStatus === "failed" ? onRetryFailedRecording : undefined}
         onDiscard={dictationStatus === "failed" ? onDiscardFailedRecording : undefined}
       />
@@ -1089,6 +1088,7 @@ interface ResolvedMessageInputProps {
   onAttachButtonRef: ((node: View | null) => void) | undefined;
   onAddImages: ((images: ImageAttachment[]) => void) | undefined;
   onPasteImages: ((files: readonly NativePastedFile[]) => void) | undefined;
+  onAttachRecording: ((recording: DictationRecording) => void) | undefined;
   client: DaemonClient | null;
   isReadyForDictation: boolean | undefined;
   placeholder: string | undefined;
@@ -1136,6 +1136,7 @@ function resolveMessageInputProps(props: MessageInputProps): ResolvedMessageInpu
     onAttachButtonRef: props.onAttachButtonRef,
     onAddImages: props.onAddImages,
     onPasteImages: props.onPasteImages,
+    onAttachRecording: props.onAttachRecording,
     client: props.client,
     isReadyForDictation: props.isReadyForDictation,
     placeholder: props.placeholder,
@@ -1213,6 +1214,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       onAttachButtonRef,
       onAddImages,
       onPasteImages,
+      onAttachRecording,
       client,
       isReadyForDictation,
       placeholder,
@@ -1383,11 +1385,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         runMessageInputKeyboardAction(action, {
           focusInput: () => textInputRef.current?.focus(),
           isDictationRecording: isDictationActive,
-          markTranscriptForSend: () => {
-            sendAfterTranscriptRef.current = true;
-          },
-          confirmDictation,
-          cancelDictation,
+          confirmDictation: handleAttachRecording,
+          cancelDictation: cancelRecording,
           startDictation: startDictationIfAvailable,
           toggleRealtimeVoice: handleToggleRealtimeVoiceShortcut,
           isRealtimeVoiceActive: isRealtimeVoiceForCurrentAgent,
@@ -1395,7 +1394,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         }),
       getNativeElement: () => (isWeb ? getTextInputNativeElement(textInputRef.current) : null),
     }));
-    const sendAfterTranscriptRef = useRef(false);
     const serverInfo = useSessionStore(
       useCallback(
         (state) => {
@@ -1434,25 +1432,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       };
     }, [onFocusChange]);
 
-    const handleDictationTranscript = useCallback(
-      (text: string, _meta: { requestId: string }) => {
-        const autoSend = sendAfterTranscriptRef.current;
-        sendAfterTranscriptRef.current = false;
-        applyDictationTranscript(text, {
-          value: valueRef.current,
-          defaultSendBehavior,
-          isAgentRunning,
-          onQueue,
-          onSubmit,
-          replaceText,
-          attachments,
-          cwd,
-          autoSend,
-        });
-      },
-      [replaceText, onSubmit, onQueue, attachments, cwd, isAgentRunning, defaultSendBehavior],
-    );
-
     const handleDictationError = useCallback(
       (error: Error) => {
         console.error("[MessageInput] Dictation error:", error);
@@ -1477,7 +1456,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       [client, disabled, dictationUnavailableMessage, isReadyForDictation],
     );
 
-    const canConfirmDictation = useCallback(() => client?.isConnected ?? false, [client]);
     const isConnected = client?.isConnected ?? false;
     const isDictationStartEnabled = computeIsDictationStartEnabled(
       isReadyForDictation,
@@ -1488,31 +1466,22 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const {
       isRecording: isDictating,
       isRecordingActive: isDictationActive,
-      isProcessing: isDictationProcessing,
-      partialTranscript: _dictationPartialTranscript,
       volume: dictationVolume,
       duration: dictationDuration,
       error: dictationError,
       status: dictationStatus,
-      startDictation,
-      cancelDictation,
-      confirmDictation,
-      retryFailedDictation,
-      discardFailedDictation,
-    } = useDictation({
-      client,
-      onTranscript: handleDictationTranscript,
-      onError: handleDictationError,
-      canStart: canStartDictation,
-      canConfirm: canConfirmDictation,
-      enableDuration: true,
-    });
+      start: startRecording,
+      cancel: cancelRecording,
+      confirm: confirmRecording,
+    } = useDictationRecording({ onError: handleDictationError });
 
     const isRealtimeVoiceForCurrentAgent = computeIsRealtimeVoiceForAgent(
       voice,
       voiceServerId,
       voiceAgentId,
     );
+    // Encoding the WAV is synchronous, so the overlay never enters a processing state.
+    const isDictationProcessing = false;
     const showDictationOverlay = computeShouldShowDictationOverlay(
       isDictating,
       isDictationProcessing,
@@ -1522,23 +1491,16 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const showOverlay = showDictationOverlay || showRealtimeOverlay;
     const surfacePresentation = resolveComposerSurfacePresentation(showOverlay);
 
-    useEffect(() => {
-      if (isDictating || isDictationProcessing) {
-        return;
-      }
-      sendAfterTranscriptRef.current = false;
-    }, [dictationStatus, isDictating, isDictationProcessing]);
-
     const startDictationIfAvailable = useCallback(
       () =>
         startDictationIfAvailableImpl({
           dictationUnavailableMessage,
           canStartDictation,
           toast,
-          startDictation,
+          startDictation: startRecording,
           exitFullscreen,
         }),
-      [canStartDictation, dictationUnavailableMessage, startDictation, toast, exitFullscreen],
+      [canStartDictation, dictationUnavailableMessage, startRecording, toast, exitFullscreen],
     );
 
     const handleVoicePress = useCallback(
@@ -1547,11 +1509,11 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           isRealtimeVoiceForCurrentAgent,
           voice,
           isDictating,
-          cancelDictation,
+          cancelDictation: cancelRecording,
           startDictationIfAvailable,
         }),
       [
-        cancelDictation,
+        cancelRecording,
         isDictating,
         isRealtimeVoiceForCurrentAgent,
         startDictationIfAvailable,
@@ -1560,26 +1522,24 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     );
 
     const handleCancelRecording = useCallback(async () => {
-      await cancelDictation();
-    }, [cancelDictation]);
+      await cancelRecording();
+    }, [cancelRecording]);
 
-    const handleAcceptRecording = useCallback(async () => {
-      sendAfterTranscriptRef.current = false;
-      await confirmDictation();
-    }, [confirmDictation]);
+    const handleAttachRecording = useCallback(async () => {
+      const recording = await confirmRecording();
+      if (!recording) {
+        return;
+      }
+      onAttachRecording?.(recording);
+    }, [confirmRecording, onAttachRecording]);
 
-    const handleAcceptAndSendRecording = useCallback(async () => {
-      sendAfterTranscriptRef.current = true;
-      await confirmDictation();
-    }, [confirmDictation]);
-
-    const handleRetryFailedRecording = useCallback(() => {
-      void retryFailedDictation();
-    }, [retryFailedDictation]);
+    const handleRetryRecording = useCallback(async () => {
+      await startRecording();
+    }, [startRecording]);
 
     const handleDiscardFailedRecording = useCallback(() => {
-      discardFailedDictation();
-    }, [discardFailedDictation]);
+      void cancelRecording();
+    }, [cancelRecording]);
 
     const handleStopRealtimeVoice = useCallback(async () => {
       try {
@@ -2115,9 +2075,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             dictationStatus={dictationStatus}
             dictationError={dictationError}
             onCancelRecording={handleCancelRecording}
-            onAcceptRecording={handleAcceptRecording}
-            onAcceptAndSendRecording={handleAcceptAndSendRecording}
-            onRetryFailedRecording={handleRetryFailedRecording}
+            onConfirmRecording={handleAttachRecording}
+            onRetryFailedRecording={handleRetryRecording}
             onDiscardFailedRecording={handleDiscardFailedRecording}
             onRealtimeVoiceStop={handleRealtimeVoiceStop}
           />
@@ -2136,9 +2095,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         dictationStatus,
         dictationError,
         handleCancelRecording,
-        handleAcceptRecording,
-        handleAcceptAndSendRecording,
-        handleRetryFailedRecording,
+        handleAttachRecording,
+        handleRetryRecording,
         handleDiscardFailedRecording,
         handleRealtimeVoiceStop,
       ],

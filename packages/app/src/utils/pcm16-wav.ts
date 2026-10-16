@@ -86,3 +86,34 @@ export function parsePcm16Wav(buffer: ArrayBuffer): Pcm16Wav | null {
     samples: mono,
   };
 }
+
+/** Writes the 16-bit mono WAV header and the samples that follow it. */
+export function encodePcm16Wav(input: Pcm16Wav): Uint8Array {
+  const { sampleRate, samples } = input;
+  const dataBytes = samples.length * 2;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+
+  function writeAscii(offset: number, text: string): void {
+    for (let i = 0; i < text.length; i += 1) {
+      view.setUint8(offset + i, text.charCodeAt(i));
+    }
+  }
+
+  writeAscii(0, "RIFF");
+  view.setUint32(4, 36 + dataBytes, true);
+  writeAscii(8, "WAVE");
+  writeAscii(12, "fmt ");
+  view.setUint32(16, 16, true); // PCM header length
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate: sampleRate * channels * bytesPerSample
+  view.setUint16(32, 2, true); // block align
+  view.setUint16(34, 16, true); // bits per sample
+  writeAscii(36, "data");
+  view.setUint32(40, dataBytes, true);
+
+  new Int16Array(buffer, 44, samples.length).set(samples);
+  return new Uint8Array(buffer);
+}
