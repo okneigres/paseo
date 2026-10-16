@@ -9,6 +9,8 @@ import { useVoiceTelemetry } from "@/contexts/voice-context";
 import { VolumeMeter } from "./volume-meter";
 
 interface RealtimeVoiceOverlayProps {
+  /** "bar" sits above the input so typing, pasting and attaching keep working. */
+  variant?: "overlay" | "bar";
   isMuted: boolean;
   isSwitching: boolean;
   onToggleMute: () => void;
@@ -17,8 +19,11 @@ interface RealtimeVoiceOverlayProps {
 
 const OVERLAY_BUTTON_SIZE = 44;
 const OVERLAY_VERTICAL_PADDING = (FOOTER_HEIGHT - OVERLAY_BUTTON_SIZE) / 2;
+const BAR_HEIGHT = 48;
+const BAR_BUTTON_SIZE = 34;
 
 export function RealtimeVoiceOverlay({
+  variant = "overlay",
   isMuted,
   isSwitching,
   onToggleMute,
@@ -27,21 +32,29 @@ export function RealtimeVoiceOverlay({
   const { theme } = useUnistyles();
   const { t } = useTranslation();
   const { volume, isSpeaking } = useVoiceTelemetry();
+  const isBar = variant === "bar";
+  const iconSize = isBar ? theme.iconSize.md : theme.iconSize.lg;
   const muteButtonStyle = useMemo(
     () => [
       styles.actionButton,
+      isBar ? styles.barActionButton : undefined,
       styles.muteButton,
       isMuted ? styles.muteButtonMuted : undefined,
       isSwitching ? styles.buttonDisabled : undefined,
     ],
-    [isMuted, isSwitching],
+    [isBar, isMuted, isSwitching],
   );
   const stopButtonStyle = useMemo(
-    () => [styles.actionButton, styles.stopButton, isSwitching ? styles.buttonDisabled : undefined],
-    [isSwitching],
+    () => [
+      styles.actionButton,
+      isBar ? styles.barActionButton : undefined,
+      styles.stopButton,
+      isSwitching ? styles.buttonDisabled : undefined,
+    ],
+    [isBar, isSwitching],
   );
   return (
-    <View style={styles.container}>
+    <View style={isBar ? styles.barContainer : styles.container}>
       <View style={styles.meterContainer}>
         <VolumeMeter
           volume={volume}
@@ -62,9 +75,9 @@ export function RealtimeVoiceOverlay({
           style={muteButtonStyle}
         >
           {isMuted ? (
-            <MicOff size={theme.iconSize.lg} color={theme.colors.palette.white} strokeWidth={2.5} />
+            <MicOff size={iconSize} color={theme.colors.palette.white} strokeWidth={2.5} />
           ) : (
-            <Mic size={theme.iconSize.lg} color={theme.colors.foreground} strokeWidth={2.5} />
+            <Mic size={iconSize} color={theme.colors.foreground} strokeWidth={2.5} />
           )}
         </Pressable>
 
@@ -79,7 +92,7 @@ export function RealtimeVoiceOverlay({
             <LoadingSpinner size="small" color={theme.colors.palette.white} />
           ) : (
             <Square
-              size={theme.iconSize.lg}
+              size={iconSize}
               color={theme.colors.palette.white}
               fill={theme.colors.palette.white}
               strokeWidth={2.5}
@@ -104,6 +117,22 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
     borderColor: theme.colors.border,
+  },
+  barContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    height: BAR_HEIGHT,
+    borderRadius: theme.borderRadius["2xl"],
+    justifyContent: "space-between",
+    paddingHorizontal: theme.spacing[3],
+    backgroundColor: theme.colors.surface1,
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+  },
+  barActionButton: {
+    width: BAR_BUTTON_SIZE,
+    height: BAR_BUTTON_SIZE,
   },
   meterContainer: {
     flex: 1,

@@ -40,6 +40,7 @@ export function ComposerInputPresentation({
   showFullscreenButton,
   onEnter,
   overlay,
+  voiceBar,
 }: {
   fullscreen: boolean;
   sendIconSize: number;
@@ -55,6 +56,8 @@ export function ComposerInputPresentation({
   showFullscreenButton: boolean;
   onEnter: () => void;
   overlay: ReactNode;
+  /** Realtime voice controls shown above the input without covering it. */
+  voiceBar?: ReactNode;
 }) {
   const { t } = useTranslation();
   // A retained tab keeps its fullscreen editor mounted while hidden; the global exit
@@ -99,6 +102,7 @@ export function ComposerInputPresentation({
           </Button>
         </View>
       ) : null}
+      {!fullscreen && voiceBar ? <View style={styles.voiceBarSlot}>{voiceBar}</View> : null}
       <ComposerFullscreenBody fullscreen={fullscreen}>
         <View
           ref={inputWrapperRef}
@@ -140,6 +144,7 @@ export function ComposerInputPresentation({
 const styles = StyleSheet.create((theme) => ({
   inline: { flexShrink: 1, position: "relative" },
   inlineTextSurface: { flexShrink: 1, position: "relative" },
+  voiceBarSlot: { marginBottom: theme.spacing[2] },
   iconButton: {
     width: CONTROL_SIZE,
     height: CONTROL_SIZE,

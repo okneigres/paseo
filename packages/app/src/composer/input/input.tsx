@@ -450,19 +450,11 @@ interface PasteImagesEffectArgs {
   isConnected: boolean;
   disabled: boolean;
   isDictating: boolean;
-  isRealtimeVoiceForCurrentAgent: boolean;
   onAddImages: ((images: ImageAttachment[]) => void) | undefined;
 }
 
 function usePasteImagesEffect(args: PasteImagesEffectArgs): void {
-  const {
-    textarea,
-    isConnected,
-    disabled,
-    isDictating,
-    isRealtimeVoiceForCurrentAgent,
-    onAddImages,
-  } = args;
+  const { textarea, isConnected, disabled, isDictating, onAddImages } = args;
 
   useEffect(() => {
     if (!isWeb || !onAddImages) return;
@@ -471,7 +463,7 @@ function usePasteImagesEffect(args: PasteImagesEffectArgs): void {
 
     let disposed = false;
     const handlePaste = (event: ClipboardEvent) => {
-      if (!isConnected || disabled || isDictating || isRealtimeVoiceForCurrentAgent) return;
+      if (!isConnected || disabled || isDictating) return;
 
       const imageFiles = collectImageFilesFromClipboardData(event.clipboardData);
       if (imageFiles.length === 0) return;
@@ -494,7 +486,7 @@ function usePasteImagesEffect(args: PasteImagesEffectArgs): void {
       disposed = true;
       textarea.removeEventListener?.("paste", handlePaste);
     };
-  }, [disabled, textarea, isConnected, isDictating, isRealtimeVoiceForCurrentAgent, onAddImages]);
+  }, [disabled, textarea, isConnected, isDictating, onAddImages]);
 }
 
 function useAutoFocusOnWebEffect(
@@ -533,8 +525,6 @@ function MessageInputAutoFocus({
 
 function MessageInputOverlay({
   showDictationOverlay,
-  showRealtimeOverlay,
-  voice,
   dictationVolume,
   dictationDuration,
   isDictating,
@@ -545,18 +535,8 @@ function MessageInputOverlay({
   onConfirmRecording,
   onRetryFailedRecording,
   onDiscardFailedRecording,
-  onRealtimeVoiceStop,
 }: {
   showDictationOverlay: boolean;
-  showRealtimeOverlay: boolean;
-  voice:
-    | {
-        isMuted: boolean;
-        isVoiceSwitching: boolean;
-        toggleMute: () => void;
-      }
-    | null
-    | undefined;
   dictationVolume: number;
   dictationDuration: number;
   isDictating: boolean;
@@ -567,7 +547,6 @@ function MessageInputOverlay({
   onConfirmRecording: () => Promise<void>;
   onRetryFailedRecording: () => void;
   onDiscardFailedRecording: () => void;
-  onRealtimeVoiceStop: () => void;
 }) {
   if (showDictationOverlay) {
     return (
@@ -582,16 +561,6 @@ function MessageInputOverlay({
         onAttach={onConfirmRecording}
         onRetry={dictationStatus === "failed" ? onRetryFailedRecording : undefined}
         onDiscard={dictationStatus === "failed" ? onDiscardFailedRecording : undefined}
-      />
-    );
-  }
-  if (showRealtimeOverlay && voice) {
-    return (
-      <RealtimeVoiceOverlay
-        isMuted={voice.isMuted}
-        isSwitching={voice.isVoiceSwitching}
-        onToggleMute={voice.toggleMute}
-        onStop={onRealtimeVoiceStop}
       />
     );
   }
@@ -1487,8 +1456,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       isDictationProcessing,
       dictationStatus,
     );
-    const showRealtimeOverlay = isRealtimeVoiceForCurrentAgent;
-    const showOverlay = showDictationOverlay || showRealtimeOverlay;
+    // Realtime voice is a bar above the input, so the input stays usable in voice mode.
+    const showOverlay = showDictationOverlay;
     const surfacePresentation = resolveComposerSurfacePresentation(showOverlay);
 
     const startDictationIfAvailable = useCallback(
@@ -1658,7 +1627,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       isConnected,
       disabled,
       isDictating,
-      isRealtimeVoiceForCurrentAgent,
       onAddImages,
     });
 
@@ -1951,7 +1919,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             onChangeText={handleInputChange}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
-            editable={!isDictating && !isRealtimeVoiceForCurrentAgent && !disabled}
+            editable={!isDictating && !disabled}
             scrollEnabled={isComposerScrollEnabled}
             autoFocus={false}
             onKeyPress={shouldHandleWebKeyPress ? handleDesktopKeyPress : undefined}
@@ -2066,8 +2034,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         >
           <MessageInputOverlay
             showDictationOverlay={showDictationOverlay}
-            showRealtimeOverlay={showRealtimeOverlay}
-            voice={voice}
             dictationVolume={dictationVolume}
             dictationDuration={dictationDuration}
             isDictating={isDictating}
@@ -2078,7 +2044,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             onConfirmRecording={handleAttachRecording}
             onRetryFailedRecording={handleRetryRecording}
             onDiscardFailedRecording={handleDiscardFailedRecording}
-            onRealtimeVoiceStop={handleRealtimeVoiceStop}
           />
         </View>
       ),
@@ -2086,8 +2051,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         overlayContainerStyle,
         surfacePresentation.overlay.pointerEvents,
         showDictationOverlay,
-        showRealtimeOverlay,
-        voice,
         dictationVolume,
         dictationDuration,
         isDictating,
@@ -2098,8 +2061,20 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         handleAttachRecording,
         handleRetryRecording,
         handleDiscardFailedRecording,
-        handleRealtimeVoiceStop,
       ],
+    );
+    const voiceBar = useMemo(
+      () =>
+        isRealtimeVoiceForCurrentAgent && voice ? (
+          <RealtimeVoiceOverlay
+            variant="bar"
+            isMuted={voice.isMuted}
+            isSwitching={voice.isVoiceSwitching}
+            onToggleMute={voice.toggleMute}
+            onStop={handleRealtimeVoiceStop}
+          />
+        ) : null,
+      [isRealtimeVoiceForCurrentAgent, voice, handleRealtimeVoiceStop],
     );
     return (
       <View
@@ -2133,6 +2108,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           )}
           onEnter={enterFullscreen}
           overlay={voiceOverlay}
+          voiceBar={voiceBar}
         />
       </View>
     );
