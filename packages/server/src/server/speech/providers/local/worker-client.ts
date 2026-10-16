@@ -427,6 +427,9 @@ export class LocalSpeechWorkerClient {
       case "session.speech_started":
         emitter.emit("speech_started");
         return;
+      case "session.speech_sustained":
+        emitter.emit("speech_sustained");
+        return;
       case "session.speech_stopped":
         emitter.emit("speech_stopped");
         return;
@@ -701,6 +704,7 @@ class WorkerBackedTranscriptionSession
 
 class WorkerBackedTurnDetectionSession extends EventEmitter implements TurnDetectionSession {
   public requiredSampleRate = DEFAULT_LOCAL_SAMPLE_RATE;
+  public readonly emitsSpeechSustained = true;
   private connectedSessionId: string | null = null;
   private connecting: Promise<void> | null = null;
 

@@ -16,7 +16,11 @@ const SILERO_MIN_SILENCE_DURATION = 0.2;
 const SILERO_MIN_SPEECH_DURATION = 0.1;
 
 // Our boundary detection thresholds (in milliseconds).
-const DEFAULT_CONFIRM_MS = 800;
+// Speech is confirmed quickly so that short words ("да", one number at a time)
+// start a turn; it only counts as sustained, and may interrupt the assistant,
+// after the longer time below.
+const DEFAULT_CONFIRM_MS = 250;
+const DEFAULT_SUSTAINED_MS = 800;
 const DEFAULT_SILENCE_MS = 1000;
 
 interface SherpaVadHandle {
@@ -52,6 +56,7 @@ export interface SherpaSileroVadSessionConfig {
   windowSize?: number;
   bufferSizeInSeconds?: number;
   confirmMs?: number;
+  sustainedMs?: number;
   silenceMs?: number;
 }
 
@@ -68,7 +73,11 @@ export class SherpaSileroVadSession extends EventEmitter implements TurnDetectio
   private readonly inputBuffer: SherpaCircularBufferHandle;
   private readonly windowSize: number;
   private readonly msPerWindow: number;
+  public readonly emitsSpeechSustained = true;
   private readonly confirmMs: number;
+  private readonly sustainedMs: number;
+  private turnStartedAt = 0;
+  private sustainedEmitted = false;
   private readonly silenceMs: number;
   private connected = false;
   private phase: VadPhase = { state: "idle" };
@@ -86,6 +95,7 @@ export class SherpaSileroVadSession extends EventEmitter implements TurnDetectio
     this.windowSize = config.windowSize ?? DEFAULT_WINDOW_SIZE;
     this.msPerWindow = (this.windowSize / this.requiredSampleRate) * 1000;
     this.confirmMs = config.confirmMs ?? DEFAULT_CONFIRM_MS;
+    this.sustainedMs = config.sustainedMs ?? DEFAULT_SUSTAINED_MS;
     this.silenceMs = config.silenceMs ?? DEFAULT_SILENCE_MS;
 
     const threshold = config.threshold ?? DEFAULT_SILERO_THRESHOLD;
@@ -204,6 +214,8 @@ export class SherpaSileroVadSession extends EventEmitter implements TurnDetectio
         if (detected) {
           this.logger.debug({ now }, "[VAD] idle → confirming (detection started)");
           this.phase = { state: "confirming", startedAt: now };
+          this.turnStartedAt = now;
+          this.sustainedEmitted = false;
         }
         break;
       }
@@ -231,6 +243,11 @@ export class SherpaSileroVadSession extends EventEmitter implements TurnDetectio
       }
 
       case "speaking": {
+        if (detected && !this.sustainedEmitted && now - this.turnStartedAt >= this.sustainedMs) {
+          this.sustainedEmitted = true;
+          this.logger.debug({ now }, "[VAD] speech sustained");
+          this.emit("speech_sustained");
+        }
         if (!detected) {
           this.logger.debug({ now }, "[VAD] speaking → ending (silence started)");
           this.phase = { state: "ending", startedAt: now };

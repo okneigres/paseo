@@ -181,6 +181,9 @@ function trackTurnDetectionSession(sessionId: string, session: TurnDetectionSess
   session.on("speech_started", () => {
     sendToParent({ type: "session.speech_started", sessionId });
   });
+  session.on("speech_sustained", () => {
+    sendToParent({ type: "session.speech_sustained", sessionId });
+  });
   session.on("speech_stopped", () => {
     sendToParent({ type: "session.speech_stopped", sessionId });
   });

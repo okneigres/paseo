@@ -13,7 +13,15 @@ export interface TurnDetectionSession {
   reset(): void;
   close(): void;
 
+  /**
+   * True when the session fires `speech_sustained` after speech has lasted long
+   * enough to interrupt the assistant. `speech_started` then fires earlier, to
+   * start capturing short words. Sessions without it use `speech_started` for both.
+   */
+  readonly emitsSpeechSustained?: boolean;
+
   on(event: "speech_started", handler: () => void): unknown;
+  on(event: "speech_sustained", handler: () => void): unknown;
   on(event: "speech_stopped", handler: () => void): unknown;
   on(event: "error", handler: (err: unknown) => void): unknown;
 }

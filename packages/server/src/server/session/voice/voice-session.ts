@@ -593,6 +593,11 @@ export class VoiceSession {
           // confirmed speech event so interruption does not wait for transcription.
           this.sessionLogger.debug("Voice VAD speech_started");
           this.voiceInputDump?.note("speech_started");
+        },
+        onSpeechSustained: async () => {
+          // Only speech that lasts may cut the assistant off; a short word is
+          // still transcribed but does not stop what is being said.
+          this.voiceInputDump?.note("speech_sustained");
           this.emit({
             type: "voice_input_state",
             payload: {

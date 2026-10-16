@@ -100,6 +100,10 @@ export type LocalSpeechWorkerEvent =
       sessionId: string;
     }
   | {
+      type: "session.speech_sustained";
+      sessionId: string;
+    }
+  | {
       type: "session.speech_stopped";
       sessionId: string;
     }

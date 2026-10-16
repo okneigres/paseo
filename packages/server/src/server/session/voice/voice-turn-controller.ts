@@ -52,6 +52,8 @@ type VoiceInputState =
 
 export interface VoiceTurnControllerCallbacks {
   onSpeechStarted(): Promise<void>;
+  // Speech has lasted long enough to interrupt the assistant.
+  onSpeechSustained?(): Promise<void>;
   onSpeechStopped(): Promise<void>;
   onPartialTranscript(input: { segmentId: string; transcript: string }): Promise<void>;
   onFinalTranscript(input: VoiceFinalTranscript): Promise<void>;
@@ -431,7 +433,14 @@ export function createVoiceTurnController(params: {
       return;
     }
 
-    await params.callbacks.onSpeechStarted();
+    // Detectors that confirm late already vouch for the speech.
+    const started = params.callbacks.onSpeechStarted();
+    const sustained =
+      !detector.emitsSpeechSustained && params.callbacks.onSpeechSustained
+        ? params.callbacks.onSpeechSustained()
+        : undefined;
+    await started;
+    await sustained;
 
     if (sttSession) {
       try {
@@ -504,6 +513,13 @@ export function createVoiceTurnController(params: {
 
   detector.on("speech_started", () => {
     void runSerial(handleSpeechStarted);
+  });
+  detector.on("speech_sustained", () => {
+    void runSerial(async () => {
+      if (state.status === "capturing") {
+        await params.callbacks.onSpeechSustained?.();
+      }
+    });
   });
   detector.on("speech_stopped", () => {
     void runSerial(handleSpeechStopped);

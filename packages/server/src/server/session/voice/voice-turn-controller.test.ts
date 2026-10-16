@@ -111,6 +111,7 @@ function createControllerHarness(options?: { sttLanguage?: string }) {
   });
   const onSpeechStarted = vi.fn(async () => {});
   const onSpeechStopped = vi.fn(async () => {});
+  const onSpeechSustained = vi.fn(async () => {});
   const onPartialTranscript = vi.fn(
     async (_input: { segmentId: string; transcript: string }) => {},
   );
@@ -133,6 +134,7 @@ function createControllerHarness(options?: { sttLanguage?: string }) {
     sttLanguage: options?.sttLanguage,
     callbacks: {
       onSpeechStarted,
+      onSpeechSustained,
       onSpeechStopped,
       onPartialTranscript,
       onFinalTranscript,
@@ -146,6 +148,7 @@ function createControllerHarness(options?: { sttLanguage?: string }) {
     sttSessions,
     getLastSttLanguage: () => lastSttLanguage,
     onSpeechStarted,
+    onSpeechSustained,
     onSpeechStopped,
     onPartialTranscript,
     onFinalTranscript,
@@ -236,6 +239,42 @@ describe("voice turn controller", () => {
     });
 
     expect(harness.sttSessions[0]?.appendedChunks).toEqual([]);
+  });
+
+  it("treats speech_started as sustained for detectors that confirm late", async () => {
+    const harness = createControllerHarness();
+
+    await harness.controller.start();
+    harness.detector.emit("speech_started");
+    await settleSerialQueue();
+
+    expect(harness.onSpeechSustained).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for speech_sustained before interrupting when the detector reports it", async () => {
+    const harness = createControllerHarness();
+    (harness.detector as { emitsSpeechSustained?: boolean }).emitsSpeechSustained = true;
+
+    await harness.controller.start();
+    harness.detector.emit("speech_started");
+    await settleSerialQueue();
+    expect(harness.onSpeechStarted).toHaveBeenCalledTimes(1);
+    expect(harness.onSpeechSustained).not.toHaveBeenCalled();
+
+    harness.detector.emit("speech_sustained");
+    await settleSerialQueue();
+    expect(harness.onSpeechSustained).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores speech_sustained outside a captured turn", async () => {
+    const harness = createControllerHarness();
+    (harness.detector as { emitsSpeechSustained?: boolean }).emitsSpeechSustained = true;
+
+    await harness.controller.start();
+    harness.detector.emit("speech_sustained");
+    await settleSerialQueue();
+
+    expect(harness.onSpeechSustained).not.toHaveBeenCalled();
   });
 
   it("does not barge in on silence-only chunks", async () => {
