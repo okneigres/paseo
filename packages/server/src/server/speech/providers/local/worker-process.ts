@@ -7,6 +7,14 @@ import { SherpaOfflineRecognizerEngine } from "./sherpa/sherpa-offline-recognize
 import { SherpaOnnxParakeetSTT } from "./sherpa/sherpa-parakeet-stt.js";
 import { SherpaParakeetRealtimeTranscriptionSession } from "./sherpa/sherpa-parakeet-realtime-session.js";
 import { SherpaOnnxTTS } from "./sherpa/sherpa-tts.js";
+import { getSherpaOnnxModelSpec } from "./sherpa/model-catalog.js";
+
+const PARAKEET_STT_FILES = {
+  encoder: "encoder.int8.onnx",
+  decoder: "decoder.int8.onnx",
+  joiner: "joiner.int8.onnx",
+  tokens: "tokens.txt",
+};
 import {
   ensureSileroVadModel,
   SherpaSileroTurnDetectionProvider,
@@ -83,14 +91,15 @@ function getSttEngine(
     return existing;
   }
   const modelDir = getLocalSpeechModelDir(config.modelsDir, modelId);
+  const files = getSherpaOnnxModelSpec(modelId).sttFiles ?? PARAKEET_STT_FILES;
   const created = new SherpaOfflineRecognizerEngine(
     {
       model: {
         kind: "nemo_transducer",
-        encoder: `${modelDir}/encoder.int8.onnx`,
-        decoder: `${modelDir}/decoder.int8.onnx`,
-        joiner: `${modelDir}/joiner.int8.onnx`,
-        tokens: `${modelDir}/tokens.txt`,
+        encoder: `${modelDir}/${files.encoder}`,
+        decoder: `${modelDir}/${files.decoder}`,
+        joiner: `${modelDir}/${files.joiner}`,
+        tokens: `${modelDir}/${files.tokens}`,
       },
       numThreads: 2,
       debug: 0,

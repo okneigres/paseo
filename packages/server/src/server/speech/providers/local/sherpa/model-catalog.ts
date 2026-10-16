@@ -15,6 +15,8 @@ interface SherpaOnnxCatalogEntry {
   ttsEngine?: "kokoro" | "vits";
   // Weights file inside extractedDir for engines that name it per voice.
   modelFile?: string;
+  // File names of a transducer recognizer when they differ from the Parakeet ones.
+  sttFiles?: { encoder: string; decoder: string; joiner: string; tokens: string };
 }
 
 function piperRussianVoice(voice: string, description: string) {
@@ -49,6 +51,21 @@ export const SHERPA_ONNX_MODEL_CATALOG = {
     requiredFiles: ["encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"],
     description:
       "NVIDIA Parakeet TDT v3 (offline NeMo transducer, 25 European languages, auto-detected).",
+  },
+  "gigaam-v2-russian": {
+    kind: "stt-offline",
+    archiveUrl:
+      "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-transducer-giga-am-v2-russian-2025-04-19.tar.bz2",
+    extractedDir: "sherpa-onnx-nemo-transducer-giga-am-v2-russian-2025-04-19",
+    requiredFiles: ["encoder.int8.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"],
+    description:
+      "GigaAM v2 (offline NeMo transducer, Russian only; no punctuation or capitalization).",
+    sttFiles: {
+      encoder: "encoder.int8.onnx",
+      decoder: "decoder.onnx",
+      joiner: "joiner.onnx",
+      tokens: "tokens.txt",
+    },
   },
   "kokoro-en-v0_19": {
     kind: "tts",
