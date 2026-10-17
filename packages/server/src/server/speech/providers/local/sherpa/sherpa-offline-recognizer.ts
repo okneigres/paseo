@@ -32,6 +32,8 @@ interface SherpaOfflineRecognizerNative {
   config?: { featConfig?: { sampleRate?: number } };
   createStream: () => unknown;
   decode: (stream: unknown) => void;
+  // Runs on a worker thread; present in newer sherpa-onnx-node builds.
+  decodeAsync?: (stream: unknown) => Promise<unknown>;
   getResult: (stream: unknown) => { text?: string } | string | undefined;
   free?: () => void;
 }

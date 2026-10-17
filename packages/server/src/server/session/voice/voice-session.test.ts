@@ -2,7 +2,10 @@ import { Readable } from "node:stream";
 import type { VoiceSpeakHandler } from "../../voice-types.js";
 import { EventEmitter } from "node:events";
 import pino from "pino";
-import { describe, expect, test, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { VoiceSession, type VoiceSessionHost } from "./voice-session.js";
 import type { ManagedAgent } from "../../agent/agent-manager.js";
@@ -20,6 +23,19 @@ import type {
 } from "../../speech/turn-detection-provider.js";
 
 const VOICE_AGENT_ID = "11111111-1111-4111-8111-111111111111";
+
+// The debug and merge switches are files in the Paseo home; a developer machine may have them.
+const originalPaseoHome = process.env.PASEO_HOME;
+let isolatedPaseoHome = "";
+beforeAll(() => {
+  isolatedPaseoHome = mkdtempSync(join(tmpdir(), "paseo-voice-session-"));
+  process.env.PASEO_HOME = isolatedPaseoHome;
+});
+afterAll(() => {
+  if (originalPaseoHome === undefined) delete process.env.PASEO_HOME;
+  else process.env.PASEO_HOME = originalPaseoHome;
+  rmSync(isolatedPaseoHome, { recursive: true, force: true });
+});
 
 class FakeVoiceTurnDetectionSession extends EventEmitter implements TurnDetectionSession {
   public readonly requiredSampleRate = 16000;
