@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import type pino from "pino";
@@ -16,6 +18,9 @@ import {
 import { createVoiceTurnController, type VoiceTurnController } from "./voice-turn-controller.js";
 import { openVoiceInputDump, type VoiceInputDump } from "./voice-input-dump.js";
 import { readVoiceMergeGraceMs } from "./voice-merge-flag.js";
+import { rereadAudio } from "./voice-reread.js";
+import { createVoiceTurnSpool, type VoiceTurnSpool } from "./voice-turn-spool.js";
+import { paseoHome } from "./voice-input-dump.js";
 import { buildVoiceModeSystemPrompt, stripVoiceModeSystemPrompt } from "../../voice-config.js";
 import type { VoiceCallerContext, VoiceSpeakHandler } from "../../voice-types.js";
 import type { ManagedAgent } from "../../agent/agent-manager.js";
@@ -33,6 +38,9 @@ const MIN_STREAMING_SEGMENT_BYTES = Math.round(
   PCM_BYTES_PER_MS * MIN_STREAMING_SEGMENT_DURATION_MS,
 );
 const AgentIdSchema = z.guid();
+
+// Turns older than this are kept as text but not handed to the agent.
+const RECOVERED_TURN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 type ProcessingPhase = "idle" | "transcribing";
 
@@ -583,13 +591,41 @@ export class VoiceSession {
       "startVoiceTurnController creating controller",
     );
 
+    // Each turn's audio stays on disk until the agent has its text.
+    const spool = createVoiceTurnSpool({
+      agentId: this.voiceModeAgentId,
+      logger: this.sessionLogger,
+    });
+    const slowReportedTurns = new Set<string>();
+
     const controller = createVoiceTurnController({
       logger: this.sessionLogger.child({ component: "voice-turn-controller" }),
       turnDetection,
       stt,
       sttLanguage: this.sttLanguage,
       mergeGraceMs: readVoiceMergeGraceMs(),
+      spool,
       callbacks: {
+        onTranscriptionSlow: ({ turnId, waitedMs }) => {
+          if (slowReportedTurns.has(turnId)) {
+            return;
+          }
+          slowReportedTurns.add(turnId);
+          this.sessionLogger.warn(
+            { turnId, waitedMs },
+            "Transcription is taking longer than usual",
+          );
+          this.emit({
+            type: "activity_log",
+            payload: {
+              id: uuidv4(),
+              timestamp: new Date(),
+              type: "system",
+              content:
+                "Transcription is taking longer than usual. Your audio is kept and will be delivered in full.",
+            },
+          });
+        },
         onSpeechStarted: async () => {
           // Voice STT providers return final transcripts only. Use the detector's
           // confirmed speech event so interruption does not wait for transcription.
@@ -682,7 +718,71 @@ export class VoiceSession {
     }
     await controller.start();
     if (this.closed) await controller.stop();
+    else void this.recoverSpooledVoiceTurns(spool, stt);
     this.sessionLogger.info("startVoiceTurnController connected");
+  }
+
+  /**
+   * Turns whose text was never delivered (the daemon stopped, or delivery failed) are still
+   * on disk. Read them again and hand them to the agent they were meant for, marked as
+   * recovered, and keep a copy of the text.
+   */
+  private async recoverSpooledVoiceTurns(
+    spool: VoiceTurnSpool,
+    stt: SpeechToTextProvider,
+  ): Promise<void> {
+    const agentId = this.voiceModeAgentId;
+    const stale = Date.now() - RECOVERED_TURN_MAX_AGE_MS;
+    for (const turn of spool.list().filter((candidate) => candidate.agentId === agentId)) {
+      if (this.closed) {
+        return;
+      }
+      try {
+        this.sessionLogger.warn(
+          { turnId: turn.id },
+          "Recovering voice turn that was not delivered",
+        );
+        const result = await rereadAudio({
+          stt,
+          language: this.sttLanguage,
+          audio: [turn.audio],
+          sourceSampleRate: turn.sampleRate,
+          logger: this.sessionLogger.child({ component: "voice-recovery" }),
+        });
+        const text = result.text.trim();
+        // Voice mode was switched off while this was being read: leave the audio for next time.
+        if (this.closed || !this.isVoiceMode || this.voiceModeAgentId !== agentId) {
+          return;
+        }
+        if (text) {
+          this.keepRecoveredText(turn.id, text);
+          if (turn.startedAt >= stale) {
+            await this.handleTranscriptionResultPayload({
+              text: `[Dictation recovered after an interruption] ${text}`,
+              requestId: uuidv4(),
+              ...(result.language ? { language: result.language } : {}),
+            });
+          }
+        }
+        spool.remove(turn.id);
+      } catch (error) {
+        // It stays on disk and is tried again the next time voice mode starts.
+        this.sessionLogger.warn({ err: error, turnId: turn.id }, "Could not recover voice turn");
+      }
+    }
+  }
+
+  private keepRecoveredText(turnId: string, text: string): void {
+    try {
+      const directory = join(paseoHome(), "voice-recovered");
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(
+        join(directory, `${new Date().toISOString().replace(/[:.]/g, "_")}-${turnId}.txt`),
+        `${text}\n`,
+      );
+    } catch (error) {
+      this.sessionLogger.warn({ err: error }, "Could not keep a copy of the recovered text");
+    }
   }
 
   private async stopVoiceTurnController(): Promise<void> {

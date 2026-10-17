@@ -10,18 +10,27 @@ import type {
   StreamingTranscriptionSession,
 } from "../../speech/speech-provider.js";
 import type { TurnDetectionProvider } from "../../speech/turn-detection-provider.js";
+import { rereadAudio } from "./voice-reread.js";
+import type { VoiceTurnSpool } from "./voice-turn-spool.js";
 
-const VOICE_FINAL_TRANSCRIPT_TIMEOUT_MS = 10_000;
+// How long a turn's text may take before it counts as slow. Slow is a signal, never a
+// deadline: the turn keeps its audio and keeps waiting, because dropping or cutting short
+// what the user said is worse than waiting. A slow turn is also read again from its saved
+// audio, beside the first attempt, and whichever finishes first is delivered.
+const VOICE_FINAL_TRANSCRIPT_SLOW_MS = 10_000;
 // Reading the last stretch of a long utterance takes a while even when the earlier
-// stretches were read as the user spoke, so the wait grows with the utterance.
-const VOICE_FINAL_TRANSCRIPT_TIMEOUT_PER_AUDIO_SECOND_MS = 150;
-const VOICE_FINAL_TRANSCRIPT_TIMEOUT_MAX_MS = 60_000;
+// stretches were read as the user spoke, so slow is judged against the utterance.
+const VOICE_FINAL_TRANSCRIPT_SLOW_PER_AUDIO_SECOND_MS = 150;
+const VOICE_FINAL_TRANSCRIPT_SLOW_MAX_MS = 60_000;
+const VOICE_FINAL_TRANSCRIPT_SLOW_REPEAT_MS = 30_000;
+const MAX_REREAD_ATTEMPTS = 3;
+const REREAD_RETRY_DELAY_MS = 3_000;
 
-function finalTranscriptTimeoutMs(audioSeconds: number): number {
+function slowTranscriptThresholdMs(audioSeconds: number): number {
   return Math.min(
-    VOICE_FINAL_TRANSCRIPT_TIMEOUT_MAX_MS,
-    VOICE_FINAL_TRANSCRIPT_TIMEOUT_MS +
-      Math.round(audioSeconds * VOICE_FINAL_TRANSCRIPT_TIMEOUT_PER_AUDIO_SECOND_MS),
+    VOICE_FINAL_TRANSCRIPT_SLOW_MAX_MS,
+    VOICE_FINAL_TRANSCRIPT_SLOW_MS +
+      Math.round(audioSeconds * VOICE_FINAL_TRANSCRIPT_SLOW_PER_AUDIO_SECOND_MS),
   );
 }
 
@@ -69,6 +78,8 @@ export interface VoiceTurnControllerCallbacks {
   onSpeechStopped(): Promise<void>;
   onPartialTranscript(input: { segmentId: string; transcript: string }): Promise<void>;
   onFinalTranscript(input: VoiceFinalTranscript): Promise<void>;
+  /** The text of a finished turn is taking long; the turn keeps waiting and is read again. */
+  onTranscriptionSlow?(input: { turnId: string; waitedMs: number }): void | Promise<void>;
   onError(error: Error): void;
 }
 
@@ -100,11 +111,18 @@ interface FinalizingVoiceTurn {
   transcriptsBySegmentId: Map<string, string>;
   finalTranscriptSegmentIds: Set<string>;
   transcriptMetaBySegmentId: Map<string, TranscriptSegmentMeta>;
+  // Watches for a slow turn; it never delivers anything.
   timeout: ReturnType<typeof setTimeout>;
-  timeoutMs: number;
-  // What the transcriber was given for this turn, so it can be read again with what follows.
+  slowMs: number;
+  stoppedAt: number;
+  // What the transcriber was given for this turn, so it can be read again.
   audio: Buffer[];
   audioBytes: number;
+  // This turn and the earlier turns whose audio it contains, in the spool until delivered.
+  spoolIds: string[];
+  rereadAttempts: number;
+  rereading: boolean;
+  rereadTimer: ReturnType<typeof setTimeout> | null;
   fired: boolean;
 }
 
@@ -129,6 +147,8 @@ export function createVoiceTurnController(params: {
    * together with the new speech and only the combined text is delivered.
    */
   mergeGraceMs?: number;
+  /** Keeps each turn's audio on disk until its text has been delivered. */
+  spool?: VoiceTurnSpool;
   callbacks: VoiceTurnControllerCallbacks;
 }): VoiceTurnController {
   const mergeGraceMs = Math.max(0, params.mergeGraceMs ?? 0);
@@ -157,12 +177,13 @@ export function createVoiceTurnController(params: {
   let turnAudioBytes = 0;
   // Everything handed to the transcriber for the current utterance, whether or not merging is on.
   let utteranceBytes = 0;
-  // Latest text seen for a segment before its final arrives: what we deliver if the final never does.
-  const latestPartialBySegmentId = new Map<string, string>();
+  // Spool ids of the turns already merged into the utterance in progress.
+  let utteranceSpoolIds: string[] = [];
   let pendingDelivery: {
     transcript: VoiceFinalTranscript;
     audio: Buffer[];
     audioBytes: number;
+    spoolIds: string[];
     timer: ReturnType<typeof setTimeout>;
   } | null = null;
 
@@ -180,8 +201,16 @@ export function createVoiceTurnController(params: {
     }
     pendingDelivery = null;
     clearTimeout(pending.timer);
+    deliverTranscript(pending.transcript, pending.spoolIds);
+  }
+
+  // The audio leaves the spool only once the agent has the text.
+  function deliverTranscript(transcript: VoiceFinalTranscript, spoolIds: string[]): void {
     void runSerial(async () => {
-      await params.callbacks.onFinalTranscript(pending.transcript);
+      await params.callbacks.onFinalTranscript(transcript);
+      for (const id of spoolIds) {
+        params.spool?.remove(id);
+      }
     });
   }
 
@@ -286,45 +315,26 @@ export function createVoiceTurnController(params: {
     };
   }
 
-  function fireFinalTranscript(turn: FinalizingVoiceTurn, reason: "complete" | "timeout"): void {
+  function fireFinalTranscript(turn: FinalizingVoiceTurn): void {
     if (turn.fired || currentFinalizingTurn?.turnId !== turn.turnId) {
       return;
     }
+    completeTurn(turn, assembleFinalTranscript(turn));
+  }
 
+  // The text of a turn is ready, from the first reading or from a re-read; whichever comes
+  // first is delivered and the other is ignored.
+  function completeTurn(turn: FinalizingVoiceTurn, finalTranscript: VoiceFinalTranscript): void {
+    if (turn.fired) {
+      return;
+    }
     turn.fired = true;
     clearTimeout(turn.timeout);
-    currentFinalizingTurn = null;
-
-    if (reason === "timeout") {
-      // The final did not come in time. Better the text read so far than an empty turn.
-      for (const segmentId of turn.committedSegmentIds) {
-        if (turn.finalTranscriptSegmentIds.has(segmentId)) continue;
-        const partial = latestPartialBySegmentId.get(segmentId);
-        if (!partial) continue;
-        turn.transcriptsBySegmentId.set(segmentId, partial);
-        turn.finalTranscriptSegmentIds.add(segmentId);
-        params.logger.warn(
-          { turnId: turn.turnId, segmentId, partialLength: partial.length },
-          "voice_turn.final_transcript_timeout_used_partial",
-        );
-      }
+    if (turn.rereadTimer) {
+      clearTimeout(turn.rereadTimer);
     }
-    for (const segmentId of turn.committedSegmentIds) {
-      latestPartialBySegmentId.delete(segmentId);
-    }
-
-    const finalTranscript = assembleFinalTranscript(turn);
-    if (reason === "timeout") {
-      params.logger.warn(
-        {
-          turnId: turn.turnId,
-          committedSegments: turn.committedSegmentIds.length,
-          receivedFinals: turn.finalTranscriptSegmentIds.size,
-          timeoutMs: turn.timeoutMs,
-          transcriptLength: finalTranscript.transcript.length,
-        },
-        "voice_turn.final_transcript_timeout",
-      );
+    if (currentFinalizingTurn?.turnId === turn.turnId) {
+      currentFinalizingTurn = null;
     }
 
     if (mergeGraceMs > 0) {
@@ -333,14 +343,85 @@ export function createVoiceTurnController(params: {
         transcript: finalTranscript,
         audio: turn.audio,
         audioBytes: turn.audioBytes,
+        spoolIds: turn.spoolIds,
         timer: setTimeout(deliverPending, mergeGraceMs),
       };
       return;
     }
 
-    void runSerial(async () => {
-      await params.callbacks.onFinalTranscript(finalTranscript);
-    });
+    deliverTranscript(finalTranscript, turn.spoolIds);
+  }
+
+  function watchForSlowTurn(turn: FinalizingVoiceTurn, afterMs: number): void {
+    turn.timeout = setTimeout(() => {
+      if (turn.fired) {
+        return;
+      }
+      const waitedMs = Date.now() - turn.stoppedAt;
+      params.logger.warn(
+        {
+          turnId: turn.turnId,
+          waitedMs,
+          committedSegments: turn.committedSegmentIds.length,
+          receivedFinals: turn.finalTranscriptSegmentIds.size,
+          rereadAttempts: turn.rereadAttempts,
+        },
+        "voice_turn.final_transcript_slow",
+      );
+      void Promise.resolve(
+        params.callbacks.onTranscriptionSlow?.({ turnId: turn.turnId, waitedMs }),
+      ).catch(() => undefined);
+      startReread(turn, "slow");
+      watchForSlowTurn(turn, VOICE_FINAL_TRANSCRIPT_SLOW_REPEAT_MS);
+    }, afterMs);
+  }
+
+  // Read the turn's saved audio again on a session of its own. The first reading is left
+  // running; if it finishes first this one is ignored.
+  function startReread(turn: FinalizingVoiceTurn, reason: "slow" | "stt_error" | "retry"): void {
+    if (turn.fired || turn.rereading || turn.rereadAttempts >= MAX_REREAD_ATTEMPTS) {
+      return;
+    }
+    turn.rereading = true;
+    turn.rereadAttempts += 1;
+    const attempt = turn.rereadAttempts;
+    params.logger.warn({ turnId: turn.turnId, attempt, reason }, "voice_turn.reread_started");
+
+    void rereadAudio({
+      stt: params.stt,
+      language: params.sttLanguage,
+      audio: turn.audio,
+      logger: params.logger.child({ component: "stt-reread" }),
+    }).then(
+      (result) => {
+        turn.rereading = false;
+        if (turn.fired) {
+          return;
+        }
+        params.logger.info({ turnId: turn.turnId, attempt }, "voice_turn.reread_completed");
+        const transcript = result.text.trim();
+        completeTurn(turn, {
+          segmentId: turn.turnId,
+          transcript,
+          ...(result.language ? { language: result.language } : {}),
+          ...(result.isLowConfidence && transcript.length === 0 ? { isLowConfidence: true } : {}),
+          durationMs: Math.max(0, Date.now() - turn.startedAt),
+        });
+      },
+      (error: unknown) => {
+        turn.rereading = false;
+        params.logger.warn(
+          { err: error, turnId: turn.turnId, attempt },
+          "voice_turn.reread_failed",
+        );
+        if (!turn.fired && turn.rereadAttempts < MAX_REREAD_ATTEMPTS) {
+          turn.rereadTimer = setTimeout(
+            () => startReread(turn, "retry"),
+            REREAD_RETRY_DELAY_MS * attempt,
+          );
+        }
+      },
+    );
   }
 
   function maybeFireFinalTranscript(turn: FinalizingVoiceTurn): void {
@@ -352,7 +433,7 @@ export function createVoiceTurnController(params: {
       turn.finalTranscriptSegmentIds.has(segmentId),
     );
     if (allCommittedSegmentsFinal) {
-      fireFinalTranscript(turn, "complete");
+      fireFinalTranscript(turn);
     }
   }
 
@@ -377,6 +458,10 @@ export function createVoiceTurnController(params: {
   function handleSttError(error: unknown): void {
     fail(error);
     params.logger.warn({ err: error }, "voice_turn.stt_error");
+    // The turn that was being read when the recognizer failed is read again from its audio.
+    if (currentFinalizingTurn && !currentFinalizingTurn.fired) {
+      startReread(currentFinalizingTurn, "stt_error");
+    }
     if (reconnectAttemptedForTurn) {
       sttSession?.close();
       sttSession = null;
@@ -407,10 +492,6 @@ export function createVoiceTurnController(params: {
   }
 
   function handlePartialSttTranscript(event: StreamingTranscriptionEvent): void {
-    const partialText = event.transcript.trim();
-    if (partialText) {
-      latestPartialBySegmentId.set(event.segmentId, partialText);
-    }
     if (state.status !== "capturing" || partialTranscriptFired) {
       return;
     }
@@ -553,6 +634,7 @@ export function createVoiceTurnController(params: {
         );
         turnAudio = [];
         turnAudioBytes = 0;
+        utteranceSpoolIds = [];
         const previous = pendingDelivery ?? overlapped;
         if (previous && previous.audioBytes + prerollBytes <= maxBytes) {
           if (pendingDelivery) {
@@ -560,12 +642,13 @@ export function createVoiceTurnController(params: {
             pendingDelivery = null;
           } else if (overlapped) {
             clearTimeout(overlapped.timeout);
+            if (overlapped.rereadTimer) clearTimeout(overlapped.rereadTimer);
             overlapped.fired = true;
             for (const segmentId of overlapped.committedSegmentIds) {
               supersededSegmentIds.add(segmentId);
-              latestPartialBySegmentId.delete(segmentId);
             }
           }
+          utteranceSpoolIds = previous.spoolIds;
           for (const chunk of previous.audio) {
             feedStt(sttSession, chunk);
           }
@@ -617,8 +700,9 @@ export function createVoiceTurnController(params: {
 
     state = { status: "listening" };
 
-    const audioSeconds = utteranceBytes / 2 / (sttSession?.requiredSampleRate ?? 16_000);
-    const timeoutMs = finalTranscriptTimeoutMs(audioSeconds);
+    const sampleRate = sttSession?.requiredSampleRate ?? 16_000;
+    const audioSeconds = utteranceBytes / 2 / sampleRate;
+    const slowMs = slowTranscriptThresholdMs(audioSeconds);
     const finalizingTurn: FinalizingVoiceTurn = {
       turnId,
       startedAt,
@@ -626,14 +710,27 @@ export function createVoiceTurnController(params: {
       transcriptsBySegmentId: new Map(),
       finalTranscriptSegmentIds: new Set(),
       transcriptMetaBySegmentId: new Map(),
-      timeout: setTimeout(() => {
-        fireFinalTranscript(finalizingTurn, "timeout");
-      }, timeoutMs),
-      timeoutMs,
+      timeout: setTimeout(() => undefined, 0),
+      slowMs,
+      stoppedAt: endedAt,
       audio: turnAudio,
       audioBytes: turnAudioBytes,
+      spoolIds: [...utteranceSpoolIds, turnId],
+      rereadAttempts: 0,
+      rereading: false,
+      rereadTimer: null,
       fired: false,
     };
+    clearTimeout(finalizingTurn.timeout);
+    watchForSlowTurn(finalizingTurn, slowMs);
+    // On disk before anything is attempted, so a crash from here on loses nothing.
+    params.spool?.save({
+      id: turnId,
+      sampleRate,
+      startedAt,
+      supersedes: utteranceSpoolIds,
+      audio: turnAudio,
+    });
     currentFinalizingTurn = finalizingTurn;
 
     detector.reset();
@@ -679,6 +776,9 @@ export function createVoiceTurnController(params: {
     async stop(): Promise<void> {
       await runSerial(async () => {
         clearFinalizingTurnTimeout();
+        if (currentFinalizingTurn?.rereadTimer) {
+          clearTimeout(currentFinalizingTurn.rereadTimer);
+        }
         detector.close();
         sttSession?.close();
         resampler?.reset();
@@ -688,7 +788,6 @@ export function createVoiceTurnController(params: {
         sttSession = null;
         prerollChunks = [];
         prerollBytes = 0;
-        latestPartialBySegmentId.clear();
         if (pendingDelivery) {
           clearTimeout(pendingDelivery.timer);
           pendingDelivery = null;

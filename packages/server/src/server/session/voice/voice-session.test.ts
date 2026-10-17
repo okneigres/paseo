@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { VoiceSession, type VoiceSessionHost } from "./voice-session.js";
+import { createVoiceTurnSpool } from "./voice-turn-spool.js";
 import type { ManagedAgent } from "../../agent/agent-manager.js";
 import type { SessionOutboundMessage } from "../../messages.js";
 import type {
@@ -280,7 +281,7 @@ describe("VoiceSession streaming transcription", () => {
     await voiceSession.cleanup();
   });
 
-  test("emits an empty transcript on finalization timeout without submitting to the agent", async () => {
+  test("keeps waiting for a slow final, says so, and delivers it in full", async () => {
     vi.useFakeTimers();
     try {
       const { voiceSession, detector, sttSession, host } = createVoiceSession();
@@ -292,21 +293,75 @@ describe("VoiceSession streaming transcription", () => {
       await settle();
       sttSession.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
 
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
       await settle();
 
+      // Nothing was delivered, and nothing was reported as an empty transcription.
       expect(host.spokenInput).toEqual([]);
-      expect(host.emitted).toContainEqual(
+      expect(host.emitted).not.toContainEqual(
         expect.objectContaining({
           type: "transcription_result",
           payload: expect.objectContaining({ text: "" }),
         }),
       );
+      expect(host.emitted).toContainEqual(
+        expect.objectContaining({
+          type: "activity_log",
+          payload: expect.objectContaining({
+            content: expect.stringContaining("taking longer than usual"),
+          }),
+        }),
+      );
+
+      sttSession.emitTranscript({
+        segmentId: "segment-1",
+        transcript: "the whole dictation",
+        isFinal: true,
+      });
+      await settle();
+      expect(host.spokenInput).toEqual([{ agentId: VOICE_AGENT_ID, text: "the whole dictation" }]);
 
       await voiceSession.cleanup();
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("delivers a turn an earlier run left on disk, marked as recovered", async () => {
+    const spool = createVoiceTurnSpool({
+      agentId: VOICE_AGENT_ID,
+      logger: pino({ level: "silent" }),
+      directory: join(isolatedPaseoHome, "voice-pending"),
+    });
+    spool.save({
+      id: "left-behind",
+      sampleRate: 16000,
+      startedAt: Date.now(),
+      supersedes: [],
+      audio: [Buffer.alloc(3200, 1)],
+    });
+    const { voiceSession, sttSession, host } = createVoiceSession();
+
+    await voiceSession.handleSetVoiceMode(true, VOICE_AGENT_ID);
+    await settle();
+    await settle();
+    sttSession.emitTranscript({
+      segmentId: "again",
+      transcript: "forgotten dictation",
+      isFinal: true,
+    });
+    await settle();
+    await settle();
+
+    expect(host.spokenInput).toEqual([
+      {
+        agentId: VOICE_AGENT_ID,
+        text: "[Dictation recovered after an interruption] forgotten dictation",
+      },
+    ]);
+    expect(spool.list()).toEqual([]);
+
+    await voiceSession.cleanup();
   });
 
   test("filters a low-confidence streaming final without submitting to the agent", async () => {
