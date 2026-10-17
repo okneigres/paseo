@@ -3,6 +3,7 @@ import type { Logger } from "pino";
 import type { PaseoSpeechConfig } from "../../../bootstrap.js";
 import type { SpeechToTextProvider, TextToSpeechProvider } from "../../speech-provider.js";
 import type { RequestedSpeechProviders } from "../../speech-types.js";
+import { DualSpeechToTextProvider } from "../../dual-stt.js";
 import type { TurnDetectionProvider } from "../../turn-detection-provider.js";
 import {
   DEFAULT_LOCAL_STT_MODEL,
@@ -23,6 +24,7 @@ import {
 interface ResolvedLocalModels {
   dictationLocalSttModel: LocalSttModelId;
   voiceLocalSttModel: LocalSttModelId;
+  voiceLocalSttSecondaryModel: LocalSttModelId | null;
   voiceLocalTtsModel: LocalTtsModelId;
 }
 
@@ -53,6 +55,9 @@ function resolveConfiguredLocalModels(speechConfig: PaseoSpeechConfig | null): R
     voiceLocalSttModel: LocalSttModelIdSchema.parse(
       speechConfig?.local?.models.voiceStt ?? DEFAULT_LOCAL_STT_MODEL,
     ),
+    voiceLocalSttSecondaryModel: speechConfig?.local?.models.voiceSttSecondary
+      ? LocalSttModelIdSchema.parse(speechConfig.local.models.voiceSttSecondary)
+      : null,
     voiceLocalTtsModel: LocalTtsModelIdSchema.parse(
       speechConfig?.local?.models.voiceTts ?? DEFAULT_LOCAL_TTS_MODEL,
     ),
@@ -85,6 +90,9 @@ function computeRequiredLocalModelIds(params: {
     params.providers.voiceStt.provider === "local"
   ) {
     ids.add(params.models.voiceLocalSttModel);
+    if (params.models.voiceLocalSttSecondaryModel) {
+      ids.add(params.models.voiceLocalSttSecondaryModel);
+    }
   }
   if (
     params.providers.voiceTts.enabled !== false &&
@@ -113,11 +121,25 @@ function initializeLocalTurnDetection(params: {
   return new WorkerBackedTurnDetectionProvider(client);
 }
 
+function secondaryVoiceSttLabel(modelId: string): string {
+  return modelId.startsWith("gigaam") ? "STT B GigaAM" : `STT B ${modelId}`;
+}
+
 function initializeLocalVoiceStt(params: {
   client: LocalSpeechWorkerClient;
+  secondaryModel: LocalSttModelId | null;
 }): SpeechToTextProvider {
-  const { client } = params;
-  return new WorkerBackedSpeechToTextProvider(client, "voiceStt");
+  const { client, secondaryModel } = params;
+  const primary = new WorkerBackedSpeechToTextProvider(client, "voiceStt");
+  if (!secondaryModel) {
+    return primary;
+  }
+  // Two models read every voice turn; the agent gets both texts and compares them.
+  return new DualSpeechToTextProvider(
+    primary,
+    new WorkerBackedSpeechToTextProvider(client, "voiceStt2"),
+    { primary: "STT A", secondary: secondaryVoiceSttLabel(secondaryModel) },
+  );
 }
 
 function initializeLocalDictationStt(params: {
@@ -160,6 +182,9 @@ export async function initializeLocalSpeechServices(params: {
         config: {
           modelsDir: localConfig.modelsDir,
           voiceSttModel: localModels.voiceLocalSttModel,
+          ...(localModels.voiceLocalSttSecondaryModel
+            ? { voiceSttSecondaryModel: localModels.voiceLocalSttSecondaryModel }
+            : {}),
           dictationSttModel: localModels.dictationLocalSttModel,
           voiceTtsModel: localModels.voiceLocalTtsModel,
           voiceTtsSpeakerId: speechConfig?.local?.models.voiceTtsSpeakerId,
@@ -178,7 +203,10 @@ export async function initializeLocalSpeechServices(params: {
 
   if (isLocalProviderEnabled(providers.voiceStt)) {
     if (workerClient) {
-      sttService = initializeLocalVoiceStt({ client: workerClient });
+      sttService = initializeLocalVoiceStt({
+        client: workerClient,
+        secondaryModel: localModels.voiceLocalSttSecondaryModel,
+      });
     } else {
       warnLocalConfigMissing(logger, "voice STT");
     }

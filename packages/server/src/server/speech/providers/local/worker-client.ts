@@ -365,6 +365,7 @@ export class LocalSpeechWorkerClient {
         workerPid: this.workerPid,
         modelsDir: this.config.modelsDir,
         voiceSttModel: this.config.voiceSttModel,
+        voiceSttSecondaryModel: this.config.voiceSttSecondaryModel,
         dictationSttModel: this.config.dictationSttModel,
         voiceTtsModel: this.config.voiceTtsModel,
       },
@@ -611,7 +612,10 @@ export class WorkerBackedSpeechToTextProvider implements SpeechToTextProvider {
 
   constructor(
     private readonly client: LocalSpeechWorkerClient,
-    private readonly kind: Extract<LocalSpeechSessionKind, "voiceStt" | "dictationStt">,
+    private readonly kind: Extract<
+      LocalSpeechSessionKind,
+      "voiceStt" | "voiceStt2" | "dictationStt"
+    >,
   ) {}
 
   createSession(_params: {
@@ -643,7 +647,10 @@ class WorkerBackedTranscriptionSession
 
   constructor(
     private readonly client: LocalSpeechWorkerClient,
-    private readonly kind: Extract<LocalSpeechSessionKind, "voiceStt" | "dictationStt">,
+    private readonly kind: Extract<
+      LocalSpeechSessionKind,
+      "voiceStt" | "voiceStt2" | "dictationStt"
+    >,
   ) {
     super();
   }

@@ -134,6 +134,46 @@ describe("resolveSpeechConfig", () => {
     expect(result.openai?.stt?.model).toBe("gpt-4o-transcribe");
   });
 
+  describe("a second voice speech-to-text model", () => {
+    const resolve = (voiceStt: Record<string, unknown>, env: NodeJS.ProcessEnv = {}) =>
+      resolveSpeechConfig({
+        paseoHome: "/tmp/paseo-home",
+        env,
+        persisted: PersistedConfigSchema.parse({
+          features: { voiceMode: { stt: { provider: "local", ...voiceStt } } },
+        }),
+      }).speech.local?.models;
+
+    test("is read from the voice mode settings", () => {
+      const models = resolve({
+        model: "parakeet-tdt-0.6b-v3-int8",
+        secondaryModel: "gigaam-v2-russian",
+      });
+      expect(models?.voiceStt).toBe("parakeet-tdt-0.6b-v3-int8");
+      expect(models?.voiceSttSecondary).toBe("gigaam-v2-russian");
+    });
+
+    test("can be set from the environment", () => {
+      const models = resolve(
+        { model: "parakeet-tdt-0.6b-v3-int8" },
+        { PASEO_VOICE_LOCAL_STT_SECONDARY_MODEL: "gigaam-v2-russian" },
+      );
+      expect(models?.voiceSttSecondary).toBe("gigaam-v2-russian");
+    });
+
+    test("is left out when it is the same model as the first", () => {
+      const models = resolve({
+        model: "gigaam-v2-russian",
+        secondaryModel: "gigaam-v2-russian",
+      });
+      expect(models?.voiceSttSecondary).toBeUndefined();
+    });
+
+    test("is absent by default", () => {
+      expect(resolve({ model: "parakeet-tdt-0.6b-v3-int8" })?.voiceSttSecondary).toBeUndefined();
+    });
+  });
+
   test("resolves STT language from env, settings, and voice-to-dictation fallback", () => {
     const persisted = PersistedConfigSchema.parse({
       features: {
