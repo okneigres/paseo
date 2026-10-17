@@ -102,7 +102,28 @@ async function settleSerialQueue(): Promise<void> {
   await Promise.resolve();
 }
 
-function createControllerHarness(options?: { sttLanguage?: string; mergeGraceMs?: number }) {
+function createFakeSpool() {
+  const entries = new Map<string, { supersedes: string[]; audioBytes: number }>();
+  return {
+    entries,
+    save: vi.fn((turn: { id: string; supersedes: string[]; audio: Buffer[] }) => {
+      entries.set(turn.id, {
+        supersedes: turn.supersedes,
+        audioBytes: turn.audio.reduce((sum, chunk) => sum + chunk.length, 0),
+      });
+    }),
+    remove: vi.fn((id: string) => {
+      entries.delete(id);
+    }),
+    list: vi.fn(() => []),
+  };
+}
+
+function createControllerHarness(options?: {
+  sttLanguage?: string;
+  mergeGraceMs?: number;
+  spool?: ReturnType<typeof createFakeSpool>;
+}) {
   const detector = new FakeTurnDetectionSession();
   const sttSessions: FakeSttSession[] = [];
   let lastSttLanguage: string | undefined;
@@ -126,6 +147,7 @@ function createControllerHarness(options?: { sttLanguage?: string; mergeGraceMs?
     }) => {},
   );
   const onError = vi.fn();
+  const onTranscriptionSlow = vi.fn();
 
   const controller = createVoiceTurnController({
     logger: pino({ level: "silent" }),
@@ -133,12 +155,14 @@ function createControllerHarness(options?: { sttLanguage?: string; mergeGraceMs?
     stt,
     sttLanguage: options?.sttLanguage,
     mergeGraceMs: options?.mergeGraceMs,
+    spool: options?.spool,
     callbacks: {
       onSpeechStarted,
       onSpeechSustained,
       onSpeechStopped,
       onPartialTranscript,
       onFinalTranscript,
+      onTranscriptionSlow,
       onError,
     },
   });
@@ -153,6 +177,7 @@ function createControllerHarness(options?: { sttLanguage?: string; mergeGraceMs?
     onSpeechStopped,
     onPartialTranscript,
     onFinalTranscript,
+    onTranscriptionSlow,
     onError,
   };
 }
@@ -638,7 +663,7 @@ describe("voice turn controller", () => {
     );
   });
 
-  it("fires the finalization timeout with whatever finals arrived", async () => {
+  it("waits for every committed segment instead of delivering what arrived by a deadline", async () => {
     vi.useFakeTimers();
     try {
       const harness = createControllerHarness();
@@ -660,14 +685,23 @@ describe("voice turn controller", () => {
         isFinal: true,
       });
 
-      await vi.advanceTimersByTimeAsync(10_000);
+      // Half of the turn has been read; delivering it now would cut the rest off.
+      await vi.advanceTimersByTimeAsync(60_000);
+      await settleSerialQueue();
+      expect(harness.onFinalTranscript).not.toHaveBeenCalled();
+
+      harness.sttSessions[0]?.emitTranscript({
+        segmentId: "segment-2",
+        transcript: "world",
+        isFinal: true,
+      });
       await settleSerialQueue();
 
       expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
       expect(harness.onFinalTranscript).toHaveBeenCalledWith(
         expect.objectContaining({
           segmentId: "segment-1",
-          transcript: "hello",
+          transcript: "hello world",
         }),
       );
     } finally {
@@ -701,15 +735,18 @@ describe("voice turn controller", () => {
         transcript: "fresh text",
         isFinal: true,
       });
-
-      await vi.advanceTimersByTimeAsync(10_000);
+      harness.sttSessions[0]?.emitTranscript({
+        segmentId: "segment-2",
+        transcript: "and more",
+        isFinal: true,
+      });
       await settleSerialQueue();
 
       expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
       expect(harness.onFinalTranscript).toHaveBeenCalledWith(
         expect.objectContaining({
           segmentId: "segment-1",
-          transcript: "fresh text",
+          transcript: "fresh text and more",
         }),
       );
     } finally {
@@ -717,105 +754,275 @@ describe("voice turn controller", () => {
     }
   });
 
-  it("delivers the latest partial text when the final does not arrive in time", async () => {
-    vi.useFakeTimers();
-    try {
-      const harness = createControllerHarness();
+  describe("a turn whose text is slow", () => {
+    const tenSeconds = {
+      audioBase64: Buffer.alloc(16000 * 2 * 10, 1).toString("base64"),
+      format: "audio/pcm;rate=16000;bits=16",
+    };
 
+    async function stopLongTurn(harness: ReturnType<typeof createControllerHarness>, tens = 1) {
       await harness.controller.start();
       harness.detector.emit("speech_started");
       await settleSerialQueue();
-      harness.sttSessions[0]?.emitTranscript({
-        segmentId: "segment-1",
-        transcript: "hello",
-        isFinal: false,
-      });
-      await settleSerialQueue();
-      harness.sttSessions[0]?.emitTranscript({
-        segmentId: "segment-1",
-        transcript: "hello there",
-        isFinal: false,
-      });
-      await settleSerialQueue();
-      harness.detector.emit("speech_stopped");
-      await settleSerialQueue();
-      harness.sttSessions[0]?.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
-
-      await vi.advanceTimersByTimeAsync(10_000);
-      await settleSerialQueue();
-
-      expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
-      expect(harness.onFinalTranscript).toHaveBeenCalledWith(
-        expect.objectContaining({
-          segmentId: "segment-1",
-          transcript: "hello there",
-        }),
-      );
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("still delivers an empty transcript when the timeout hits with nothing read at all", async () => {
-    vi.useFakeTimers();
-    try {
-      const harness = createControllerHarness();
-
-      await harness.controller.start();
-      harness.detector.emit("speech_started");
-      await settleSerialQueue();
-      harness.detector.emit("speech_stopped");
-      await settleSerialQueue();
-      harness.sttSessions[0]?.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
-
-      await vi.advanceTimersByTimeAsync(10_000);
-      await settleSerialQueue();
-
-      expect(harness.onFinalTranscript).toHaveBeenCalledWith(
-        expect.objectContaining({ segmentId: "segment-1", transcript: "" }),
-      );
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("waits longer for the final of a long utterance", async () => {
-    vi.useFakeTimers();
-    try {
-      const harness = createControllerHarness();
-      const tenSeconds = 16000 * 2 * 10;
-
-      await harness.controller.start();
-      harness.detector.emit("speech_started");
-      await settleSerialQueue();
-      // Ninety seconds of speech.
-      for (let i = 0; i < 9; i += 1) {
-        await harness.controller.appendClientChunk({
-          audioBase64: Buffer.alloc(tenSeconds, 1).toString("base64"),
-          format: "audio/pcm;rate=16000;bits=16",
-        });
+      for (let i = 0; i < tens; i += 1) {
+        await harness.controller.appendClientChunk(tenSeconds);
       }
       harness.detector.emit("speech_stopped");
       await settleSerialQueue();
       harness.sttSessions[0]?.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
+    }
 
-      // The old fixed wait would be over by now.
-      await vi.advanceTimersByTimeAsync(10_500);
+    async function flushReread() {
+      for (let i = 0; i < 12; i += 1) await vi.advanceTimersByTimeAsync(0);
+    }
+
+    it("is never delivered cut short, however long it takes", async () => {
+      vi.useFakeTimers();
+      try {
+        const harness = createControllerHarness();
+        await stopLongTurn(harness);
+        // Partial text that never became a final is not what the agent gets.
+        harness.sttSessions[0]?.emitTranscript({
+          segmentId: "segment-1",
+          transcript: "hello",
+          isFinal: false,
+        });
+
+        await vi.advanceTimersByTimeAsync(5 * 60_000);
+        await settleSerialQueue();
+        expect(harness.onFinalTranscript).not.toHaveBeenCalled();
+
+        harness.sttSessions[0]?.emitTranscript({
+          segmentId: "segment-1",
+          transcript: "hello there",
+          isFinal: true,
+        });
+        await settleSerialQueue();
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+        expect(harness.onFinalTranscript.mock.calls[0][0].transcript).toBe("hello there");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("is reported as slow and read again from its saved audio", async () => {
+      vi.useFakeTimers();
+      try {
+        const harness = createControllerHarness();
+        await stopLongTurn(harness);
+        expect(harness.sttSessions).toHaveLength(1);
+
+        await vi.advanceTimersByTimeAsync(12_000);
+        await flushReread();
+
+        expect(harness.onTranscriptionSlow).toHaveBeenCalledTimes(1);
+        expect(harness.sttSessions).toHaveLength(2);
+        const reread = harness.sttSessions[1]!;
+        expect(Buffer.concat(reread.appendedChunks).length).toBe(16000 * 2 * 10);
+        expect(reread.commitCount).toBe(1);
+        expect(harness.onFinalTranscript).not.toHaveBeenCalled();
+
+        reread.emitTranscript({
+          segmentId: "reread",
+          transcript: "from the second reading",
+          isFinal: true,
+        });
+        await flushReread();
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+        expect(harness.onFinalTranscript.mock.calls[0][0].transcript).toBe(
+          "from the second reading",
+        );
+
+        // The first reading answering later changes nothing.
+        harness.sttSessions[0]?.emitTranscript({
+          segmentId: "segment-1",
+          transcript: "late",
+          isFinal: true,
+        });
+        await settleSerialQueue();
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("lets the first reading win when it answers during the second", async () => {
+      vi.useFakeTimers();
+      try {
+        const harness = createControllerHarness();
+        await stopLongTurn(harness);
+        await vi.advanceTimersByTimeAsync(12_000);
+        await flushReread();
+
+        harness.sttSessions[0]?.emitTranscript({
+          segmentId: "segment-1",
+          transcript: "first",
+          isFinal: true,
+        });
+        await settleSerialQueue();
+        harness.sttSessions[1]?.emitTranscript({
+          segmentId: "reread",
+          transcript: "second",
+          isFinal: true,
+        });
+        await flushReread();
+
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+        expect(harness.onFinalTranscript.mock.calls[0][0].transcript).toBe("first");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("waits longer to call a long utterance slow", async () => {
+      vi.useFakeTimers();
+      try {
+        const harness = createControllerHarness();
+        // Ninety seconds of speech.
+        await stopLongTurn(harness, 9);
+
+        await vi.advanceTimersByTimeAsync(10_500);
+        expect(harness.onTranscriptionSlow).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(14_000);
+        expect(harness.onTranscriptionSlow).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("reads the turn again at once when the recognizer fails, and tries again if that fails", async () => {
+      vi.useFakeTimers();
+      try {
+        const harness = createControllerHarness();
+        await stopLongTurn(harness);
+
+        harness.sttSessions[0]?.emitError(new Error("worker exited"));
+        await flushReread();
+        expect(harness.sttSessions.length).toBeGreaterThanOrEqual(3); // reconnect and re-read
+        const firstReread = harness.sttSessions.find(
+          (session) => session.commitCount === 1 && session !== harness.sttSessions[0],
+        );
+        expect(firstReread).toBeDefined();
+        expect(Buffer.concat(firstReread!.appendedChunks).length).toBe(16000 * 2 * 10);
+
+        firstReread!.emitError(new Error("still failing"));
+        await flushReread();
+        // Nothing is delivered from a failed attempt, and another attempt is scheduled.
+        expect(harness.onFinalTranscript).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(3_100);
+        await flushReread();
+        const rereads = harness.sttSessions.filter(
+          (session) => session.commitCount === 1 && session !== harness.sttSessions[0],
+        );
+        expect(rereads.length).toBeGreaterThanOrEqual(2);
+
+        rereads
+          .at(-1)!
+          .emitTranscript({ segmentId: "reread", transcript: "recovered", isFinal: true });
+        await flushReread();
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+        expect(harness.onFinalTranscript.mock.calls[0][0].transcript).toBe("recovered");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe("the on-disk copy of a turn's audio", () => {
+    const chunk = (value: number) => ({
+      audioBase64: Buffer.alloc(3200, value).toString("base64"),
+      format: "audio/pcm;rate=16000;bits=16",
+    });
+
+    async function speak(harness: ReturnType<typeof createControllerHarness>, value: number) {
+      harness.detector.emit("speech_started");
       await settleSerialQueue();
-      expect(harness.onFinalTranscript).not.toHaveBeenCalled();
+      await harness.controller.appendClientChunk(chunk(value));
+      harness.detector.emit("speech_stopped");
+      await settleSerialQueue();
+    }
 
+    it("is saved when the user stops and removed once the agent has the text", async () => {
+      const spool = createFakeSpool();
+      const harness = createControllerHarness({ spool });
+      await harness.controller.start();
+      await speak(harness, 1);
+
+      expect(spool.save).toHaveBeenCalledTimes(1);
+      expect(spool.entries.size).toBe(1);
+
+      harness.sttSessions[0]?.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
       harness.sttSessions[0]?.emitTranscript({
         segmentId: "segment-1",
-        transcript: "a long dictation",
+        transcript: "раз",
         isFinal: true,
       });
       await settleSerialQueue();
-      expect(harness.onFinalTranscript).toHaveBeenCalledWith(
-        expect.objectContaining({ transcript: "a long dictation" }),
-      );
-    } finally {
-      vi.useRealTimers();
-    }
+
+      expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+      expect(spool.entries.size).toBe(0);
+    });
+
+    it("stays when delivering the text fails, so it can be recovered", async () => {
+      const spool = createFakeSpool();
+      const harness = createControllerHarness({ spool });
+      harness.onFinalTranscript.mockRejectedValueOnce(new Error("agent unavailable"));
+      await harness.controller.start();
+      await speak(harness, 1);
+
+      harness.sttSessions[0]?.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
+      harness.sttSessions[0]?.emitTranscript({
+        segmentId: "segment-1",
+        transcript: "раз",
+        isFinal: true,
+      });
+      await settleSerialQueue();
+
+      expect(spool.entries.size).toBe(1);
+    });
+
+    it("keeps earlier turns until the merged turn is delivered, and does not duplicate them", async () => {
+      vi.useFakeTimers();
+      try {
+        const spool = createFakeSpool();
+        const harness = createControllerHarness({ mergeGraceMs: 1500, spool });
+        await harness.controller.start();
+        await speak(harness, 1);
+        harness.sttSessions[0]?.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
+        harness.sttSessions[0]?.emitTranscript({
+          segmentId: "segment-1",
+          transcript: "раз",
+          isFinal: true,
+        });
+        await settleSerialQueue();
+        await vi.advanceTimersByTimeAsync(500);
+
+        // Speech resumes inside the grace period: the second turn contains the first.
+        await speak(harness, 2);
+        const saved = spool.save.mock.calls.map(([turn]) => turn);
+        expect(saved).toHaveLength(2);
+        expect(saved[1].supersedes).toEqual([saved[0].id]);
+        expect(spool.entries.size).toBe(2);
+
+        harness.sttSessions[0]?.emitCommitted({
+          segmentId: "segment-2",
+          previousSegmentId: "segment-1",
+        });
+        harness.sttSessions[0]?.emitTranscript({
+          segmentId: "segment-2",
+          transcript: "раз два",
+          isFinal: true,
+        });
+        await settleSerialQueue();
+        await vi.advanceTimersByTimeAsync(1600);
+
+        expect(harness.onFinalTranscript).toHaveBeenCalledTimes(1);
+        expect(spool.entries.size).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it("reports STT errors and attempts one reconnect", async () => {

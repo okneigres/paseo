@@ -16,7 +16,7 @@ export interface VoiceInputDump {
   close(): void;
 }
 
-function paseoHome(): string {
+export function paseoHome(): string {
   return process.env.PASEO_HOME?.trim() || join(homedir(), ".paseo");
 }
 
