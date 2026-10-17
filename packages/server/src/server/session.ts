@@ -162,7 +162,7 @@ import {
   type WorkspaceMutation,
   type WorkspaceRegistry,
 } from "./workspace-registry.js";
-import { wrapSpokenInput } from "./voice-config.js";
+import { wrapSpokenInput, wrapTypedInputInVoiceMode } from "./voice-config.js";
 import { isVoicePermissionAllowed } from "./voice-permission-policy.js";
 import {
   ProjectIconReader,
@@ -3899,7 +3899,14 @@ export class Session {
       }`,
     );
 
-    const promptText = options?.spokenInput ? wrapSpokenInput(text) : text;
+    // A spoken turn carries its own instruction; a message the user typed while voice mode is on
+    // needs one too, or the agent answers in chat the user is not looking at.
+    let promptText = text;
+    if (options?.spokenInput) {
+      promptText = wrapSpokenInput(text);
+    } else if (this.voiceSessions.isActiveForAgent(agentId)) {
+      promptText = wrapTypedInputInVoiceMode(text);
+    }
     const prompt = buildAgentPrompt(promptText, images, attachments);
 
     try {

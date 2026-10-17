@@ -53,6 +53,15 @@ export function buildVoiceModeSystemPrompt(existing: string | undefined, enabled
     .join("\n\n");
 }
 
+/**
+ * A message the user typed while voice mode is on. Spoken input already carries an instruction to
+ * answer with the speak tool, but a typed message arrives as ordinary chat — and the agent, having
+ * been handed text, tends to answer in text even though the user is listening rather than reading.
+ */
+export function wrapTypedInputInVoiceMode(text: string): string {
+  return `<typed-input>\n${text}\n</typed-input>\n<instruction>The user is in Paseo voice mode and typed this message instead of speaking. Respond using the speak tool, not normal messages, because the user is listening to the reply.</instruction>`;
+}
+
 export function wrapSpokenInput(text: string): string {
   return `<spoken-input>\n${text}\n</spoken-input>\n<instruction>This message was spoken by the user. Respond using the speak tool only, not normal messages, because the user may not be looking at the chat.</instruction>`;
 }
