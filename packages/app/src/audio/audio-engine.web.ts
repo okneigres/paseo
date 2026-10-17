@@ -1,6 +1,11 @@
 import { parsePcmSampleRate, resampleToPcm16 } from "./pcm";
 import { isElectronRuntime } from "@/desktop/host";
-import type { AudioEngine, AudioEngineCallbacks, AudioPlaybackSource } from "./audio-engine-types";
+import type {
+  AudioEngine,
+  AudioEngineCallbacks,
+  AudioEngineOptions,
+  AudioPlaybackSource,
+} from "./audio-engine-types";
 
 import { createPlaybackQueue } from "./playback";
 import { CAPTURE_TARGET_RATE, CAPTURE_WORKLET_NAME, loadCaptureWorklet } from "./capture-worklet";
@@ -52,7 +57,7 @@ async function decodeAudioData(context: AudioContext, buffer: ArrayBuffer): Prom
 
 export function createAudioEngine(
   callbacks: AudioEngineCallbacks,
-  _options?: { traceLabel?: string },
+  _options?: AudioEngineOptions,
 ): AudioEngine {
   const refs: {
     playbackContext: AudioContext | null;
@@ -184,7 +189,6 @@ export function createAudioEngine(
     try {
       const workletPort = (refs.processor as { port?: MessagePort } | null)?.port;
       if (workletPort) {
-        workletPort.onmessage = null;
         workletPort.close();
       }
       refs.processor?.disconnect();
@@ -287,16 +291,19 @@ export function createAudioEngine(
             outputChannelCount: [1],
             processorOptions: { targetRate: CAPTURE_TARGET_RATE },
           });
-          node.port.onmessage = (event: MessageEvent<{ pcm: ArrayBuffer; rms: number }>) => {
-            if (!refs.started) {
-              return;
-            }
-            handleVolume(event.data.rms);
-            if (refs.muted) {
-              return;
-            }
-            callbacks.onCaptureData(new Uint8Array(event.data.pcm));
-          };
+          node.port.addEventListener(
+            "message",
+            (event: MessageEvent<{ pcm: ArrayBuffer; rms: number }>) => {
+              if (!refs.started) {
+                return;
+              }
+              handleVolume(event.data.rms);
+              if (refs.muted) {
+                return;
+              }
+              callbacks.onCaptureData(new Uint8Array(event.data.pcm));
+            },
+          );
           processor = node;
         } else {
           const scriptProcessor = context.createScriptProcessor(4096, 1, 1);
