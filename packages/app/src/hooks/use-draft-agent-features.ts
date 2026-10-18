@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { AgentProvider, AgentSessionConfig } from "@getpaseo/protocol/agent-types";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { mergeProviderPreferences, useFormPreferences } from "./use-form-preferences";
+import type { WorkspacePreferencesKey } from "@/create-agent-preferences/service";
 import {
   applyFeatureValues,
   pruneFeatureValues,
@@ -17,6 +18,8 @@ type DraftFeatureConfig = Pick<
 
 export function useDraftAgentFeatures(input: {
   serverId: string | null | undefined;
+  /** `serverId:workspaceId`; null keeps the host-wide fallback preferences. */
+  workspaceKey?: WorkspacePreferencesKey | null;
   provider: AgentProvider | null;
   cwd: string | null | undefined;
   modeId: string | null | undefined;
@@ -25,14 +28,22 @@ export function useDraftAgentFeatures(input: {
   initialFeatureValues?: Record<string, unknown>;
 }) {
   const { t } = useTranslation();
-  const { serverId, provider, cwd, modeId, modelId, thinkingOptionId, initialFeatureValues } =
-    input;
+  const {
+    serverId,
+    workspaceKey = null,
+    provider,
+    cwd,
+    modeId,
+    modelId,
+    thinkingOptionId,
+    initialFeatureValues,
+  } = input;
   const [localFeatureValues, setLocalFeatureValues] = useState<Record<string, unknown>>(
     () => initialFeatureValues ?? {},
   );
   const client = useHostRuntimeClient(serverId ?? "");
   const isConnected = useHostRuntimeIsConnected(serverId ?? "");
-  const { preferences, updatePreferences } = useFormPreferences();
+  const { preferences, updatePreferences } = useFormPreferences(workspaceKey);
   const normalizedCwd = cwd?.trim() || "";
   const normalizedProvider = provider ?? null;
   const previousProviderRef = useRef<AgentProvider | null>(normalizedProvider);

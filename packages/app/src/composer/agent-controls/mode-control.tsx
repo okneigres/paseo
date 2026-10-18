@@ -20,6 +20,7 @@ import { AgentControlTrigger } from "@/composer/agent-controls/control";
 import { useSessionStore } from "@/stores/session-store";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { mergeProviderPreferences, useFormPreferences } from "@/hooks/use-form-preferences";
+import { resolveAgentControlsWorkspaceKey } from "@/composer/agent-controls/utils";
 import { resolveProviderDefinition } from "@/utils/provider-definitions";
 import { useToast } from "@/contexts/toast-context";
 import { toErrorMessage } from "@/utils/error-messages";
@@ -253,6 +254,7 @@ export function useLiveAgentModeControl(
       return {
         provider: agent.provider,
         cwd: agent.cwd,
+        workspaceId: agent.workspaceId,
         currentModeId: agent.currentModeId,
       };
     }),
@@ -263,7 +265,11 @@ export function useLiveAgentModeControl(
     compareAvailableModes,
   );
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
-  const { updatePreferences } = useFormPreferences();
+  const workspaceKey = resolveAgentControlsWorkspaceKey({
+    serverId,
+    workspaceId: slice?.workspaceId,
+  });
+  const { updatePreferences } = useFormPreferences(workspaceKey);
   const toast = useToast();
   const { entries: snapshotEntries } = useProvidersSnapshot(serverId, { cwd: slice?.cwd });
 

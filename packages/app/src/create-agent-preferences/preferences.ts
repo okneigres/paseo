@@ -90,11 +90,42 @@ export const StoredFormPreferencesSchema: z.ZodType<FormPreferences> = z.union([
   LegacyFormPreferencesSchema,
 ]);
 
+/** Workspace-scoped overrides keyed by `serverId:workspaceId`. */
+export type WorkspaceFormPreferences = Record<string, FormPreferences>;
+
+export const WorkspaceFormPreferencesSchema: z.ZodType<WorkspaceFormPreferences> = z.record(
+  z.string(),
+  FormPreferencesSchema,
+);
+
 export const DEFAULT_FORM_PREFERENCES: FormPreferences = {};
 
 export function parseFormPreferences(value: unknown): FormPreferences {
   const result = StoredFormPreferencesSchema.safeParse(value);
   return result.success ? result.data : DEFAULT_FORM_PREFERENCES;
+}
+
+export function parseWorkspaceFormPreferences(value: unknown): WorkspaceFormPreferences {
+  const result = WorkspaceFormPreferencesSchema.safeParse(value);
+  return result.success ? result.data : {};
+}
+
+/**
+ * A workspace with no entry of its own inherits the host-wide fallback, so a
+ * choice made before preferences became workspace-scoped is never lost.
+ */
+export function resolveWorkspaceFormPreferences(args: {
+  global: FormPreferences;
+  workspaces: WorkspaceFormPreferences;
+  workspaceKey: string | null;
+}): FormPreferences {
+  if (args.workspaceKey) {
+    const workspace = args.workspaces[args.workspaceKey];
+    if (workspace) {
+      return workspace;
+    }
+  }
+  return args.global;
 }
 
 function mergeDefinedRecord<T>(

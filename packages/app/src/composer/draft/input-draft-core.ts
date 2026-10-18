@@ -1,5 +1,6 @@
 import type { UserComposerAttachment } from "@/attachments/types";
 import type { DraftAgentControlsProps } from "@/composer/agent-controls";
+import type { WorkspacePreferencesKey } from "@/create-agent-preferences/service";
 import type { UseAgentFormStateResult } from "@/hooks/use-agent-form-state";
 
 export interface DraftKeyContext {
@@ -20,12 +21,14 @@ export function resolveDraftKey(input: {
 
 export function buildDraftAgentControls(input: {
   formState: UseAgentFormStateResult;
+  workspaceKey: WorkspacePreferencesKey | null;
   features?: DraftAgentControlsProps["features"];
   onSetFeature?: DraftAgentControlsProps["onSetFeature"];
   onApplyAgentProfile: DraftAgentControlsProps["onApplyAgentProfile"];
   onDropdownClose?: DraftAgentControlsProps["onDropdownClose"];
 }): DraftAgentControlsProps {
-  const { formState, features, onSetFeature, onApplyAgentProfile, onDropdownClose } = input;
+  const { formState, workspaceKey, features, onSetFeature, onApplyAgentProfile, onDropdownClose } =
+    input;
   return {
     providerDefinitions: formState.providerDefinitions,
     selectedProvider: formState.selectedProvider,
@@ -50,6 +53,7 @@ export function buildDraftAgentControls(input: {
     onRetryModelProvider: formState.refreshProviderModels,
     isRetryingModelProvider: formState.isProviderModelsRefreshing,
     modelSelectorServerId: formState.selectedServerId,
+    workspaceKey,
   };
 }
 

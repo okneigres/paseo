@@ -6,6 +6,22 @@ import {
   PLAN_MODE_FEATURE_ID,
   SPEED_FEATURE_ID,
 } from "@/agent-controls/policy";
+import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
+
+/**
+ * The form-preference identity an agent's model/mode controls remember their
+ * choice under. They write the same `serverId:workspaceId` key the create-agent
+ * form reads, so the next agent in that workspace inherits the pick.
+ */
+export function resolveAgentControlsWorkspaceKey(input: {
+  serverId: string;
+  workspaceId: string | null | undefined;
+}): string | null {
+  return buildWorkspaceTabPersistenceKey({
+    serverId: input.serverId,
+    workspaceId: input.workspaceId ?? "",
+  });
+}
 
 export type ExplainedAgentControl = "mode" | "model" | "thinking";
 export type FeatureHighlightColor = "blue" | "default" | "green" | "yellow";

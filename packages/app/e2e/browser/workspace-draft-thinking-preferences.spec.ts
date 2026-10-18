@@ -53,12 +53,23 @@ async function reloadWithPersistedPreferences(page: Page): Promise<void> {
 
 async function readRememberedThinking(page: Page, modelId: string): Promise<string | null> {
   return page.evaluate((selectedModelId) => {
-    const raw = localStorage.getItem("@paseo:create-agent-preferences");
-    if (!raw) return null;
-    const preferences = JSON.parse(raw) as {
-      providerPreferences?: { mock?: { thinkingByModel?: Record<string, string> } };
-    };
-    return preferences.providerPreferences?.mock?.thinkingByModel?.[selectedModelId] ?? null;
+    // Preferences are remembered per workspace; a workspace draft writes its own
+    // entry, so search the host-wide entry and every workspace entry.
+    const rawGlobal = localStorage.getItem("@paseo:create-agent-preferences");
+    const rawWorkspaces = localStorage.getItem("@paseo:create-agent-preferences:workspaces");
+    const workspaces = rawWorkspaces ? (JSON.parse(rawWorkspaces) as Record<string, unknown>) : {};
+    const entries = [rawGlobal ? JSON.parse(rawGlobal) : null, ...Object.values(workspaces)];
+    for (const entry of entries) {
+      const thinking = (
+        entry as {
+          providerPreferences?: { mock?: { thinkingByModel?: Record<string, string> } };
+        } | null
+      )?.providerPreferences?.mock?.thinkingByModel?.[selectedModelId];
+      if (thinking) {
+        return thinking;
+      }
+    }
+    return null;
   }, modelId);
 }
 

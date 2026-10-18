@@ -331,6 +331,7 @@ export function WorkspaceDraftAgentTab({
     draftKey: draftStoreKey,
     composer: {
       initialServerId: serverId,
+      initialWorkspaceId: workspaceId,
       initialValues: draftInitialValues,
       initialFeatureValues: draftSetup?.featureValues,
       isVisible: true,

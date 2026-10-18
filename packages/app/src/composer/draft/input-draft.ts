@@ -23,6 +23,7 @@ import {
   type ProviderSelectionState,
 } from "@/provider-selection/provider-selection";
 import { useDraftStore } from "@/stores/draft-store";
+import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { AfterPaintPublication } from "@/composer/after-paint-publication";
 import { useShallow } from "zustand/shallow";
 import type { ComposerTextSource } from "@/composer/text-source";
@@ -34,6 +35,7 @@ type AttachmentUpdater =
 
 interface AgentInputDraftComposerOptions {
   initialServerId: string | null;
+  initialWorkspaceId?: string | null;
   initialValues?: CreateAgentInitialValues;
   initialFeatureValues?: Record<string, unknown>;
   isVisible?: boolean;
@@ -71,9 +73,18 @@ export interface AgentInputDraft {
 export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDraft {
   const composerOptions = input.composer ?? null;
   const workingDir = composerOptions?.lockedWorkingDir?.trim() || "";
+  const formWorkspaceKey = useMemo(
+    () =>
+      buildWorkspaceTabPersistenceKey({
+        serverId: composerOptions?.initialServerId ?? "",
+        workspaceId: composerOptions?.initialWorkspaceId ?? "",
+      }),
+    [composerOptions?.initialServerId, composerOptions?.initialWorkspaceId],
+  );
   const formState = useAgentFormState({
     workingDir,
     serverId: composerOptions?.initialServerId ?? null,
+    workspaceKey: formWorkspaceKey,
     initialValues: composerOptions?.initialValues,
     isVisible: composerOptions?.isVisible ?? false,
     isCreateFlow: true,
@@ -280,6 +291,7 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     applyProfileFeatureValues,
   } = useDraftAgentFeatures({
     serverId: formState.selectedServerId,
+    workspaceKey: formWorkspaceKey,
     provider: formState.selectedProvider,
     cwd: workingDir,
     modeId: formState.selectedMode,
@@ -328,6 +340,7 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
       featureValues: draftFeatureValues,
       agentControls: buildDraftAgentControls({
         formState,
+        workspaceKey: formWorkspaceKey,
         features: draftFeatures,
         onSetFeature: setDraftFeatureValue,
         onApplyAgentProfile: applyDraftAgentProfile,
@@ -344,6 +357,7 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     draftFeatureValues,
     applyDraftAgentProfile,
     formState,
+    formWorkspaceKey,
     setDraftFeatureValue,
     workingDir,
   ]);

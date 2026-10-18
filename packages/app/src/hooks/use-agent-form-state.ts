@@ -20,6 +20,7 @@ import {
   mergeProviderPreferences,
   type FormPreferences,
 } from "./use-form-preferences";
+import type { WorkspacePreferencesKey } from "@/create-agent-preferences/service";
 import {
   resolveAgentForm,
   resolveEffectiveModel,
@@ -43,6 +44,8 @@ export type { FormInitialValues } from "@/provider-selection/resolve-agent-form"
 export interface UseAgentFormStateOptions {
   serverId: string | null;
   workingDir: string;
+  /** `serverId:workspaceId`; null keeps the host-wide fallback preferences. */
+  workspaceKey?: WorkspacePreferencesKey | null;
   initialValues?: FormInitialValues;
   isVisible?: boolean;
   isCreateFlow?: boolean;
@@ -145,9 +148,20 @@ async function persistProviderPreferences(input: {
 }
 
 export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFormStateResult {
-  const { serverId, initialValues, workingDir, isVisible = true, isCreateFlow = true } = options;
+  const {
+    serverId,
+    initialValues,
+    workingDir,
+    workspaceKey = null,
+    isVisible = true,
+    isCreateFlow = true,
+  } = options;
 
-  const { preferences, isLoading: isPreferencesLoading, updatePreferences } = useFormPreferences();
+  const {
+    preferences,
+    isLoading: isPreferencesLoading,
+    updatePreferences,
+  } = useFormPreferences(workspaceKey);
   const preferenceOverlayRef = useRef(new OptimisticFormPreferences(preferences));
 
   useEffect(() => {

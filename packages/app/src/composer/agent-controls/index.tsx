@@ -37,6 +37,7 @@ import { filterSelectableModels } from "@/provider-selection/model-catalog";
 import { useSessionStore } from "@/stores/session-store";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { resolveProviderDefinition } from "@/utils/provider-definitions";
+import type { WorkspacePreferencesKey } from "@/create-agent-preferences/service";
 import { mergeProviderPreferences, useFormPreferences } from "@/hooks/use-form-preferences";
 import { Combobox, ComboboxItem, type ComboboxOption } from "@/components/ui/combobox";
 import {
@@ -58,6 +59,7 @@ import {
   isFeatureActive,
   getFeatureTooltip,
   getAgentControlHintKey,
+  resolveAgentControlsWorkspaceKey,
   resolveAgentModelSelection,
 } from "@/composer/agent-controls/utils";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -158,6 +160,8 @@ export interface DraftAgentControlsProps {
   isRetryingModelProvider?: boolean;
   disabled?: boolean;
   modelSelectorServerId?: string | null;
+  /** `serverId:workspaceId` the draft form remembers its choices under. */
+  workspaceKey?: WorkspacePreferencesKey | null;
   isCompactLayout?: boolean;
 }
 
@@ -1555,10 +1559,16 @@ export const AgentControls = memo(function AgentControls({
   onDropdownClose,
   isCompactLayout,
 }: AgentControlsProps) {
-  const { updatePreferences } = useFormPreferences();
   const agent = useSessionStore(
     useShallow((state) => selectAgentControlsSlice(state, serverId, agentId)),
   );
+  const workspaceKey = useSessionStore((state) =>
+    resolveAgentControlsWorkspaceKey({
+      serverId,
+      workspaceId: state.sessions[serverId]?.agents?.get(agentId)?.workspaceId,
+    }),
+  );
+  const { updatePreferences } = useFormPreferences(workspaceKey);
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
   const toast = useToast();
   const modeControl = useLiveAgentModeControl(serverId, agentId);
@@ -1661,6 +1671,7 @@ export const AgentControls = memo(function AgentControls({
   );
   const agentProfiles = useAgentProfilePicker({
     serverId,
+    workspaceKey,
     availableProviders: profileProviders,
     target: profileTarget,
   });
@@ -1848,6 +1859,7 @@ export function DraftAgentControls({
   isRetryingModelProvider = false,
   disabled = false,
   modelSelectorServerId = null,
+  workspaceKey = null,
   isCompactLayout,
 }: DraftAgentControlsProps) {
   const mappedThinkingOptions = useMemo<AgentControlOption[]>(() => {
@@ -1883,6 +1895,7 @@ export function DraftAgentControls({
   );
   const agentProfiles = useAgentProfilePicker({
     serverId: modelSelectorServerId,
+    workspaceKey,
     availableProviders: profileProviders,
     target: profileTarget,
   });

@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { mergeCreateAgentSelectionPreferences } from "@/create-agent-preferences/preferences";
+import type { WorkspacePreferencesKey } from "@/create-agent-preferences/service";
 import { useFormPreferences } from "@/hooks/use-form-preferences";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { useSessionStore } from "@/stores/session-store";
@@ -46,6 +47,8 @@ export interface AgentProfilePicker {
 
 export interface UseAgentProfilePickerInput {
   serverId: string | null;
+  /** `serverId:workspaceId` the picked profile is remembered under. */
+  workspaceKey?: WorkspacePreferencesKey | null;
   /**
    * Providers this composer can actually run; pass a stable reference. A profile
    * naming anything else is hidden rather than shown as a row that cannot do
@@ -65,14 +68,14 @@ export interface UseAgentProfilePickerInput {
 export function useAgentProfilePicker(
   input: UseAgentProfilePickerInput,
 ): AgentProfilePicker | null {
-  const { serverId, availableProviders, target } = input;
+  const { serverId, workspaceKey = null, availableProviders, target } = input;
   const { t } = useTranslation();
   const { profiles, isSupported } = useAgentProfiles(serverId);
   // Profiles are host config, so their labels read from the host-wide catalog
   // rather than a workspace's. That is also the key the settings section uses,
   // so every composer on a host shares one query instead of adding its own.
   const { entries } = useProvidersSnapshot(serverId, { cwd: null });
-  const { updatePreferences } = useFormPreferences();
+  const { updatePreferences } = useFormPreferences(workspaceKey);
   const client = useSessionStore((state) => state.sessions[serverId ?? ""]?.client ?? null);
   const toast = useToast();
 

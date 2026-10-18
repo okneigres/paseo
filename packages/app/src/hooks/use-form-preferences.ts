@@ -9,17 +9,18 @@ import {
 import {
   createAgentPreferencesService,
   type FormPreferenceUpdate,
+  type WorkspacePreferencesKey,
 } from "@/create-agent-preferences/service";
 
-const FORM_PREFERENCES_QUERY_KEY = ["form-preferences"];
+const FORM_PREFERENCES_QUERY_KEY = ["form-preferences"] as const;
+
+function formPreferencesQueryKey(workspaceKey: WorkspacePreferencesKey | null) {
+  return [...FORM_PREFERENCES_QUERY_KEY, workspaceKey] as const;
+}
 
 export type { FormPreferences, ProviderPreferences };
 
 export { mergeProviderPreferences };
-
-async function loadFormPreferences(): Promise<FormPreferences> {
-  return createAgentPreferencesService.load();
-}
 
 export interface UseFormPreferencesReturn {
   preferences: FormPreferences;
@@ -27,11 +28,18 @@ export interface UseFormPreferencesReturn {
   updatePreferences: (updates: FormPreferenceUpdate) => Promise<FormPreferences>;
 }
 
-export function useFormPreferences(): UseFormPreferencesReturn {
+/**
+ * Reads and writes the create-agent form memory for one workspace. A null key
+ * addresses the host-wide fallback, which is what callers with no workspace yet
+ * (new-workspace setup, schedules) keep using.
+ */
+export function useFormPreferences(
+  workspaceKey: WorkspacePreferencesKey | null = null,
+): UseFormPreferencesReturn {
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({
-    queryKey: FORM_PREFERENCES_QUERY_KEY,
-    queryFn: loadFormPreferences,
+    queryKey: formPreferencesQueryKey(workspaceKey),
+    queryFn: () => createAgentPreferencesService.load(workspaceKey),
     staleTime: Infinity,
     gcTime: Infinity,
   });
@@ -40,11 +48,16 @@ export function useFormPreferences(): UseFormPreferencesReturn {
 
   const updatePreferences = useCallback(
     async (updates: FormPreferenceUpdate) => {
-      const next = await createAgentPreferencesService.update(updates);
-      queryClient.setQueryData<FormPreferences>(FORM_PREFERENCES_QUERY_KEY, next);
+      const next = await createAgentPreferencesService.update(workspaceKey, updates);
+      queryClient.setQueryData<FormPreferences>(formPreferencesQueryKey(workspaceKey), next);
+      if (workspaceKey === null) {
+        // A host-wide write changes the fallback every workspace without its own
+        // entry reads, so re-read the sibling queries instead of leaving them stale.
+        await queryClient.invalidateQueries({ queryKey: FORM_PREFERENCES_QUERY_KEY });
+      }
       return next;
     },
-    [queryClient],
+    [queryClient, workspaceKey],
   );
 
   return {

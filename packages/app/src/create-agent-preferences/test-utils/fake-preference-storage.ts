@@ -1,39 +1,39 @@
-import type { FormPreferences } from "../preferences";
+import type { FormPreferences, WorkspaceFormPreferences } from "../preferences";
 import type { CreateAgentPreferenceStorage } from "../storage";
 
 interface PendingWrite {
-  preferences: FormPreferences;
   finish: () => void;
   fail: (error: Error) => void;
 }
 
 export class FakeCreateAgentPreferenceStorage implements CreateAgentPreferenceStorage {
-  private stored: unknown;
+  private storedGlobal: unknown;
+  private storedWorkspaces: unknown;
   private readonly pendingWrites: PendingWrite[] = [];
   private readonly pendingWriteWaiters: Array<(write: PendingWrite) => void> = [];
 
-  constructor(input: { stored?: unknown } = {}) {
-    this.stored = input.stored ?? null;
+  constructor(input: { stored?: unknown; storedWorkspaces?: unknown } = {}) {
+    this.storedGlobal = input.stored ?? null;
+    this.storedWorkspaces = input.storedWorkspaces ?? null;
   }
 
-  async read(): Promise<unknown> {
-    return this.stored;
+  async readGlobal(): Promise<unknown> {
+    return this.storedGlobal;
   }
 
-  write(preferences: FormPreferences): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const write = {
-        preferences,
-        finish: () => {
-          this.stored = clone(preferences);
-          resolve();
-        },
-        fail: (error: Error) => {
-          reject(error);
-        },
-      };
-      this.pendingWrites.push(write);
-      this.pendingWriteWaiters.shift()?.(write);
+  async readWorkspaces(): Promise<unknown> {
+    return this.storedWorkspaces;
+  }
+
+  writeGlobal(preferences: FormPreferences): Promise<void> {
+    return this.enqueue(() => {
+      this.storedGlobal = clone(preferences);
+    });
+  }
+
+  writeWorkspaces(workspaces: WorkspaceFormPreferences): Promise<void> {
+    return this.enqueue(() => {
+      this.storedWorkspaces = clone(workspaces);
     });
   }
 
@@ -42,9 +42,9 @@ export class FakeCreateAgentPreferenceStorage implements CreateAgentPreferenceSt
     if (next) {
       return Promise.resolve(next);
     }
-    return new Promise((resolve) => {
-      this.pendingWriteWaiters.push(resolve);
-    });
+    const waiter = Promise.withResolvers<PendingWrite>();
+    this.pendingWriteWaiters.push(waiter.resolve);
+    return waiter.promise;
   }
 
   pendingWriteCount(): number {
@@ -67,8 +67,28 @@ export class FakeCreateAgentPreferenceStorage implements CreateAgentPreferenceSt
     write.fail(error);
   }
 
-  savedPreferences(): unknown {
-    return this.stored;
+  savedGlobalPreferences(): unknown {
+    return this.storedGlobal;
+  }
+
+  savedWorkspaces(): unknown {
+    return this.storedWorkspaces;
+  }
+
+  private enqueue(commit: () => void): Promise<void> {
+    const pending = Promise.withResolvers<void>();
+    const write: PendingWrite = {
+      finish: () => {
+        commit();
+        pending.resolve();
+      },
+      fail: (error: Error) => {
+        pending.reject(error);
+      },
+    };
+    this.pendingWrites.push(write);
+    this.pendingWriteWaiters.shift()?.(write);
+    return pending.promise;
   }
 }
 

@@ -13,7 +13,7 @@ describe("create agent preferences", () => {
     const storage = new FakeCreateAgentPreferenceStorage();
     const preferences = new CreateAgentPreferencesService(storage);
 
-    const modelWrite = preferences.update((current) =>
+    const modelWrite = preferences.update(null, (current) =>
       mergeProviderPreferences({
         preferences: current,
         provider: "codex",
@@ -22,7 +22,7 @@ describe("create agent preferences", () => {
     );
     await storage.nextWrite();
 
-    const modeWrite = preferences.update((current) =>
+    const modeWrite = preferences.update(null, (current) =>
       mergeProviderPreferences({
         preferences: current,
         provider: "codex",
@@ -38,7 +38,7 @@ describe("create agent preferences", () => {
     storage.finishOldestWrite();
     await modeWrite;
 
-    expect(storage.savedPreferences()).toEqual({
+    expect(storage.savedGlobalPreferences()).toEqual({
       provider: "codex",
       providerPreferences: {
         codex: {
@@ -54,26 +54,26 @@ describe("create agent preferences", () => {
     const storage = new FakeCreateAgentPreferenceStorage();
     const preferences = new CreateAgentPreferencesService(storage);
 
-    const failedWrite = preferences.update({ provider: "claude" });
+    const failedWrite = preferences.update(null, { provider: "claude" });
     await storage.nextWrite();
     storage.failOldestWrite(new Error("disk full"));
     await expect(failedWrite).rejects.toThrow("disk full");
 
-    expect(await preferences.load()).toEqual({});
+    expect(await preferences.load(null)).toEqual({});
 
-    const successfulWrite = preferences.update({ isolation: "worktree" });
+    const successfulWrite = preferences.update(null, { isolation: "worktree" });
     await storage.nextWrite();
     storage.finishOldestWrite();
     await successfulWrite;
 
-    expect(storage.savedPreferences()).toEqual({ isolation: "worktree" });
+    expect(storage.savedGlobalPreferences()).toEqual({ isolation: "worktree" });
   });
 
   it("flushes the full create-agent selection into provider preferences", async () => {
     const storage = new FakeCreateAgentPreferenceStorage();
     const preferences = new CreateAgentPreferencesService(storage);
 
-    const saveSelection = preferences.update((current) =>
+    const saveSelection = preferences.update(null, (current) =>
       mergeCreateAgentSelectionPreferences({
         preferences: current,
         provider: "codex",
@@ -88,7 +88,7 @@ describe("create agent preferences", () => {
     storage.finishOldestWrite();
     await saveSelection;
 
-    expect(storage.savedPreferences()).toEqual({
+    expect(storage.savedGlobalPreferences()).toEqual({
       provider: "codex",
       providerPreferences: {
         codex: {
@@ -216,13 +216,13 @@ describe("create agent preferences", () => {
     const storage = new FakeCreateAgentPreferenceStorage();
     const preferences = new CreateAgentPreferencesService(storage);
 
-    const save = preferences.update({ isolation: "worktree" });
+    const save = preferences.update(null, { isolation: "worktree" });
     await storage.nextWrite();
     storage.finishOldestWrite();
     await save;
 
-    expect(storage.savedPreferences()).toEqual({ isolation: "worktree" });
-    expect(await new CreateAgentPreferencesService(storage).load()).toEqual({
+    expect(storage.savedGlobalPreferences()).toEqual({ isolation: "worktree" });
+    expect(await new CreateAgentPreferencesService(storage).load(null)).toEqual({
       isolation: "worktree",
     });
   });
@@ -232,12 +232,12 @@ describe("create agent preferences", () => {
     const storage = new FakeCreateAgentPreferenceStorage({ stored: { favoriteModels } });
     const preferences = new CreateAgentPreferencesService(storage);
 
-    const save = preferences.update({ isolation: "worktree" });
+    const save = preferences.update(null, { isolation: "worktree" });
     await storage.nextWrite();
     storage.finishOldestWrite();
     await save;
 
-    expect(storage.savedPreferences()).toEqual({ favoriteModels, isolation: "worktree" });
+    expect(storage.savedGlobalPreferences()).toEqual({ favoriteModels, isolation: "worktree" });
   });
 
   it("treats stored preferences without an isolation choice as undefined", () => {
@@ -252,15 +252,17 @@ describe("create agent preferences", () => {
     const storage = new FakeCreateAgentPreferenceStorage();
     const preferences = new CreateAgentPreferencesService(storage);
 
-    const save = preferences.update({ launchTarget: { kind: "terminal", profileId: "claude" } });
+    const save = preferences.update(null, {
+      launchTarget: { kind: "terminal", profileId: "claude" },
+    });
     await storage.nextWrite();
     storage.finishOldestWrite();
     await save;
 
-    expect(storage.savedPreferences()).toEqual({
+    expect(storage.savedGlobalPreferences()).toEqual({
       launchTarget: { kind: "terminal", profileId: "claude" },
     });
-    expect(await new CreateAgentPreferencesService(storage).load()).toEqual({
+    expect(await new CreateAgentPreferencesService(storage).load(null)).toEqual({
       launchTarget: { kind: "terminal", profileId: "claude" },
     });
   });
@@ -275,5 +277,84 @@ describe("create agent preferences", () => {
 
   it("rejects an unknown launch target kind as invalid stored preferences", () => {
     expect(parseFormPreferences({ launchTarget: { kind: "shell" } })).toEqual({});
+  });
+
+  it("keeps providers and models separate per workspace and falls back to the stored global", async () => {
+    const storage = new FakeCreateAgentPreferenceStorage({
+      stored: {
+        provider: "claude",
+        providerPreferences: { claude: { model: "opus" } },
+      },
+    });
+    const preferences = new CreateAgentPreferencesService(storage);
+    const firstWorkspace = "host-1:workspace-a";
+    const secondWorkspace = "host-1:workspace-b";
+
+    const firstWrite = preferences.update(firstWorkspace, (current) =>
+      mergeProviderPreferences({
+        preferences: current,
+        provider: "codex",
+        updates: { model: "gpt-5.5" },
+      }),
+    );
+    await storage.nextWrite();
+    storage.finishOldestWrite();
+    await firstWrite;
+
+    const secondWrite = preferences.update(secondWorkspace, (current) =>
+      mergeProviderPreferences({
+        preferences: current,
+        provider: "deepseek",
+        updates: { model: "deepseek-chat" },
+      }),
+    );
+    await storage.nextWrite();
+    storage.finishOldestWrite();
+    await secondWrite;
+
+    expect(await preferences.load(firstWorkspace)).toEqual({
+      provider: "codex",
+      providerPreferences: { claude: { model: "opus" }, codex: { model: "gpt-5.5" } },
+    });
+    expect(await preferences.load(secondWorkspace)).toEqual({
+      provider: "deepseek",
+      providerPreferences: { claude: { model: "opus" }, deepseek: { model: "deepseek-chat" } },
+    });
+    // A workspace the device has never seen inherits the host-wide fallback.
+    expect(await preferences.load("host-1:workspace-c")).toEqual({
+      provider: "claude",
+      providerPreferences: { claude: { model: "opus" } },
+    });
+    expect(storage.savedGlobalPreferences()).toEqual({
+      provider: "claude",
+      providerPreferences: { claude: { model: "opus" } },
+    });
+    expect(storage.savedWorkspaces()).toEqual({
+      [firstWorkspace]: {
+        provider: "codex",
+        providerPreferences: { claude: { model: "opus" }, codex: { model: "gpt-5.5" } },
+      },
+      [secondWorkspace]: {
+        provider: "deepseek",
+        providerPreferences: { claude: { model: "opus" }, deepseek: { model: "deepseek-chat" } },
+      },
+    });
+  });
+
+  it("writes the host-wide entry without disturbing workspace entries", async () => {
+    const storage = new FakeCreateAgentPreferenceStorage({
+      storedWorkspaces: { "host-1:workspace-a": { provider: "codex" } },
+    });
+    const preferences = new CreateAgentPreferencesService(storage);
+
+    const save = preferences.update(null, { isolation: "worktree" });
+    await storage.nextWrite();
+    storage.finishOldestWrite();
+    await save;
+
+    expect(storage.savedGlobalPreferences()).toEqual({ isolation: "worktree" });
+    expect(storage.savedWorkspaces()).toEqual({ "host-1:workspace-a": { provider: "codex" } });
+    expect(await preferences.load("host-1:workspace-a")).toEqual({ provider: "codex" });
+    expect(await preferences.load(null)).toEqual({ isolation: "worktree" });
   });
 });
