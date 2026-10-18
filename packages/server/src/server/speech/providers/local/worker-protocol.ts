@@ -8,13 +8,15 @@ import type { LocalSpeechWorkerBytes } from "./worker-bytes.js";
 export interface LocalSpeechWorkerConfig {
   modelsDir: string;
   voiceSttModel: string;
+  // Second model for voice mode; absent when only one is used.
+  voiceSttSecondaryModel?: string;
   dictationSttModel: string;
   voiceTtsModel: string;
   voiceTtsSpeakerId?: number;
   voiceTtsSpeed?: number;
 }
 
-export type LocalSpeechSessionKind = "voiceStt" | "dictationStt" | "vad";
+export type LocalSpeechSessionKind = "voiceStt" | "voiceStt2" | "dictationStt" | "vad";
 
 export type LocalSpeechWorkerRequest =
   | {

@@ -17,6 +17,8 @@ import {
 export interface LocalSpeechModelConfig {
   dictationStt: LocalSttModelId;
   voiceStt: LocalSttModelId;
+  /** Reads the same voice audio as `voiceStt`; both transcripts are delivered, labelled. */
+  voiceSttSecondary?: LocalSttModelId;
   voiceTts: LocalTtsModelId;
   voiceTtsSpeakerId?: number;
   voiceTtsSpeed?: number;
@@ -58,6 +60,7 @@ const LocalSpeechResolutionSchema = z.object({
   modelsDir: z.string().trim().min(1),
   dictationLocalSttModel: LocalSttModelIdSchema.default(DEFAULT_LOCAL_STT_MODEL),
   voiceLocalSttModel: LocalSttModelIdSchema.default(DEFAULT_LOCAL_STT_MODEL),
+  voiceLocalSttSecondaryModel: LocalSttModelIdSchema.optional(),
   voiceLocalTtsModel: LocalTtsModelIdSchema.default(DEFAULT_LOCAL_TTS_MODEL),
   dictationLanguage: LanguageSchema,
   voiceLanguage: LanguageSchema,
@@ -168,6 +171,14 @@ function buildLocalSpeechResolutionInput(params: {
       ),
       DEFAULT_LOCAL_STT_MODEL,
     ]),
+    voiceLocalSttSecondaryModel: firstDefinedValue<string>([
+      env.PASEO_VOICE_LOCAL_STT_SECONDARY_MODEL,
+      persistedLocalFeatureModel(
+        providers.voiceStt.provider,
+        providers.voiceStt.enabled,
+        persisted.features?.voiceMode?.stt?.secondaryModel,
+      ),
+    ]),
     voiceLocalTtsModel: firstDefinedValue<string>([
       env.PASEO_VOICE_LOCAL_TTS_MODEL,
       persistedLocalFeatureModel(
@@ -215,6 +226,10 @@ export function resolveLocalSpeechConfig(params: {
           models: {
             dictationStt: parsed.dictationLocalSttModel,
             voiceStt: parsed.voiceLocalSttModel,
+            ...(parsed.voiceLocalSttSecondaryModel &&
+            parsed.voiceLocalSttSecondaryModel !== parsed.voiceLocalSttModel
+              ? { voiceSttSecondary: parsed.voiceLocalSttSecondaryModel }
+              : {}),
             voiceTts: parsed.voiceLocalTtsModel,
             ...(resolvedVoiceTtsSpeakerId !== undefined
               ? { voiceTtsSpeakerId: resolvedVoiceTtsSpeakerId }

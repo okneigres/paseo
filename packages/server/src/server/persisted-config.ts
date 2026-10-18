@@ -130,6 +130,8 @@ const FeatureVoiceModeSchema = z
       .object({
         provider: SpeechProviderIdSchema.optional(),
         model: z.string().min(1).optional(),
+        // A second local model that reads the same audio; both texts reach the agent.
+        secondaryModel: z.string().min(1).optional(),
         language: z.string().trim().min(1).optional(),
       })
       .strict()
