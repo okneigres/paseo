@@ -1355,8 +1355,9 @@ export const ar: TranslationResources = {
     },
     fields: {
       project: "المشروع",
-      base: "الأساس",
+      branch: "الفرع",
       baseNotApplicable: "غير قابل للتطبيق",
+      host: "المضيف",
     },
     titlePlaceholder: "العنوان (اختياري)",
     errors: {

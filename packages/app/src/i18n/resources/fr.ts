@@ -1385,8 +1385,9 @@ export const fr: TranslationResources = {
     },
     fields: {
       project: "Projet",
-      base: "Base",
+      branch: "Branche",
       baseNotApplicable: "Non applicable",
+      host: "Hôte",
     },
     titlePlaceholder: "Titre (facultatif)",
     errors: {
