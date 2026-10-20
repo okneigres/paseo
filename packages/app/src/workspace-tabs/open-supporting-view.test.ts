@@ -212,7 +212,7 @@ describe("autoOpenWorkspacePullRequest", () => {
       "pull_request",
       "terminal_terminal-1",
     ]);
-    expect(explorer.hidden).toBe(findPaneById(before.root, "explorer")!.hidden);
+    expect(explorer.hidden).toBe(true);
     expect(explorer.focusedTabId).toBe(findPaneById(before.root, "explorer")!.focusedTabId);
     expect(after.focusedPaneId).toBe(before.focusedPaneId);
     store.closeTab(WORKSPACE_KEY, "pull_request");
@@ -253,9 +253,7 @@ describe("automatic PR placement", () => {
         findPaneById(before.root, paneId)!.focusedTabId,
       );
       expect(after.focusedPaneId).toBe(before.focusedPaneId);
-      expect(findPaneById(after.root, "explorer")!.hidden).toBe(
-        findPaneById(before.root, "explorer")!.hidden,
-      );
+      expect(findPaneById(after.root, "explorer")!.hidden).toBe(true);
     },
   );
 

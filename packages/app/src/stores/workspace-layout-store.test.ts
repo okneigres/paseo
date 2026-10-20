@@ -246,9 +246,9 @@ describe("workspace-layout-store helpers", () => {
       { kind: "files" },
       { kind: "changes_tree" },
     ]);
-    const explorer = findPaneById(layout.root, "explorer");
-    expect(explorer?.hidden).toBeUndefined();
-    expect(explorer?.focusedTabId).toBe(tabs.find((tab) => tab.target.kind === "files")?.tabId);
+    expect(findPaneById(layout.root, "explorer")?.focusedTabId).toBe(
+      tabs.find((tab) => tab.target.kind === "changes_tree")?.tabId,
+    );
   });
 
   it("discards persisted New tabs and restores each empty pane with a fresh identity", async () => {
@@ -503,19 +503,13 @@ describe("workspace-layout-store version 2 migration", () => {
 
     const sidePane = findPaneById(layout.root, sidePaneId);
     expect(sidePane?.hidden).not.toBe(true);
-    expect(explorerPane?.hidden).toBeUndefined();
-    expect(explorerPane?.focusedTabId).toBe("files");
     expect(sidePane?.tabIds).toEqual(expected.sideTabIds ?? ["legacy-file", "legacy-agent"]);
     expect(tabsById.get("legacy-file")).toMatchObject({
       target: { kind: "file", path: "/repo/preserved.ts" },
       state: preservedFileState,
     });
     expect(sidePaneId).toBe(expected.sidePaneId ?? sidePaneId);
-    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual([
-      "main",
-      sidePaneId,
-      "explorer",
-    ]);
+    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main", sidePaneId]);
   }
 
   it.each(["v0.5", "v0.6"] as const)(
@@ -531,7 +525,7 @@ describe("workspace-layout-store version 2 migration", () => {
         const persisted = JSON.parse(
           (await AsyncStorage.getItem("workspace-layout-state")) ?? "{}",
         );
-        expect(persisted.version).toBe(3);
+        expect(persisted.version).toBe(2);
       });
     },
   );
@@ -548,7 +542,7 @@ describe("workspace-layout-store version 2 migration", () => {
     });
   });
 
-  it("writes version 3 preserving the existing Explorer key", async () => {
+  it("writes version 2 preserving the existing Explorer key", async () => {
     await persistVersionOneLayout("v0.6");
     const restored = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
 
@@ -556,7 +550,7 @@ describe("workspace-layout-store version 2 migration", () => {
 
     await vi.waitFor(async () => {
       const persisted = JSON.parse((await AsyncStorage.getItem("workspace-layout-state")) ?? "{}");
-      expect(persisted.version).toBe(3);
+      expect(persisted.version).toBe(2);
       expect(Object.keys(persisted.state).sort()).toEqual([
         "explorerPaneIdByWorkspace",
         "explorerSidebarWidthByWorkspace",
@@ -591,7 +585,7 @@ describe("workspace-layout-store version 2 migration", () => {
 
     await vi.waitFor(async () => {
       const persisted = JSON.parse((await AsyncStorage.getItem("workspace-layout-state")) ?? "{}");
-      expect(persisted.version).toBe(3);
+      expect(persisted.version).toBe(2);
     });
     const reloaded = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
     await reloaded.persist.rehydrate();
@@ -1218,7 +1212,7 @@ describe("workspace-layout-store actions", () => {
   );
 
   it.each(["explorer", "pane_generated_explorer"])(
-    "docks a saved hidden %s beside an ordinary pane without losing tabs",
+    "restores an ordinary pane beside saved hidden %s without losing tabs",
     async (explorerId) => {
       const workspaceKey = createWorkspaceKey();
       const saved = createPane({
@@ -1242,11 +1236,10 @@ describe("workspace-layout-store actions", () => {
       await restored.persist.rehydrate();
       const state = restored.getState();
       const layout = state.layoutByWorkspace[workspaceKey];
-      expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main", explorerId]);
+      expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main"]);
       expect(layout.focusedPaneId).toBe("main");
-      const { hidden: _savedHidden, ...dockedPane } = saved.kind === "pane" ? saved.pane : {};
       expect(findPaneById(layout.root, explorerId)).toEqual(
-        saved.kind === "pane" ? { ...dockedPane, focusedTabId: "files" } : null,
+        saved.kind === "pane" ? saved.pane : null,
       );
       expect(state.explorerSidebarPaneIdByWorkspace[workspaceKey]).toBe(explorerId);
       const snapshot = {
@@ -1297,7 +1290,7 @@ describe("workspace-layout-store actions", () => {
     });
   });
 
-  it("migrates legacy layouts to include the docked registered explorer pane", async () => {
+  it("migrates legacy layouts to include the hidden registered explorer pane", async () => {
     const legacyLayout = createDefaultLayout();
     await AsyncStorage.setItem(
       "workspace-layout-state",
@@ -1316,7 +1309,7 @@ describe("workspace-layout-store actions", () => {
     expect(findPaneById(layout.root, "main")).toBeTruthy();
     expect(explorerSidebarPaneId).toBeTruthy();
     const explorerPane = findPaneById(layout.root, explorerSidebarPaneId);
-    expect(explorerPane?.hidden).toBeUndefined();
+    expect(explorerPane?.hidden).toBe(true);
     const tabsById = new Map(collectAllTabs(layout.root).map((tab) => [tab.tabId, tab]));
     expect(explorerPane?.tabIds.map((tabId) => tabsById.get(tabId)?.target)).toEqual([
       { kind: "files" },
@@ -1443,7 +1436,6 @@ describe("workspace-layout-store actions", () => {
   it("leaves an Explorer background tab in the only other pane instead of emptying it", () => {
     const workspaceKey = createWorkspaceKey();
     const store = workspaceLayoutStore.getState();
-    store.hideExplorerSidebar(workspaceKey);
     const setupTabId = store.openTab({
       workspaceKey: workspaceKey,
       target: { kind: "setup", workspaceId: WORKSPACE_ID },
@@ -1830,7 +1822,6 @@ describe("workspace-layout-store actions", () => {
   it("keeps setup in main when Explorer is hidden", () => {
     const workspaceKey = createWorkspaceKey();
     const store = workspaceLayoutStore.getState();
-    store.hideExplorerSidebar(workspaceKey);
     const agentTabId = store.openTab({
       workspaceKey: workspaceKey,
       target: { kind: "agent", agentId: "agent-1" },
@@ -2870,7 +2861,7 @@ describe("workspace-layout-store actions", () => {
 
     expect(splitPaneId).toBe("pane_cccccccc-cccc-cccc-cccc-cccccccccccc");
     expect(layout.focusedPaneId).toBe("main");
-    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main", "explorer"]);
+    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main"]);
   });
 
   it("splitPane preserves four user-created levels beneath the explorer split", () => {
@@ -2976,7 +2967,7 @@ describe("workspace-layout-store actions", () => {
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
 
     expect(layout.focusedPaneId).toBe(splitPaneId);
-    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual([splitPaneId!, "explorer"]);
+    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual([splitPaneId!]);
     expect(findPaneById(layout.root, splitPaneId)?.tabIds).toEqual([
       "file_/repo/worktree/b.ts",
       "file_/repo/worktree/a.ts",
@@ -3001,7 +2992,7 @@ describe("workspace-layout-store actions", () => {
     store.moveTabToPane(workspaceKey, newTabId, "main");
 
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
-    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main", "explorer"]);
+    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main"]);
     expect(findPaneById(layout.root, "main")?.tabIds).toEqual([fileTabId]);
     expect(collectAllTabs(layout.root).some((tab) => tab.tabId === newTabId)).toBe(false);
   });
@@ -3079,7 +3070,7 @@ describe("workspace-layout-store actions", () => {
     expect(layout.focusedPaneId).toBe(paneCId);
     expect(findPaneById(layout.root, "main")?.tabIds).toEqual(["file_/repo/worktree/a.ts"]);
     expect(findPaneById(layout.root, paneCId)?.tabIds).toEqual(["file_/repo/worktree/c.ts"]);
-    expect(findPaneById(layout.root, "explorer")?.hidden).toBeUndefined();
+    expect(findPaneById(layout.root, "explorer")?.hidden).toBe(true);
   });
 
   it("openTab focuses the existing tab instead of creating a duplicate entry", () => {
@@ -3310,7 +3301,7 @@ describe("workspace-layout-store actions", () => {
     );
     expect(mainTab?.target).toEqual({ kind: "new_tab" });
     expect(findPaneById(layout.root, "main")?.focusedTabId).toBe(mainTab?.tabId);
-    expect(findPaneById(layout.root, "explorer")?.hidden).toBeUndefined();
+    expect(findPaneById(layout.root, "explorer")?.hidden).toBe(true);
   });
 
   it("persists explicit agent opens per workspace", () => {
@@ -4114,7 +4105,7 @@ describe("workspace-layout-store actions", () => {
     store.closePane(workspaceKey, "main");
 
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
-    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual([splitPaneId, "explorer"]);
+    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual([splitPaneId]);
     expect(layout.focusedPaneId).toBe(splitPaneId);
   });
 
@@ -4143,7 +4134,7 @@ describe("workspace-layout-store actions", () => {
 
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
     expect(collectContentTabs(layout.root).map((tab) => tab.tabId)).toEqual([keptTabId]);
-    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual([splitPaneId, "explorer"]);
+    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual([splitPaneId]);
   });
 
   it("closePane refuses to close the last visible pane", () => {
@@ -4398,7 +4389,6 @@ describe("workspace-layout-store actions", () => {
       target: { kind: "agent", agentId: "only" },
       intent: "reveal",
     });
-    store.hideExplorerSidebar(workspaceKey);
     const loadedFinal = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
 
     // Only `main` is on screen; Explorer is present but hidden.
@@ -4427,7 +4417,7 @@ describe("workspace-layout-store actions", () => {
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
     expect(layout).toBe(before);
     expect(findPaneById(layout.root, "main")?.tabIds).toEqual([agentTabId]);
-    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main", "explorer"]);
+    expect(collectAllPanes(layout.root).map((pane) => pane.id)).toEqual(["main"]);
   });
 });
 

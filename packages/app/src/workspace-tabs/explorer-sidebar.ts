@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { selectIsCompactFileExplorerOpen, usePanelStore } from "@/stores/panel-store";
+import { buildDeterministicWorkspaceTabId } from "@/workspace-tabs/identity";
 import {
   selectIsExplorerSidebarVisible,
   useWorkspaceLayoutStore,
@@ -86,6 +88,43 @@ export function useIsExplorerSidebarOpen(input: ExplorerSidebarQuery): boolean {
     input.workspaceKey ? selectIsExplorerSidebarVisible(state, input.workspaceKey) : false,
   );
   return input.isCompact ? compactOpen : paneOpen;
+}
+
+/**
+ * A workspace opens with its Explorer showing Files: entering one whose pane is closed docks it
+ * there. A pane the user already has open keeps the view they chose, and closing it again without
+ * leaving the workspace is not undone.
+ *
+ * This is an entry-time default rather than a stored one, so nothing about the persisted layout
+ * shape changes: the pane keeps only its own `hidden` flag and focused tab.
+ */
+export function ensureExplorerSidebarOnWorkspaceEntry(input: ExplorerSidebarQuery): void {
+  if (input.isCompact || !input.workspaceKey) return;
+  if (isExplorerSidebarOpen(input)) return;
+  const paneId = showExplorerSidebar({ ...input, isCompact: false });
+  if (!paneId) return;
+  useWorkspaceLayoutStore
+    .getState()
+    .selectTabInPane(
+      input.workspaceKey,
+      paneId,
+      buildDeterministicWorkspaceTabId({ kind: "files" }),
+    );
+}
+
+/**
+ * Runs the entry default when the workspace becomes the focused route. The workspace deck keeps
+ * several screens mounted at once, so mounting alone says nothing about which workspace the user
+ * just arrived at.
+ */
+export function useExplorerSidebarOnWorkspaceEntry(
+  input: ExplorerSidebarQuery & { enabled: boolean },
+): void {
+  const { enabled, isCompact, workspaceKey } = input;
+  useEffect(() => {
+    if (!enabled) return;
+    ensureExplorerSidebarOnWorkspaceEntry({ isCompact, workspaceKey });
+  }, [enabled, isCompact, workspaceKey]);
 }
 
 export function isExplorerSidebarOpen(input: ExplorerSidebarQuery): boolean {

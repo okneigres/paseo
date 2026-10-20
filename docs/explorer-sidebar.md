@@ -9,8 +9,9 @@ contracts.
 | Side pane        | Ordinary workspace content   | Created and closed like any workspace pane |
 | Sheets           | Compact look-ups             | One tab each, on the app-wide sheet stack  |
 
-A workspace opens with the Explorer docked and showing Files; Cmd+E hides it, and the pane's
-visibility and focused tab are then the user's, kept per workspace.
+Entering a workspace docks an Explorer that is closed and puts it on Files. That is an entry-time
+default, not a stored one: an open pane keeps the view the user chose, closing it while staying in
+the workspace sticks, and the layout's persisted shape is unchanged.
 
 ## Panel host contract
 

@@ -72,6 +72,7 @@ import {
   isExplorerSidebarOpen,
   openExplorerSidebarView,
   toggleExplorerSidebar,
+  useExplorerSidebarOnWorkspaceEntry,
   useIsExplorerSidebarOpen,
 } from "@/workspace-tabs/explorer-sidebar";
 import {
@@ -1260,6 +1261,11 @@ function WorkspaceScreenContent({
   const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
 
   const isExplorerSidebarShowing = useIsExplorerSidebarOpen({
+    isCompact: isMobile,
+    workspaceKey: persistenceKey,
+  });
+  useExplorerSidebarOnWorkspaceEntry({
+    enabled: isRouteFocused,
     isCompact: isMobile,
     workspaceKey: persistenceKey,
   });

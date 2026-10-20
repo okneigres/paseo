@@ -1158,8 +1158,6 @@ function restoreEmptyPanesInNode(
             node.pane.id === explorerSidebarPaneId
               ? createDefaultExplorerSidebarTabs()
               : [createNewWorkspaceTab()],
-          focusedTabId:
-            node.pane.id === explorerSidebarPaneId ? defaultExplorerSidebarTabId() : undefined,
           hidden: node.pane.hidden,
         });
   }
@@ -1255,12 +1253,7 @@ function createDefaultExplorerSidebarTabs(): WorkspaceTab[] {
   }));
 }
 
-/** The tab the Explorer sidebar opens on. Files answers "what is here", Changes answers "what moved". */
-export function defaultExplorerSidebarTabId(): string {
-  return buildDeterministicWorkspaceTabId({ kind: "files" });
-}
-
-/** A workspace opens with its Explorer sidebar docked and showing Files. */
+/** The desktop companion pane exists before it is first shown. */
 export function createWorkspaceLayoutWithExplorerSidebar(): WorkspaceLayout {
   return {
     root: createGroupNode({
@@ -1271,7 +1264,7 @@ export function createWorkspaceLayoutWithExplorerSidebar(): WorkspaceLayout {
         createPaneNode({
           id: EXPLORER_SIDEBAR_PANE_ID,
           tabs: createDefaultExplorerSidebarTabs(),
-          focusedTabId: defaultExplorerSidebarTabId(),
+          hidden: true,
         }),
       ],
       sizes: [0.78, 0.22],
@@ -2095,39 +2088,6 @@ export function focusPaneInLayout(input: FocusPaneInLayoutInput): WorkspaceLayou
           })
         : input.layout.root,
     focusedPaneId: input.paneId,
-    parentTabIdByTabId: input.layout.parentTabIdByTabId,
-  });
-}
-
-/**
- * The Explorer sidebar now opens docked on Files, where it used to start hidden with Changes in
- * focus. Stored layouts written under the old default still carry that shape, so opening a
- * workspace for the first time after the change docks the pane and hands focus to its Files tab.
- * A pane that is already visible keeps the tab the user chose.
- */
-export function dockExplorerSidebarOnFiles(input: {
-  layout: WorkspaceLayout;
-  paneId: string | null;
-}): WorkspaceLayout | null {
-  const pane = findPaneById(input.layout.root, input.paneId);
-  if (!pane) return null;
-  const filesTabId = defaultExplorerSidebarTabId();
-  const hasFilesTab = pane.tabIds.includes(filesTabId);
-  const alreadyDocked = pane.hidden !== true;
-  if (alreadyDocked && (!hasFilesTab || pane.focusedTabId === filesTabId)) {
-    return null;
-  }
-  const root = updatePaneInTree(asInternalNode(input.layout.root), {
-    paneId: pane.id,
-    updater: (currentPane) => ({
-      ...currentPane,
-      hidden: undefined,
-      focusedTabId: hasFilesTab ? filesTabId : currentPane.focusedTabId,
-    }),
-  });
-  return withNormalizedParentTabMap({
-    root,
-    focusedPaneId: input.layout.focusedPaneId,
     parentTabIdByTabId: input.layout.parentTabIdByTabId,
   });
 }
