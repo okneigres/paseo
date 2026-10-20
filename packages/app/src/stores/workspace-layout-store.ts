@@ -23,6 +23,7 @@ import {
   DEFAULT_PANE_ID,
   AMBIENT_PLACEMENT,
   createWorkspaceLayoutWithExplorerSidebar,
+  dockExplorerSidebarOnFiles,
   FOCUSED_PANE_PLACEMENT,
   EXPLORER_SIDEBAR_PANE_ID,
   findPaneById,
@@ -229,7 +230,7 @@ interface WorkspaceFocusRestorationState {
 const MAX_TREE_DEPTH = 5;
 
 const LEGACY_EXPLORER_SIDEBAR_REFERENCE_WIDTH = 1440;
-const WORKSPACE_LAYOUT_PERSIST_VERSION = 2;
+const WORKSPACE_LAYOUT_PERSIST_VERSION = 3;
 type WorkspaceLayoutPersistedState = z.infer<typeof WorkspaceLayoutPersistedStateSchema>;
 
 function convertLegacyExplorerSidebarRatios(
@@ -382,24 +383,18 @@ function migrateVersionOneWorkspaceLayout(input: {
   };
 }
 
-function migrateWorkspaceLayoutPersistedState(
-  persistedState: unknown,
-  version: number,
+function migrateVersionOne(
+  state: z.infer<typeof WorkspaceLayoutPersistedStateSchema>,
   ids: WorkspaceLayoutIdSource,
 ): z.infer<typeof WorkspaceLayoutPersistedStateSchema> {
-  const result = WorkspaceLayoutPersistedStateSchema.safeParse(persistedState);
-  if (!result.success || version >= WORKSPACE_LAYOUT_PERSIST_VERSION) {
-    return result.success ? result.data : { layoutByWorkspace: {} };
-  }
-
   const layoutByWorkspace: Record<string, WorkspaceLayout> = {};
   const explorerPaneIdByWorkspace: Record<string, string | null> = {};
-  const sidePaneIdByWorkspace = { ...result.data.sidePaneIdByWorkspace };
-  for (const [workspaceKey, layout] of Object.entries(result.data.layoutByWorkspace)) {
+  const sidePaneIdByWorkspace = { ...state.sidePaneIdByWorkspace };
+  for (const [workspaceKey, layout] of Object.entries(state.layoutByWorkspace)) {
     const migrated = migrateVersionOneWorkspaceLayout({
       layout,
-      legacyExplorerPaneId: result.data.explorerPaneIdByWorkspace?.[workspaceKey],
-      rememberedSidePaneId: result.data.sidePaneIdByWorkspace?.[workspaceKey],
+      legacyExplorerPaneId: state.explorerPaneIdByWorkspace?.[workspaceKey],
+      rememberedSidePaneId: state.sidePaneIdByWorkspace?.[workspaceKey],
       ids,
     });
     layoutByWorkspace[workspaceKey] = migrated.layout;
@@ -408,11 +403,61 @@ function migrateWorkspaceLayoutPersistedState(
   }
 
   return {
-    ...result.data,
+    ...state,
     layoutByWorkspace,
     explorerPaneIdByWorkspace,
     sidePaneIdByWorkspace,
   };
+}
+
+/**
+ * Version 3 docked the Explorer sidebar on Files by default. Layouts stored under the old default
+ * still record a hidden pane with Changes in focus, so each one is docked here once; after that
+ * the pane's own visibility and focused tab are the user's to change.
+ */
+function dockExplorerSidebars(
+  state: z.infer<typeof WorkspaceLayoutPersistedStateSchema>,
+): z.infer<typeof WorkspaceLayoutPersistedStateSchema> {
+  const layoutByWorkspace: Record<string, WorkspaceLayout> = {};
+  const explorerSidebarPaneIdByWorkspace = {
+    ...(state.explorerSidebarPaneIdByWorkspace ?? state.explorerPaneIdByWorkspace),
+  };
+  for (const [workspaceKey, layout] of Object.entries(state.layoutByWorkspace)) {
+    const paneId = resolveExplorerSidebarPaneId(
+      layout,
+      explorerSidebarPaneIdByWorkspace[workspaceKey],
+    );
+    const docked = paneId ? dockExplorerSidebarOnFiles({ layout, paneId }) : null;
+    layoutByWorkspace[workspaceKey] = docked ?? layout;
+    if (paneId) {
+      explorerSidebarPaneIdByWorkspace[workspaceKey] = paneId;
+    }
+  }
+
+  return { ...state, layoutByWorkspace, explorerSidebarPaneIdByWorkspace };
+}
+
+function migrateWorkspaceLayoutPersistedState(
+  persistedState: unknown,
+  version: number,
+  ids: WorkspaceLayoutIdSource,
+): z.infer<typeof WorkspaceLayoutPersistedStateSchema> {
+  const result = WorkspaceLayoutPersistedStateSchema.safeParse(persistedState);
+  if (!result.success) {
+    return { layoutByWorkspace: {} };
+  }
+  if (version >= WORKSPACE_LAYOUT_PERSIST_VERSION) {
+    return result.data;
+  }
+
+  let state = result.data;
+  if (version < 2) {
+    state = migrateVersionOne(state, ids);
+  }
+  if (version < 3) {
+    state = dockExplorerSidebars(state);
+  }
+  return state;
 }
 
 function trimNonEmpty(value: string | null | undefined): string | null {

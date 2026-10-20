@@ -9,6 +9,9 @@ contracts.
 | Side pane        | Ordinary workspace content   | Created and closed like any workspace pane |
 | Sheets           | Compact look-ups             | One tab each, on the app-wide sheet stack  |
 
+A workspace opens with the Explorer docked and showing Files; Cmd+E hides it, and the pane's
+visibility and focused tab are then the user's, kept per workspace.
+
 ## Panel host contract
 
 Every panel registers its supported `PaneHost` values and presentation. Launchers derive
