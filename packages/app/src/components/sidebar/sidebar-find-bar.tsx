@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import {
   Text,
   View,
@@ -12,6 +12,8 @@ import { EditingTextInput, type EditingTextInputHandle } from "@/components/ui/t
 import { ToolbarButton } from "@/components/ui/pane-content-toolbar";
 import { useSidebarFind } from "@/components/sidebar/sidebar-find";
 import { isImeComposingKeyboardEvent } from "@/utils/keyboard-ime";
+import { isSidebarFindShortcut } from "@/components/sidebar/sidebar-find-shortcut";
+import { getShortcutOs } from "@/utils/shortcut-platform";
 import type { Theme } from "@/styles/theme";
 
 const ThemedSearch = withUnistyles(Search);
@@ -37,6 +39,23 @@ export function SidebarFindBar(): ReactElement | null {
   const handleBlur = useCallback(() => setIsFocused(false), []);
   const handlePrevious = useCallback(() => find?.step(-1), [find]);
   const handleNext = useCallback(() => find?.step(1), [find]);
+
+  // The search field is reachable without a pointer: the chord focuses it and selects what is
+  // there, so typing replaces the previous query.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    const platform = { isMac: getShortcutOs() === "mac" };
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (!isSidebarFindShortcut(event, platform)) return;
+      event.preventDefault();
+      const input = inputRef.current;
+      input?.focus();
+      const text = input?.getText() ?? "";
+      input?.replaceText(text, { start: 0, end: text.length });
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, []);
 
   const handleKeyPress = useCallback(
     (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {

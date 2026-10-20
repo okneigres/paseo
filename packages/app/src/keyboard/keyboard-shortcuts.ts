@@ -1001,10 +1001,12 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   },
 
   // --- Focus mode ---
+  // The ids keep their old chord on purpose: settings store overrides by binding id, so renaming
+  // them would drop a custom binding. Cmd+Shift+F belongs to the workspace search field now.
   {
     id: "view-toggle-focus-cmd-shift-f-mac",
     action: "view.toggle.focus",
-    combo: "Cmd+Shift+F",
+    combo: "Cmd+Alt+F",
     when: { mac: true, commandCenter: false },
     help: {
       id: "toggle-focus",
@@ -1015,7 +1017,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "view-toggle-focus-ctrl-shift-f-non-mac",
     action: "view.toggle.focus",
-    combo: "Ctrl+Shift+F",
+    combo: "Ctrl+Alt+F",
     when: { mac: false, commandCenter: false, terminal: false },
     help: {
       id: "toggle-focus",
