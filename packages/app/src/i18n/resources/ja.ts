@@ -1167,6 +1167,14 @@ export const ja: TranslationResources = {
     },
   },
   sidebar: {
+    find: {
+      label: "サイドバー内を検索",
+      placeholder: "プロジェクトまたはワークスペースを検索",
+      count: "{{total}} 件中 {{index}} 件目",
+      noMatches: "一致なし",
+      previous: "前の一致",
+      next: "次の一致",
+    },
     statusGroupAccessibility: "{{label}} グループ",
     statusBucket: {
       needsInput: "入力待ち",

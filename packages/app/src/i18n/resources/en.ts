@@ -1162,6 +1162,14 @@ export const en = {
     },
   },
   sidebar: {
+    find: {
+      label: "Find in sidebar",
+      placeholder: "Find project or workspace",
+      count: "{{index}} of {{total}}",
+      noMatches: "No matches",
+      previous: "Previous match",
+      next: "Next match",
+    },
     statusGroupAccessibility: "{{label}} group",
     statusBucket: {
       needsInput: "Needs input",

@@ -1146,6 +1146,14 @@ export const zhCN: TranslationResources = {
     },
   },
   sidebar: {
+    find: {
+      label: "在侧边栏中查找",
+      placeholder: "查找项目或工作区",
+      count: "第 {{index}} / {{total}} 项",
+      noMatches: "没有匹配项",
+      previous: "上一个匹配项",
+      next: "下一个匹配项",
+    },
     statusGroupAccessibility: "{{label}} 分组",
     statusBucket: {
       needsInput: "需要输入",

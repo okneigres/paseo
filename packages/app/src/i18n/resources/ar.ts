@@ -1154,6 +1154,14 @@ export const ar: TranslationResources = {
     },
   },
   sidebar: {
+    find: {
+      label: "البحث في الشريط الجانبي",
+      placeholder: "ابحث عن مشروع أو مساحة عمل",
+      count: "{{index}} من {{total}}",
+      noMatches: "لا توجد نتائج مطابقة",
+      previous: "المطابقة السابقة",
+      next: "المطابقة التالية",
+    },
     statusGroupAccessibility: "مجموعة {{label}}",
     statusBucket: {
       needsInput: "تحتاج إدخالاً",

@@ -18,7 +18,6 @@ import {
   useRef,
   type ReactElement,
   type MutableRefObject,
-  type Ref,
   type ComponentProps,
   type PropsWithChildren,
   type ReactNode,
@@ -99,6 +98,20 @@ import { hasVisibleOrderChanged, mergeWithRemainder } from "@/utils/sidebar-reor
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { SidebarStatusWorkspaceList } from "@/components/sidebar/sidebar-status-list";
 import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels";
+import { useAppSettings } from "@/hooks/use-settings";
+import { SidebarFindBar } from "@/components/sidebar/sidebar-find-bar";
+import {
+  SidebarFindProvider,
+  sidebarFindRowStyle,
+  useSidebarFind,
+  useSidebarFindRow,
+} from "@/components/sidebar/sidebar-find";
+import {
+  buildSidebarFindRows,
+  projectFindKey,
+  workspaceFindKey,
+  workspaceKeyFromFindKey,
+} from "@/components/sidebar/sidebar-find-rows";
 import {
   SidebarWorkspaceContextMenu,
   SidebarWorkspaceMenu,
@@ -106,7 +119,10 @@ import {
 import { useLongPressDragInteraction } from "@/components/sidebar/use-long-press-drag-interaction";
 import { SidebarSectionHeader } from "@/components/sidebar/sidebar-section-header";
 import { SidebarGroupToggleRow } from "@/components/sidebar/sidebar-group-toggle-row";
-import { useLimitedSidebarGroup } from "@/components/sidebar/use-limited-sidebar-group";
+import {
+  INITIAL_VISIBLE_ITEMS,
+  useLimitedSidebarGroup,
+} from "@/components/sidebar/use-limited-sidebar-group";
 import {
   SidebarWorkspaceRowFrame,
   SidebarWorkspaceRowContent,
@@ -951,6 +967,18 @@ function ProjectHeaderRow({
     "aria-roledescription": _dragRoleDescription,
     ...dragAttributes
   } = dragHandleProps?.attributes ?? {};
+  const findRow = useSidebarFindRow(
+    useMemo(() => [projectFindKey(project.viewKey)], [project.viewKey]),
+  );
+  const setRowRef = useCallback(
+    (node: View | null) => {
+      (
+        dragHandleProps?.setActivatorNodeRef as unknown as ((node: View | null) => void) | undefined
+      )?.(node);
+      findRow.ref(node);
+    },
+    [dragHandleProps, findRow],
+  );
 
   const handlePress = useCallback(() => {
     if (interaction.didLongPressRef.current) {
@@ -985,8 +1013,9 @@ function ProjectHeaderRow({
       selected && styles.sidebarRowSelected,
       isHovered && styles.projectRowHovered,
       pressed && styles.projectRowPressed,
+      sidebarFindRowStyle(findRow),
     ],
-    [isDragging, selected, isHovered],
+    [findRow, isDragging, selected, isHovered],
   );
 
   const rowChildren = (
@@ -1030,7 +1059,7 @@ function ProjectHeaderRow({
       <View
         {...dragAttributes}
         {...dragHandleProps?.listeners}
-        ref={dragHandleProps?.setActivatorNodeRef as unknown as Ref<View>}
+        ref={setRowRef}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
@@ -1055,7 +1084,7 @@ function ProjectHeaderRow({
       <View
         {...dragAttributes}
         {...dragHandleProps?.listeners}
-        ref={dragHandleProps?.setActivatorNodeRef as unknown as Ref<View>}
+        ref={setRowRef}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
@@ -1136,6 +1165,22 @@ function WorkspaceRowInner({
     "aria-roledescription": _dragRoleDescription,
     ...dragAttributes
   } = dragHandleProps?.attributes ?? {};
+  // A block header answers to its project as well as to the workspace it draws.
+  const findKeys = useMemo(() => {
+    const keys = [workspaceFindKey(workspace.workspaceKey)];
+    if (projectCollapse) keys.push(projectFindKey(workspace.projectViewKey));
+    return keys;
+  }, [projectCollapse, workspace.projectViewKey, workspace.workspaceKey]);
+  const findRow = useSidebarFindRow(findKeys);
+  const setRowContainerRef = useCallback(
+    (node: View | null) => {
+      (
+        dragHandleProps?.setActivatorNodeRef as unknown as ((node: View | null) => void) | undefined
+      )?.(node);
+      findRow.ref(node);
+    },
+    [dragHandleProps, findRow],
+  );
 
   const handlePress = useCallback(() => {
     if (interaction.didLongPressRef.current) {
@@ -1163,18 +1208,21 @@ function WorkspaceRowInner({
       {({ isHovered, contextMenuOpen, onContextMenuOpenChange, hoverHandlers }) => {
         const isDesktop = !isTouchPlatform;
         const serviceSummary = isDesktop ? selectWorkspaceServiceSummary(workspace.scripts) : null;
-        const workspaceRowStyle = getProjectWorkspaceRowStyle({
-          isDragging,
-          isPressed,
-          selected,
-          isHovered,
-        });
+        const workspaceRowStyle = [
+          getProjectWorkspaceRowStyle({
+            isDragging,
+            isPressed,
+            selected,
+            isHovered,
+          }),
+          sidebarFindRowStyle(findRow),
+        ];
         const backdrop = getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered });
         return (
           <View
             {...dragAttributes}
             {...dragHandleProps?.listeners}
-            ref={dragHandleProps?.setActivatorNodeRef as unknown as Ref<View>}
+            ref={setRowContainerRef}
             style={styles.workspaceRowContainer}
             {...hoverHandlers}
           >
@@ -1694,6 +1742,40 @@ function ProjectBlock({
     [collapsed, preferredServerId, project, supportsMultiplicityByServerId],
   );
 
+  // A find jump into this block may target a row the block is currently hiding: a collapsed
+  // project, or a workspace below the "Show more" limit. Open what the jump needs, then the row
+  // itself scrolls once it is laid out.
+  const findActiveKey = useSidebarFind()?.activeKey ?? null;
+  useEffect(() => {
+    if (!findActiveKey) return;
+    if (findActiveKey === projectFindKey(project.viewKey)) {
+      if (collapsed) onToggleCollapsed(project.viewKey);
+      return;
+    }
+    const targetKey = workspaceKeyFromFindKey(findActiveKey);
+    if (!targetKey) return;
+    const targetIndex = project.workspaces.findIndex(
+      (workspace) => workspace.workspaceKey === targetKey,
+    );
+    if (targetIndex < 0) return;
+    if (collapsed) {
+      onToggleCollapsed(project.viewKey);
+      return;
+    }
+    // The block header is workspace #0; every other workspace is behind the limit.
+    if (targetIndex - 1 >= INITIAL_VISIBLE_ITEMS && !workspacesExpanded) {
+      toggleWorkspacesExpanded();
+    }
+  }, [
+    collapsed,
+    findActiveKey,
+    onToggleCollapsed,
+    project.workspaces,
+    project.viewKey,
+    toggleWorkspacesExpanded,
+    workspacesExpanded,
+  ]);
+
   const active = isProjectSelectedByRoute({
     selection: activeWorkspaceSelection,
     project,
@@ -2136,6 +2218,29 @@ export function SidebarWorkspaceList({
   // Project mode is the one that keeps its project headers; every other grouping mode is a flat
   // list of grouped rows, so a new mode lands in the grouped branch rather than silently in this
   // one's `else`.
+  // Find-as-you-type targets, in list order. Rows resolve their own paint from these keys, so the
+  // model only has to say what exists and in which order it appears.
+  const workspaceTitleSource = useAppSettings().settings.workspaceTitleSource;
+  const findRows = useMemo(
+    () =>
+      buildSidebarFindRows({
+        groupMode,
+        projects,
+        pinnedChats: pinnedGroups.pinnedChats,
+        workspaceGroups,
+        workspaceEntriesByKey,
+        workspaceTitleSource,
+      }),
+    [
+      groupMode,
+      pinnedGroups.pinnedChats,
+      projects,
+      workspaceEntriesByKey,
+      workspaceGroups,
+      workspaceTitleSource,
+    ],
+  );
+
   const content =
     groupMode !== "project" ? (
       <SidebarGroupedModeList
@@ -2179,7 +2284,14 @@ export function SidebarWorkspaceList({
       />
     );
 
-  return content;
+  return (
+    <SidebarFindProvider rows={findRows}>
+      <View style={styles.container}>
+        <SidebarFindBar />
+        {content}
+      </View>
+    </SidebarFindProvider>
+  );
 }
 
 /**

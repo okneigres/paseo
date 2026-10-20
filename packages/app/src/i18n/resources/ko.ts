@@ -1161,6 +1161,14 @@ export const ko: TranslationResources = {
     },
   },
   sidebar: {
+    find: {
+      label: "사이드바에서 찾기",
+      placeholder: "프로젝트 또는 워크스페이스 찾기",
+      count: "{{total}}개 중 {{index}}번째",
+      noMatches: "일치 항목 없음",
+      previous: "이전 항목",
+      next: "다음 항목",
+    },
     statusGroupAccessibility: "{{label}} 그룹",
     statusBucket: {
       needsInput: "입력 필요",

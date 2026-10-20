@@ -1190,6 +1190,14 @@ export const es: TranslationResources = {
     },
   },
   sidebar: {
+    find: {
+      label: "Buscar en la barra lateral",
+      placeholder: "Buscar proyecto o espacio de trabajo",
+      count: "{{index}} de {{total}}",
+      noMatches: "Sin coincidencias",
+      previous: "Coincidencia anterior",
+      next: "Coincidencia siguiente",
+    },
     statusGroupAccessibility: "Grupo {{label}}",
     statusBucket: {
       needsInput: "Necesita datos",

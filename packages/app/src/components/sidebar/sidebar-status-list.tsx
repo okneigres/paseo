@@ -1,12 +1,4 @@
-import {
-  memo,
-  useCallback,
-  useMemo,
-  useState,
-  type MutableRefObject,
-  type ReactNode,
-  type Ref,
-} from "react";
+import { memo, useCallback, useMemo, useState, type MutableRefObject, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   View,
@@ -21,6 +13,8 @@ import type { GestureType } from "react-native-gesture-handler";
 import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { type SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
+import { sidebarFindRowStyle, useSidebarFindRow } from "@/components/sidebar/sidebar-find";
+import { workspaceFindKey } from "@/components/sidebar/sidebar-find-rows";
 import type { StatusBucket } from "@/hooks/sidebar-status-view-model";
 import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels";
 import { SidebarFilterEmptyState } from "@/components/sidebar/empty-states";
@@ -775,6 +769,20 @@ function StatusWorkspaceRowInnerContent({
   const isTouchPlatform = platformIsNative || isCompact;
   const [isPressed, setIsPressed] = useState(false);
   const trailing = useSidebarWorkspaceTrailing();
+  const findKeys = useMemo(
+    () => [workspaceFindKey(workspace.workspaceKey)],
+    [workspace.workspaceKey],
+  );
+  const findRow = useSidebarFindRow(findKeys);
+  const setRowRef = useCallback(
+    (node: View | null) => {
+      (
+        dragHandleProps?.setActivatorNodeRef as unknown as ((node: View | null) => void) | undefined
+      )?.(node);
+      findRow.ref(node);
+    },
+    [dragHandleProps, findRow],
+  );
   const {
     role: _dragRole,
     tabIndex: _dragTabIndex,
@@ -827,19 +835,22 @@ function StatusWorkspaceRowInnerContent({
           isTouchPlatform,
           showShortcut,
         });
-        const workspaceRowStyle = getStatusWorkspaceRowStyle({
-          isPressed,
-          selected,
-          isHovered,
-          inStatusGroup,
-          isDragging,
-        });
+        const workspaceRowStyle = [
+          getStatusWorkspaceRowStyle({
+            isPressed,
+            selected,
+            isHovered,
+            inStatusGroup,
+            isDragging,
+          }),
+          sidebarFindRowStyle(findRow),
+        ];
         const backdrop = getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered });
         return (
           <View
             {...dragAttributes}
             {...dragHandleProps?.listeners}
-            ref={dragHandleProps?.setActivatorNodeRef as unknown as Ref<View>}
+            ref={setRowRef}
             style={styles.workspaceRowContainer}
             {...hoverHandlers}
           >

@@ -1183,6 +1183,14 @@ export const fr: TranslationResources = {
     },
   },
   sidebar: {
+    find: {
+      label: "Rechercher dans la barre latérale",
+      placeholder: "Rechercher un projet ou un espace de travail",
+      count: "{{index}} sur {{total}}",
+      noMatches: "Aucune correspondance",
+      previous: "Correspondance précédente",
+      next: "Correspondance suivante",
+    },
     statusGroupAccessibility: "Groupe {{label}}",
     statusBucket: {
       needsInput: "Attend une réponse",

@@ -1180,6 +1180,14 @@ export const ptBR: TranslationResources = {
     },
   },
   sidebar: {
+    find: {
+      label: "Localizar na barra lateral",
+      placeholder: "Localizar projeto ou espaço de trabalho",
+      count: "{{index}} de {{total}}",
+      noMatches: "Nenhuma correspondência",
+      previous: "Correspondência anterior",
+      next: "Próxima correspondência",
+    },
     statusGroupAccessibility: "Grupo {{label}}",
     statusBucket: {
       needsInput: "Precisa de resposta",

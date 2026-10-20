@@ -1171,6 +1171,14 @@ export const ru: TranslationResources = {
     },
   },
   sidebar: {
+    find: {
+      label: "Поиск в панели",
+      placeholder: "Найти проект или воркспейс",
+      count: "{{index}} из {{total}}",
+      noMatches: "Совпадений нет",
+      previous: "Предыдущее совпадение",
+      next: "Следующее совпадение",
+    },
     statusGroupAccessibility: "Группа «{{label}}»",
     statusBucket: {
       needsInput: "Ожидает ввода",
