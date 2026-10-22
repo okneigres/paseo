@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultFilePanelId, filePanelCatalog } from "./catalog";
+import { filePanelCatalog } from "./catalog";
 import { resolveFilePanel, type FilePanelCandidate, type FilePanelFile } from "./resolve";
 
 const builtins = filePanelCatalog([]);
@@ -25,8 +25,9 @@ function panelId(file: FilePanelFile, candidates: readonly FilePanelCandidate[] 
 }
 
 describe("built-in file panels", () => {
-  it("opens each rendered extension with its panel and Source after it", () => {
-    expect(candidateIds(textFile("README.md"))).toEqual(["builtin:markdown", "builtin:source"]);
+  it("opens each rendered extension with its panel alone, never with Source beside it", () => {
+    expect(candidateIds(textFile("README.md"))).toEqual(["builtin:markdown"]);
+    expect(candidateIds(textFile("plan.html"))).toEqual(["builtin:html"]);
     expect(panelId(textFile("notes.markdown"))).toBe("builtin:markdown");
     expect(panelId(textFile("plan.html"))).toBe("builtin:html");
     expect(panelId(textFile("docs/PLAN.HTML"))).toBe("builtin:html");
@@ -39,14 +40,27 @@ describe("built-in file panels", () => {
     }
   });
 
-  it("puts plugin panels after the rendering built-ins and before Source", () => {
+  it("puts plugin panels after the built-in that claims the file, and before Source", () => {
     expect(candidateIds(textFile("README.md"), filePanelCatalog([richMarkdown]))).toEqual([
       "builtin:markdown",
       richMarkdown.id,
-      "builtin:source",
     ]);
     const onlyPlugin = filePanelCatalog([{ ...richMarkdown, files: { extensions: ["txt"] } }]);
+    expect(candidateIds(textFile("notes.txt"), onlyPlugin)).toEqual([
+      richMarkdown.id,
+      "builtin:source",
+    ]);
     expect(panelId(textFile("notes.txt"), onlyPlugin)).toBe(richMarkdown.id);
+  });
+
+  it("ignores a remembered Source for a file another built-in claims", () => {
+    const resolution = resolveFilePanel({
+      file: textFile("README.md"),
+      candidates: builtins,
+      associations: { "ext:md": "builtin:source" },
+    });
+    expect(resolution.panel?.id).toBe("builtin:markdown");
+    expect(resolution.associatedPanelId).toBeNull();
   });
 
   it("has no Source for files that are not text", () => {
@@ -71,37 +85,4 @@ describe("built-in file panels", () => {
       ).toBeNull();
     },
   );
-});
-
-describe("defaultFilePanelId", () => {
-  it("opens notes in the editor they are written in", () => {
-    expect(defaultFilePanelId("README.md")).toBe("builtin:source");
-    expect(defaultFilePanelId("docs/notes.markdown")).toBe("builtin:source");
-    expect(defaultFilePanelId("NOTES.MD")).toBe("builtin:source");
-  });
-
-  it("leaves a rendered page and plain code to candidate order", () => {
-    expect(defaultFilePanelId("plan.html")).toBeNull();
-    expect(defaultFilePanelId("src/index.ts")).toBeNull();
-  });
-
-  it("outranks candidate order but not a remembered association", () => {
-    const file = textFile("README.md");
-    expect(
-      resolveFilePanel({
-        file,
-        candidates: builtins,
-        associations: {},
-        defaultPanelId: defaultFilePanelId(file.path),
-      }).panel?.id,
-    ).toBe("builtin:source");
-    expect(
-      resolveFilePanel({
-        file,
-        candidates: builtins,
-        associations: { "ext:md": "builtin:markdown" },
-        defaultPanelId: defaultFilePanelId(file.path),
-      }).panel?.id,
-    ).toBe("builtin:markdown");
-  });
 });

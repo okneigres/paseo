@@ -99,6 +99,14 @@ export function claimsFilePanelSelectorKey(
     : matchesName("", value, selector);
 }
 
+/**
+ * A built-in panel claiming every file of its kind (Source) is the floor: a candidate only for
+ * files no other built-in panel claims, never an alternative beside one.
+ */
+function isBuiltinFloor(candidate: FilePanelCandidate): boolean {
+  return candidate.builtin && candidate.files === "all";
+}
+
 /** Paseo asks which panel opens a file only when a plugin panel is one of several candidates. */
 export function asksForFilePanel(candidates: readonly FilePanelCandidate[]): boolean {
   return candidates.length > 1 && candidates.some((candidate) => !candidate.builtin);
@@ -110,15 +118,19 @@ export function resolveFilePanel<Candidate extends FilePanelCandidate>(input: {
   associations: Readonly<Record<string, string>>;
   /** A panel chosen for this tab open; wins over the association while it is a candidate. */
   choice?: string | null;
-  /** The panel an unassociated file opens with, when candidate order would pick another. */
-  defaultPanelId?: string | null;
 }): FilePanelResolution<Candidate> {
   const { file, associations } = input;
-  const candidates = input.candidates.filter(
+  const matching = input.candidates.filter(
     (candidate) =>
       (candidate.fileKind === undefined || candidate.fileKind === file.kind) &&
       matchesFiles(file, candidate.files),
   );
+  const claimedByBuiltin = matching.some(
+    (candidate) => candidate.builtin && candidate.files !== "all",
+  );
+  const candidates = claimedByBuiltin
+    ? matching.filter((candidate) => !isBuiltinFloor(candidate))
+    : matching;
   const filename = filePanelBasename(file.path);
   const matchedFilename = candidates.some((candidate) => claimsFilename(candidate.files, filename));
   const selectorKey = matchedFilename
@@ -126,7 +138,6 @@ export function resolveFilePanel<Candidate extends FilePanelCandidate>(input: {
     : filePanelSelectorKey({ kind: "ext", value: filePanelExtension(file.path) });
   const associated = candidates.find((candidate) => candidate.id === associations[selectorKey]);
   const chosen = candidates.find((candidate) => candidate.id === input.choice);
-  const preferred = candidates.find((candidate) => candidate.id === input.defaultPanelId);
-  const panel = chosen ?? associated ?? preferred ?? candidates[0] ?? null;
+  const panel = chosen ?? associated ?? candidates[0] ?? null;
   return { panel, candidates, selectorKey, associatedPanelId: associated?.id ?? null };
 }
