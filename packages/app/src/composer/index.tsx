@@ -45,6 +45,7 @@ import {
   Image as ImageIcon,
   ClipboardPaste,
   Paperclip,
+  CircleAlert,
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { FOOTER_HEIGHT } from "@/constants/layout";
@@ -314,6 +315,59 @@ function renderLeftContent(args: RenderLeftContentArgs): ReactElement | null {
 interface PendingFileAttachment {
   id: number;
   file: SelectedFile;
+  status: "uploading" | "failed";
+  error?: string;
+}
+
+type PendingFilesUpdater = (
+  updater: (pending: PendingFileAttachment[]) => PendingFileAttachment[],
+) => void;
+
+/**
+ * The tray after a batch lands: uploaded entries leave, failures stay as failed pills, everything
+ * else keeps uploading.
+ */
+function settlePendingFiles(input: {
+  pending: PendingFileAttachment[];
+  placeholders: PendingFileAttachment[];
+  failures: ReadonlyArray<{ file: SelectedFile; error: Error }>;
+}): PendingFileAttachment[] {
+  const failureByFile = new Map(input.failures.map(({ file, error }) => [file, error]));
+  const next: PendingFileAttachment[] = [];
+  for (const entry of input.pending) {
+    const failure = failureByFile.get(entry.file);
+    if (failure) {
+      next.push({ ...entry, status: "failed", error: failure.message });
+      continue;
+    }
+    if (!input.placeholders.includes(entry)) {
+      next.push(entry);
+    }
+  }
+  return next;
+}
+
+function markPendingFileUploading(
+  pending: PendingFileAttachment[],
+  id: number,
+): PendingFileAttachment[] {
+  return pending.map((entry) =>
+    entry.id === id ? { ...entry, status: "uploading" as const, error: undefined } : entry,
+  );
+}
+
+function markPendingFileFailed(
+  pending: PendingFileAttachment[],
+  id: number,
+  message: string,
+): PendingFileAttachment[] {
+  return pending.map((entry) =>
+    entry.id === id ? { ...entry, status: "failed" as const, error: message } : entry,
+  );
+}
+
+function removePendingFile(setPending: PendingFilesUpdater, id: number): void {
+  setPending((pending) => pending.filter((entry) => entry.id !== id));
 }
 
 interface RenderAttachmentTrayArgs {
@@ -323,12 +377,15 @@ interface RenderAttachmentTrayArgs {
   isComposerLocked: boolean;
   handleOpenAttachment: (attachment: ComposerAttachment) => void;
   handleRemoveAttachment: (index: number) => void;
+  handleRetryPendingFile: (id: number) => void;
+  handleRemovePendingFile: (id: number) => void;
   labels: {
     openImage: string;
     removeImage: string;
     removeFile: string;
     openGithub: (kind: string, numberLabel: string) => string;
     removeGithub: (kind: string, numberLabel: string) => string;
+    retryUpload: string;
   };
 }
 
@@ -340,6 +397,8 @@ function renderAttachmentTray(args: RenderAttachmentTrayArgs): ReactElement | nu
     isComposerLocked,
     handleOpenAttachment,
     handleRemoveAttachment,
+    handleRetryPendingFile,
+    handleRemovePendingFile,
     labels,
   } = args;
   if (selectedAttachments.length === 0 && pendingFiles.length === 0) return null;
@@ -356,15 +415,29 @@ function renderAttachmentTray(args: RenderAttachmentTrayArgs): ReactElement | nu
           labels,
         }),
       )}
-      {pendingFiles.map(({ id, file }) => (
-        <AttachmentFrame key={id} testID="composer-pending-file-attachment">
-          <AttachmentLabel
-            icon={pendingFilePillIcon}
-            title={file.fileName}
-            subtitle={getFileTypeLabel(file.fileName) ?? ""}
+      {pendingFiles.map(({ id, file, status, error }) =>
+        status === "failed" ? (
+          <FailedUploadPill
+            key={id}
+            id={id}
+            fileName={file.fileName}
+            error={error}
+            disabled={isComposerLocked}
+            onRetry={handleRetryPendingFile}
+            onRemove={handleRemovePendingFile}
+            retryLabel={labels.retryUpload}
+            removeLabel={labels.removeFile}
           />
-        </AttachmentFrame>
-      ))}
+        ) : (
+          <AttachmentFrame key={id} testID="composer-pending-file-attachment">
+            <AttachmentLabel
+              icon={pendingFilePillIcon}
+              title={file.fileName}
+              subtitle={getFileTypeLabel(file.fileName) ?? ""}
+            />
+          </AttachmentFrame>
+        ),
+      )}
     </View>
   );
 }
@@ -804,6 +877,46 @@ interface FileAttachmentPillProps {
   disabled: boolean;
   onRemove: (index: number) => void;
   removeLabel: string;
+}
+
+function FailedUploadPill({
+  id,
+  fileName,
+  error,
+  disabled,
+  onRetry,
+  onRemove,
+  retryLabel,
+  removeLabel,
+}: {
+  id: number;
+  fileName: string;
+  error?: string;
+  disabled: boolean;
+  onRetry: (id: number) => void;
+  onRemove: (id: number) => void;
+  retryLabel: string;
+  removeLabel: string;
+}) {
+  const { t } = useTranslation();
+  const handleRetry = useCallback(() => onRetry(id), [id, onRetry]);
+  const handleRemove = useCallback(() => onRemove(id), [id, onRemove]);
+  return (
+    <AttachmentPill
+      testID="composer-failed-file-attachment"
+      onOpen={handleRetry}
+      onRemove={handleRemove}
+      openAccessibilityLabel={`${retryLabel}: ${fileName}`}
+      removeAccessibilityLabel={removeLabel}
+      disabled={disabled}
+    >
+      <AttachmentLabel
+        icon={failedUploadPillIcon}
+        title={fileName}
+        subtitle={error ?? t("composer.errors.uploadFailed")}
+      />
+    </AttachmentPill>
+  );
 }
 
 function FileAttachmentPill({
@@ -1795,6 +1908,10 @@ function ComposerContentImpl({
     [addImages, t],
   );
 
+  /**
+   * Uploads keep their place in the tray until they land. A file the daemon refused, or one whose
+   * retries ran out, stays as a failed pill: its body retries, its × removes it.
+   */
   const uploadSelectedFiles = useCallback(
     async (files: SelectedFile[]) => {
       if (files.length === 0) return;
@@ -1803,22 +1920,54 @@ function ComposerContentImpl({
         return;
       }
 
-      const placeholders = files.map((file) => ({ id: nextPendingFileId.current++, file }));
+      const placeholders: PendingFileAttachment[] = files.map((file) => ({
+        id: nextPendingFileId.current++,
+        file,
+        status: "uploading",
+      }));
       setPendingFiles((pending) => [...pending, ...placeholders]);
-      try {
-        const uploaded = await uploadFileAttachments({ client, files });
-        addFiles(uploaded);
-      } catch (error) {
-        console.error("[Composer] Failed to upload file:", error);
-        toastErrorRef.current(
-          error instanceof Error ? error.message : t("composer.errors.uploadFailed"),
-        );
-      } finally {
-        setPendingFiles((pending) => pending.filter((entry) => !placeholders.includes(entry)));
+      const outcomes = await uploadFileAttachments({ client, files });
+      const uploaded = outcomes.flatMap((outcome) => (outcome.uploaded ? [outcome.uploaded] : []));
+      const failures = outcomes.flatMap((outcome) =>
+        outcome.error ? [{ file: outcome.file, error: outcome.error }] : [],
+      );
+      if (uploaded.length > 0) addFiles(uploaded);
+      if (failures.length > 0) {
+        console.error("[Composer] Failed to upload file:", failures[0].error);
+        toastErrorRef.current(failures[0].error.message || t("composer.errors.uploadFailed"));
       }
+      setPendingFiles((pending) => settlePendingFiles({ pending, placeholders, failures }));
     },
     [addFiles, client, t],
   );
+
+  const handleRetryPendingFile = useCallback(
+    (id: number) => {
+      const entry = pendingFiles.find((pending) => pending.id === id);
+      if (!entry) return;
+      if (!client) {
+        toastErrorRef.current(t("composer.errors.daemonClientDisconnected"));
+        return;
+      }
+      setPendingFiles((pending) => markPendingFileUploading(pending, id));
+      void (async () => {
+        const [outcome] = await uploadFileAttachments({ client, files: [entry.file] });
+        if (outcome?.uploaded) {
+          addFiles([outcome.uploaded]);
+          removePendingFile(setPendingFiles, id);
+          return;
+        }
+        const message = outcome?.error?.message ?? t("composer.errors.uploadFailed");
+        toastErrorRef.current(message);
+        setPendingFiles((pending) => markPendingFileFailed(pending, id, message));
+      })();
+    },
+    [addFiles, client, pendingFiles, t],
+  );
+
+  const handleRemovePendingFile = useCallback((id: number) => {
+    removePendingFile(setPendingFiles, id);
+  }, []);
 
   const handleAttachDictationRecording = useCallback(
     (recording: DictationRecording) => {
@@ -2329,6 +2478,8 @@ function ComposerContentImpl({
         isComposerLocked,
         handleOpenAttachment,
         handleRemoveAttachment,
+        handleRetryPendingFile,
+        handleRemovePendingFile,
         labels: {
           openImage: t("composer.attachments.openImage"),
           removeImage: t("composer.attachments.removeImage"),
@@ -2337,11 +2488,14 @@ function ComposerContentImpl({
             t("composer.attachments.openGithub", { kind, number: numberLabel }),
           removeGithub: (kind: string, numberLabel: string) =>
             t("composer.attachments.removeGithub", { kind, number: numberLabel }),
+          retryUpload: t("composer.attachments.retryUpload"),
         },
       }),
     [
       handleOpenAttachment,
       handleRemoveAttachment,
+      handleRemovePendingFile,
+      handleRetryPendingFile,
       isComposerLocked,
       serverId,
       selectedAttachments,
@@ -2727,3 +2881,6 @@ const filePillIcon = <ThemedFileText size={ICON_SIZE.sm} uniProps={iconForegroun
 const pendingFilePillIcon = (
   <ThemedAttachmentSpinner size={18} uniProps={iconForegroundMutedMapping} />
 );
+
+const ThemedCircleAlert = withUnistyles(CircleAlert);
+const failedUploadPillIcon = <ThemedCircleAlert size={18} uniProps={iconForegroundMutedMapping} />;

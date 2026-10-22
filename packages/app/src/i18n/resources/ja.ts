@@ -171,6 +171,7 @@ export const ja: TranslationResources = {
       openImage: "画像添付ファイルを開く",
       removeImage: "画像添付ファイルを削除",
       removeFile: "ファイル添付ファイルを削除",
+      retryUpload: "アップロードを再試行",
       openGithub: "{{kind}} {{number}}を開く",
       removeGithub: "{{kind}} {{number}}を削除",
       element: "要素",

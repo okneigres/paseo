@@ -18,6 +18,7 @@ import { createUserMessage, generateMessageId, type UserMessageItem } from "@/ty
 import type { MessageSubmissionRejectionOutcome } from "@/composer/submission/model";
 import type { PickedImageAttachmentInput } from "@/hooks/image-attachment-picker";
 import { i18n } from "@/i18n/i18next";
+import { DaemonConnectionError } from "@getpaseo/client/internal/daemon-client";
 
 export interface QueuedComposerMessage {
   id: string;
@@ -122,36 +123,78 @@ export async function pickAndPersistImages(input: {
   );
 }
 
+/** What became of one file the composer handed to the daemon. */
+export interface UploadFileOutcome {
+  file: SelectedFile;
+  uploaded?: Extract<ComposerAttachment, { kind: "file" }>;
+  error?: Error;
+}
+
+/**
+ * How long a lost daemon is waited out: the upload retries itself on a connection error, then hands
+ * the file back so the composer can offer the retry again. The daemon answers a liveness check
+ * within 15 s, so the first three gaps already outlast one reconnect.
+ */
+const UPLOAD_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000] as const;
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+/** A dropped connection is worth retrying; a rejected file or a refused upload is not. */
+export function isRetryableUploadError(error: unknown): boolean {
+  return error instanceof DaemonConnectionError;
+}
+
+async function uploadWithRetry(input: {
+  client: ComposerSendClient;
+  file: { fileName: string; mimeType: string; bytes: Uint8Array };
+}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await input.client.uploadFile(input.file);
+    } catch (error) {
+      const delay = UPLOAD_RETRY_DELAYS_MS[attempt];
+      if (!isRetryableUploadError(error) || delay === undefined) throw error;
+      await sleep(delay);
+    }
+  }
+}
+
+/**
+ * Uploads every file on its own: one unreadable, oversized or rejected file neither blocks the
+ * others nor disappears from the composer — each comes back with its outcome, in input order.
+ */
 export async function uploadFileAttachments(input: {
   client: ComposerSendClient;
   files: SelectedFile[];
-}): Promise<Extract<ComposerAttachment, { kind: "file" }>[]> {
-  const result: Extract<ComposerAttachment, { kind: "file" }>[] = [];
-  const prepared: Array<{ fileName: string; mimeType: string; bytes: Uint8Array }> = [];
+}): Promise<UploadFileOutcome[]> {
+  const outcomes: UploadFileOutcome[] = [];
 
   for (const file of input.files) {
-    const bytes = await file.readBytes();
-    if (bytes.byteLength > 50 * 1024 * 1024) {
-      throw new Error(
-        i18n.t("composer.errors.fileTooLarge", { size: "50MB", fileName: file.fileName }),
-      );
+    try {
+      const bytes = await file.readBytes();
+      if (bytes.byteLength > 50 * 1024 * 1024) {
+        throw new Error(
+          i18n.t("composer.errors.fileTooLarge", { size: "50MB", fileName: file.fileName }),
+        );
+      }
+      const response = await uploadWithRetry({
+        client: input.client,
+        file: { fileName: file.fileName, mimeType: file.mimeType, bytes },
+      });
+      if (response.error || !response.file) {
+        throw new Error(response.error ?? "Upload failed.");
+      }
+      outcomes.push({ file, uploaded: { kind: "file", attachment: response.file } });
+    } catch (error) {
+      outcomes.push({ file, error: error instanceof Error ? error : new Error(String(error)) });
     }
-    prepared.push({
-      fileName: file.fileName,
-      mimeType: file.mimeType,
-      bytes,
-    });
   }
 
-  for (const file of prepared) {
-    const response = await input.client.uploadFile(file);
-    if (response.error || !response.file) {
-      throw new Error(response.error ?? "Upload failed.");
-    }
-    result.push({ kind: "file", attachment: response.file });
-  }
-
-  return result;
+  return outcomes;
 }
 
 export function removeComposerAttachmentAtIndex<T extends ComposerAttachment>(input: {

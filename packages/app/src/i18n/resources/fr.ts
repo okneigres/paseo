@@ -172,6 +172,7 @@ export const fr: TranslationResources = {
       openImage: "Ouvrir l’image jointe",
       removeImage: "Retirer l’image jointe",
       removeFile: "Retirer le fichier joint",
+      retryUpload: "Réessayer l’envoi",
       openGithub: "Ouvrir {{kind}} {{number}}",
       removeGithub: "Retirer {{kind}} {{number}}",
       element: "Élément",

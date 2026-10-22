@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DaemonConnectionError } from "@getpaseo/client/internal/daemon-client";
 import type { AgentAttachment, ForgeSearchItem } from "@getpaseo/protocol/messages";
 import type {
   AttachmentMetadata,
@@ -1086,40 +1087,155 @@ describe("file upload preparation", () => {
       path: "/uploads/sample.bin",
     };
     acknowledge({ requestId: "req-1", file, error: null });
-    await expect(upload).resolves.toEqual([{ kind: "file", attachment: file }]);
+    const [outcome] = await upload;
+    expect(outcome.file.fileName).toBe("sample.bin");
+    expect(outcome.uploaded).toEqual({ kind: "file", attachment: file });
+    expect(outcome.error).toBeUndefined();
   });
 
   it.each(["unreadable", "oversized"])(
-    "does not upload a batch containing a later %s file",
+    "uploads the rest of a batch when a later %s file cannot be read",
     async (failure) => {
-      let sends = 0;
-      await expect(
-        uploadFileAttachments({
-          client: {
-            sendAgentMessage: async () => {},
-            uploadFile: async () => {
-              sends++;
-              throw new Error("unexpected send");
+      const sent: string[] = [];
+      const uploadedFile = {
+        type: "uploaded_file" as const,
+        id: "file-valid",
+        fileName: "valid.bin",
+        mimeType: "application/octet-stream",
+        size: 1,
+        path: "/uploads/valid.bin",
+      };
+      const outcomes = await uploadFileAttachments({
+        client: {
+          sendAgentMessage: async () => {},
+          uploadFile: async (file) => {
+            sent.push(file.fileName);
+            return { requestId: "req-1", file: uploadedFile, error: null };
+          },
+        },
+        files: [
+          {
+            fileName: "valid.bin",
+            mimeType: "application/octet-stream",
+            readBytes: async () => new Uint8Array([1]),
+          },
+          {
+            fileName: "missing.bin",
+            mimeType: "application/octet-stream",
+            readBytes: async () => {
+              if (failure === "oversized") return new Uint8Array(50 * 1024 * 1024 + 1);
+              throw new Error("read failed");
             },
           },
-          files: [
-            {
-              fileName: "valid.bin",
-              mimeType: "application/octet-stream",
-              readBytes: async () => new Uint8Array([1]),
-            },
-            {
-              fileName: "missing.bin",
-              mimeType: "application/octet-stream",
-              readBytes: async () => {
-                if (failure === "oversized") return new Uint8Array(50 * 1024 * 1024 + 1);
-                throw new Error("read failed");
-              },
-            },
-          ],
-        }),
-      ).rejects.toThrow(failure === "unreadable" ? "read failed" : "too large");
-      expect(sends).toBe(0);
+        ],
+      });
+
+      expect(sent).toEqual(["valid.bin"]);
+      expect(outcomes).toHaveLength(2);
+      expect(outcomes[0].uploaded?.attachment).toEqual(uploadedFile);
+      expect(outcomes[0].error).toBeUndefined();
+      expect(outcomes[1].file.fileName).toBe("missing.bin");
+      expect(outcomes[1].uploaded).toBeUndefined();
+      expect(outcomes[1].error?.message).toContain(
+        failure === "unreadable" ? "read failed" : "too large",
+      );
     },
   );
+
+  it("retries a lost daemon before giving the file up", async () => {
+    vi.useFakeTimers();
+    try {
+      let attempts = 0;
+      const uploadedFile = {
+        type: "uploaded_file" as const,
+        id: "file-retried",
+        fileName: "voice.wav",
+        mimeType: "audio/wav",
+        size: 2,
+        path: "/uploads/voice.wav",
+      };
+      const upload = uploadFileAttachments({
+        client: {
+          sendAgentMessage: async () => {},
+          uploadFile: async () => {
+            attempts += 1;
+            if (attempts === 1) {
+              throw new DaemonConnectionError("Liveness check timed out (15000ms)");
+            }
+            return { requestId: "req-2", file: uploadedFile, error: null };
+          },
+        },
+        files: [
+          {
+            fileName: "voice.wav",
+            mimeType: "audio/wav",
+            readBytes: async () => new Uint8Array([1, 2]),
+          },
+        ],
+      });
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      const [outcome] = await upload;
+
+      expect(attempts).toBe(2);
+      expect(outcome.uploaded?.attachment).toEqual(uploadedFile);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retry an upload the daemon refused", async () => {
+    let attempts = 0;
+    const [outcome] = await uploadFileAttachments({
+      client: {
+        sendAgentMessage: async () => {},
+        uploadFile: async () => {
+          attempts += 1;
+          return { requestId: "req-3", file: null, error: "Unsupported file type" };
+        },
+      },
+      files: [
+        {
+          fileName: "voice.wav",
+          mimeType: "audio/wav",
+          readBytes: async () => new Uint8Array([1]),
+        },
+      ],
+    });
+
+    expect(attempts).toBe(1);
+    expect(outcome.error?.message).toBe("Unsupported file type");
+  });
+
+  it("hands a file back after the retries run out", async () => {
+    vi.useFakeTimers();
+    try {
+      let attempts = 0;
+      const upload = uploadFileAttachments({
+        client: {
+          sendAgentMessage: async () => {},
+          uploadFile: async () => {
+            attempts += 1;
+            throw new DaemonConnectionError("Liveness check timed out (15000ms)");
+          },
+        },
+        files: [
+          {
+            fileName: "voice.wav",
+            mimeType: "audio/wav",
+            readBytes: async () => new Uint8Array([1]),
+          },
+        ],
+      });
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      const [outcome] = await upload;
+
+      expect(attempts).toBe(5);
+      expect(outcome.uploaded).toBeUndefined();
+      expect(outcome.error?.message).toContain("Liveness check timed out");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

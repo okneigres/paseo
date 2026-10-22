@@ -171,6 +171,7 @@ export const ru: TranslationResources = {
       openImage: "Открыть прикрепленное изображение",
       removeImage: "Удалить прикрепленное изображение",
       removeFile: "Удалить прикрепленный файл",
+      retryUpload: "Повторить загрузку",
       openGithub: "Открыть {{kind}} {{number}}",
       removeGithub: "Удалить {{kind}} {{number}}",
       element: "Элемент",
