@@ -10,11 +10,11 @@ import { Asset } from "expo-asset";
 const PROSE_FONT_FILES = [
   {
     weight: "400",
-    module: require("../../../assets/fonts/jetbrains-mono-nl/JetBrainsMonoNL-Regular.ttf"),
+    module: require("../../../../assets/fonts/jetbrains-mono-nl/JetBrainsMonoNL-Regular.ttf"),
   },
   {
     weight: "600",
-    module: require("../../../assets/fonts/jetbrains-mono-nl/JetBrainsMonoNL-SemiBold.ttf"),
+    module: require("../../../../assets/fonts/jetbrains-mono-nl/JetBrainsMonoNL-SemiBold.ttf"),
   },
 ] as const;
 
