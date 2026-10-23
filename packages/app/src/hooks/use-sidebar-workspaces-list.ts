@@ -41,6 +41,11 @@ const EMPTY_WORKSPACES: SidebarWorkspacePlacement[] = [];
 const EMPTY_PROJECT_NAMES = new Map<string, string>();
 
 export interface SidebarWorkspacesListResult {
+  /**
+   * Activity sorting needs a host that reports workspace timestamps; this fork keeps the manual
+   * order instead, so the display menu offers no sort control.
+   */
+  workspaceSortSupported: boolean;
   workspacePlacements: SidebarWorkspacePlacement[];
   projects: SidebarProjectEntry[];
   projectNamesByViewKey: Map<string, string>;
@@ -149,6 +154,7 @@ export function useSidebarWorkspacesList(options?: {
   });
 
   return {
+    workspaceSortSupported: false,
     workspacePlacements,
     projects,
     projectNamesByViewKey,

@@ -18,6 +18,7 @@ import { createUserMessage, generateMessageId, type UserMessageItem } from "@/ty
 import type { MessageSubmissionRejectionOutcome } from "@/composer/submission/model";
 import type { PickedImageAttachmentInput } from "@/hooks/image-attachment-picker";
 import { i18n } from "@/i18n/i18next";
+import { FILE_UPLOAD_MAX_BYTES } from "@/attachments/upload-limit";
 import { DaemonConnectionError } from "@getpaseo/client/internal/daemon-client";
 
 export interface QueuedComposerMessage {
@@ -176,7 +177,7 @@ export async function uploadFileAttachments(input: {
   for (const file of input.files) {
     try {
       const bytes = await file.readBytes();
-      if (bytes.byteLength > 50 * 1024 * 1024) {
+      if (bytes.byteLength > FILE_UPLOAD_MAX_BYTES) {
         throw new Error(
           i18n.t("composer.errors.fileTooLarge", { size: "50MB", fileName: file.fileName }),
         );

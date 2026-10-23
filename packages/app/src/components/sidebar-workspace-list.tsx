@@ -119,10 +119,8 @@ import {
 import { useLongPressDragInteraction } from "@/components/sidebar/use-long-press-drag-interaction";
 import { SidebarSectionHeader } from "@/components/sidebar/sidebar-section-header";
 import { SidebarGroupToggleRow } from "@/components/sidebar/sidebar-group-toggle-row";
-import {
-  INITIAL_VISIBLE_ITEMS,
-  useLimitedSidebarGroup,
-} from "@/components/sidebar/use-limited-sidebar-group";
+import { useLimitedSidebarGroup } from "@/components/sidebar/use-limited-sidebar-group";
+import type { SidebarGroupVisibilityPolicy } from "@/components/sidebar/sidebar-group-visibility";
 import {
   SidebarWorkspaceRowFrame,
   SidebarWorkspaceRowContent,
@@ -1722,12 +1720,22 @@ function ProjectBlock({
   // stays out of both the drag list below it and the group the "Show more" row limits.
   const headerWorkspace = project.workspaces[0] ?? null;
   const childWorkspaces = useMemo(() => project.workspaces.slice(1), [project.workspaces]);
+  const workspaceVisibilityPolicy = useMemo<
+    SidebarGroupVisibilityPolicy<SidebarWorkspacePlacement>
+  >(
+    () => ({
+      kind: "workspaces",
+      getStatusBucket: (workspace) =>
+        workspaceEntriesByKey.get(workspace.workspaceKey)?.statusBucket ?? "done",
+    }),
+    [workspaceEntriesByKey],
+  );
   const {
     visibleItems: visibleWorkspaces,
     expanded: workspacesExpanded,
     canToggle: canToggleWorkspaces,
     toggleExpanded: toggleWorkspacesExpanded,
-  } = useLimitedSidebarGroup(childWorkspaces);
+  } = useLimitedSidebarGroup(childWorkspaces, workspaceVisibilityPolicy);
   const activeServerId = activeWorkspaceSelection?.serverId ?? null;
   const activeHostStatus = useHostRuntimeConnectionStatus(activeServerId ?? "");
   const preferredServerId = activeHostStatus === "online" ? activeServerId : null;
@@ -1762,17 +1770,22 @@ function ProjectBlock({
       onToggleCollapsed(project.viewKey);
       return;
     }
-    // The block header is workspace #0; every other workspace is behind the limit.
-    if (targetIndex - 1 >= INITIAL_VISIBLE_ITEMS && !workspacesExpanded) {
+    // The block header is workspace #0; a target further down may sit behind the limit.
+    const targetVisible = visibleWorkspaces.some(
+      (workspace) => workspace.workspaceKey === targetKey,
+    );
+    if (!targetVisible && canToggleWorkspaces && !workspacesExpanded) {
       toggleWorkspacesExpanded();
     }
   }, [
+    canToggleWorkspaces,
     collapsed,
     findActiveKey,
     onToggleCollapsed,
     project.workspaces,
     project.viewKey,
     toggleWorkspacesExpanded,
+    visibleWorkspaces,
     workspacesExpanded,
   ]);
 
