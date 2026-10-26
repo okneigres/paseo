@@ -137,6 +137,8 @@ export const zhCN: TranslationResources = {
       sendAndInterrupt: "发送并中断",
       sendAndSteer: "发送并引导",
       sendMessage: "发送消息",
+      longPressToQueue: "长按加入队列",
+      longPressToSendNow: "长按立即发送",
       queue: "排队",
       send: "发送",
     },
@@ -1916,6 +1918,13 @@ export const zhCN: TranslationResources = {
     backdrop: "菜单背景",
   },
   subagents: {
+    parent: {
+      backToParent: "返回父代理",
+      backTo: "返回 {{label}}",
+      parent: "父代理",
+      parentAgent: "父代理",
+      openParent: "打开父代理",
+    },
     title: "Subagent",
     pillLabelOne: "1 个 subagent",
     pillLabelMany: "{{count}} 个 subagent",
@@ -2018,6 +2027,12 @@ export const zhCN: TranslationResources = {
     subAgentActivity: "Sub-agent 活动",
     input: "输入",
     output: "输出",
+  },
+  turnSummary: {
+    messages: {
+      one: "写了 {{count}} 条消息",
+      other: "写了 {{count}} 条消息",
+    },
   },
   toolCallGroup: {
     editedFiles: {
@@ -2292,12 +2307,13 @@ export const zhCN: TranslationResources = {
         label: "始终展开推理过程",
         description: "默认情况下完全展开 AI 的思考和推理过程",
       },
-      toolCallDetail: {
-        label: "工具调用显示",
-        description: "工具调用在时间线中的显示方式",
+      chatDisplay: {
+        label: "聊天显示",
+        description: "聊天中显示多少智能体的工作",
         options: {
-          overview: "摘要",
-          detailed: "完整详情",
+          full: "完整",
+          collapseToolCalls: "折叠工具调用",
+          collapseTurns: "折叠轮次",
         },
       },
       language: {
@@ -2661,6 +2677,11 @@ export const zhCN: TranslationResources = {
       },
       agents: {
         unavailable: "连接到这个 Host 以管理 Agent",
+        idleRuntimeCleanup: {
+          title: "释放空闲 Agent",
+          hint: "空闲一小时后释放内存。",
+          info: "停止 Agent 进程，但保留对话。发送消息即可继续。\n\n进行中的工作、待处理的通知和 Provider 安全检查会阻止清理。",
+        },
       },
       workspaces: {
         unavailable: "连接到这个 Host 以管理 Workspace",

@@ -119,8 +119,8 @@ import {
 import { useLongPressDragInteraction } from "@/components/sidebar/use-long-press-drag-interaction";
 import { SidebarSectionHeader } from "@/components/sidebar/sidebar-section-header";
 import { SidebarGroupToggleRow } from "@/components/sidebar/sidebar-group-toggle-row";
+import { createWorkspaceVisibilityPolicy } from "@/components/sidebar/sidebar-group-visibility";
 import { useLimitedSidebarGroup } from "@/components/sidebar/use-limited-sidebar-group";
-import type { SidebarGroupVisibilityPolicy } from "@/components/sidebar/sidebar-group-visibility";
 import {
   SidebarWorkspaceRowFrame,
   SidebarWorkspaceRowContent,
@@ -1720,14 +1720,8 @@ function ProjectBlock({
   // stays out of both the drag list below it and the group the "Show more" row limits.
   const headerWorkspace = project.workspaces[0] ?? null;
   const childWorkspaces = useMemo(() => project.workspaces.slice(1), [project.workspaces]);
-  const workspaceVisibilityPolicy = useMemo<
-    SidebarGroupVisibilityPolicy<SidebarWorkspacePlacement>
-  >(
-    () => ({
-      kind: "workspaces",
-      getStatusBucket: (workspace) =>
-        workspaceEntriesByKey.get(workspace.workspaceKey)?.statusBucket ?? "done",
-    }),
+  const workspaceVisibilityPolicy = useMemo(
+    () => createWorkspaceVisibilityPolicy<SidebarWorkspacePlacement>(workspaceEntriesByKey),
     [workspaceEntriesByKey],
   );
   const {

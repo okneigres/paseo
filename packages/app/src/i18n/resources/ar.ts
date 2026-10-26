@@ -137,6 +137,8 @@ export const ar: TranslationResources = {
       sendAndInterrupt: "إرسال ومقاطعة",
       sendAndSteer: "إرسال وتوجيه",
       sendMessage: "أرسل رسالة",
+      longPressToQueue: "اضغط مطولًا لإضافتها إلى الطابور",
+      longPressToSendNow: "اضغط مطولًا للإرسال الآن",
       queue: "طابور",
       send: "يرسل",
     },
@@ -1938,6 +1940,13 @@ export const ar: TranslationResources = {
     backdrop: "خلفية القائمة",
   },
   subagents: {
+    parent: {
+      backToParent: "العودة إلى الوكيل الأصلي",
+      backTo: "العودة إلى {{label}}",
+      parent: "الأصل",
+      parentAgent: "الوكيل الأصلي",
+      openParent: "فتح الوكيل الأصلي",
+    },
     title: "الوكلاء الفرعيون",
     pillLabelOne: "وكيل فرعي واحد",
     pillLabelMany: "{{count}} وكلاء فرعيين",
@@ -2040,6 +2049,12 @@ export const ar: TranslationResources = {
     subAgentActivity: "نشاط الوكيل الفرعي",
     input: "مدخل",
     output: "الإخراج",
+  },
+  turnSummary: {
+    messages: {
+      one: "كتب {{count}} رسالة",
+      other: "كتب {{count}} رسائل",
+    },
   },
   toolCallGroup: {
     editedFiles: {
@@ -2353,12 +2368,13 @@ export const ar: TranslationResources = {
         label: "عرض التفكير دائماً",
         description: "إظهار تفكير الوكيل وخطوات الاستدلال بشكل كامل بشكل افتراضي",
       },
-      toolCallDetail: {
-        label: "عرض استدعاءات الأدوات",
-        description: "كيفية ظهور استدعاءات الأدوات في المخطط الزمني",
+      chatDisplay: {
+        label: "عرض المحادثة",
+        description: "مقدار عمل الوكيل الذي تعرضه المحادثة",
         options: {
-          overview: "ملخص",
-          detailed: "التفاصيل الكاملة",
+          full: "كامل",
+          collapseToolCalls: "طيّ استدعاءات الأدوات",
+          collapseTurns: "طيّ الأدوار",
         },
       },
       language: {
@@ -2725,6 +2741,11 @@ export const ar: TranslationResources = {
       },
       agents: {
         unavailable: "Connect to this host to manage agents",
+        idleRuntimeCleanup: {
+          title: "تحرير الوكلاء الخاملين",
+          hint: "تحرير الذاكرة بعد ساعة من الخمول.",
+          info: "يوقف عملية الوكيل مع الاحتفاظ بمحادثته. أرسل رسالة لاستئنافها.\n\nيمنع العمل النشط والإشعارات المعلّقة وفحوصات أمان المزوّد عملية التنظيف.",
+        },
       },
       workspaces: {
         unavailable: "Connect to this host to manage workspaces",

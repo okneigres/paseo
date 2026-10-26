@@ -56,7 +56,11 @@ import {
 } from "@/composer/agent-controls";
 import { ContextWindowMeter } from "@/components/context-window-meter";
 import { useImageAttachmentPicker } from "@/hooks/use-image-attachment-picker";
-import { selectAgentTurnPresentation, useSessionStore } from "@/stores/session-store";
+import {
+  selectAgentSentMessages,
+  selectAgentTurnPresentation,
+  useSessionStore,
+} from "@/stores/session-store";
 import { useFilePicker } from "@/hooks/use-file-picker";
 import { useFileDrop } from "@/components/file-drop/use-file-drop";
 import type { DroppedItem } from "@/components/file-drop/types";
@@ -120,6 +124,7 @@ import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispat
 import type { MessageInputKeyboardActionKind } from "@/keyboard/actions";
 import { submitAgentInput, withSpeakerPrefix } from "@/composer/submit";
 import { useComposerSpeaker } from "@/stores/composer-speaker-store";
+import { ComposerRecall } from "@/composer/recall";
 import { createMessageSubmissionWriter } from "@/composer/submission/writer";
 import { ComposerKeyboardScopeProvider, useComposerKeyboardScope } from "@/composer/keyboard-scope";
 import { useAppSettings } from "@/hooks/use-settings";
@@ -1110,6 +1115,7 @@ interface ComposerAutocompleteHandle {
 function ComposerAutocompleteBinding({
   text,
   cursor,
+  recall,
   configuration,
   inputRef,
   anchorRef,
@@ -1118,6 +1124,7 @@ function ComposerAutocompleteBinding({
 }: {
   text: ComposerTextSource;
   cursor: StoreApi<number>;
+  recall: ComposerRecall;
   configuration: Omit<
     Parameters<typeof useAgentAutocomplete>[0],
     "userInput" | "cursorIndex" | "onAutocompleteApplied"
@@ -1135,9 +1142,11 @@ function ComposerAutocompleteBinding({
     cursorIndex: Math.min(cursorIndex, userInput.length),
     onAutocompleteApplied: () => inputRef.current?.focus(),
   });
+  // A recalled message is sent as is; its leading `/command` must not open the picker.
+  const isShown = show && !recall.isShowing(userInput);
   const handleKeyPress = autocomplete.onKeyPress;
-  useImperativeHandle(ref, () => ({ onKeyPress: (event) => show && handleKeyPress(event) }), [
-    show,
+  useImperativeHandle(ref, () => ({ onKeyPress: (event) => isShown && handleKeyPress(event) }), [
+    isShown,
     handleKeyPress,
   ]);
   const selectOption = autocomplete.onSelectOption;
@@ -1147,7 +1156,7 @@ function ComposerAutocompleteBinding({
   );
   return (
     <ComposerAutocomplete
-      visible={autocomplete.isVisible && show}
+      visible={autocomplete.isVisible && isShown}
       anchorRef={anchorRef}
       options={autocomplete.options}
       selectedIndex={autocomplete.selectedIndex}
@@ -1477,6 +1486,7 @@ function ComposerContentImpl({
   );
   useEffect(() => () => cursorPublication.cancel(), [cursorPublication]);
   const autocompleteRef = useRef<ComposerAutocompleteHandle>(null);
+  const recall = useMemo(() => new ComposerRecall(), []);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFileAttachment[]>([]);
   const nextPendingFileId = useRef(0);
@@ -2153,10 +2163,19 @@ function ComposerContentImpl({
 
   const hasSendableContent = hasText || selectedAttachments.length > 0;
 
-  // Handle keyboard navigation for command autocomplete.
+  // An open autocomplete owns the arrows; otherwise they may recall sent messages.
   const handleCommandKeyPress = useCallback(
-    (event: ComposerKeyPressEvent) => autocompleteRef.current?.onKeyPress(event) ?? false,
-    [],
+    (event: ComposerKeyPressEvent) => {
+      if (autocompleteRef.current?.onKeyPress(event)) return true;
+      const recalledText = recall.handleKeyPress(event, () =>
+        selectAgentSentMessages(useSessionStore.getState().sessions[serverId], agentId),
+      );
+      if (recalledText === null) return false;
+      event.preventDefault();
+      replaceUserInput(recalledText);
+      return true;
+    },
+    [agentId, recall, replaceUserInput, serverId],
   );
 
   const cancelButtonStyle = useMemo(
@@ -2600,6 +2619,7 @@ function ComposerContentImpl({
               <ComposerAutocompleteBinding
                 text={textSource}
                 cursor={cursor}
+                recall={recall}
                 inputRef={messageInputRef}
                 anchorRef={messageInputContainerRef}
                 show={mode.showAutocomplete && !isFullscreen}

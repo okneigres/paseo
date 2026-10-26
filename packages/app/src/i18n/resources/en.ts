@@ -133,6 +133,8 @@ export const en = {
       sendAndInterrupt: "Send and interrupt",
       sendAndSteer: "Send and steer",
       sendMessage: "Send message",
+      longPressToQueue: "Long press to queue",
+      longPressToSendNow: "Long press to send now",
       queue: "Queue",
       send: "Send",
     },
@@ -1963,6 +1965,13 @@ export const en = {
     backdrop: "Menu backdrop",
   },
   subagents: {
+    parent: {
+      backToParent: "Back to parent",
+      backTo: "Back to {{label}}",
+      parent: "Parent",
+      parentAgent: "Parent agent",
+      openParent: "Open parent",
+    },
     title: "Subagents",
     pillLabelOne: "1 subagent",
     pillLabelMany: "{{count}} subagents",
@@ -2065,6 +2074,12 @@ export const en = {
     subAgentActivity: "Sub-agent activity",
     input: "Input",
     output: "Output",
+  },
+  turnSummary: {
+    messages: {
+      one: "wrote {{count}} message",
+      other: "wrote {{count}} messages",
+    },
   },
   toolCallGroup: {
     editedFiles: {
@@ -2441,12 +2456,13 @@ export const en = {
         label: "Always expand reasoning",
         description: "Show agent thinking and chain-of-thought blocks fully expanded by default",
       },
-      toolCallDetail: {
-        label: "Tool call display",
-        description: "How tool calls appear in the timeline",
+      chatDisplay: {
+        label: "Chat display",
+        description: "How much of an agent's work the chat shows",
         options: {
-          overview: "Summary",
-          detailed: "Full detail",
+          full: "Full",
+          collapseToolCalls: "Collapse tool calls",
+          collapseTurns: "Collapse turns",
         },
       },
       language: {
@@ -2816,6 +2832,11 @@ export const en = {
       },
       agents: {
         unavailable: "Connect to this host to manage agents",
+        idleRuntimeCleanup: {
+          title: "Release idle agents",
+          hint: "Free up memory after an hour of inactivity.",
+          info: "Stops the agent's process while keeping its conversation. Send a message to resume.\n\nActive work, pending notifications, and provider safety checks prevent cleanup.",
+        },
       },
       workspaces: {
         unavailable: "Connect to this host to manage workspaces",
