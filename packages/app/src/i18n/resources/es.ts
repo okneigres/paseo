@@ -2099,12 +2099,13 @@ export const es: TranslationResources = {
     output: "Producción",
   },
   turnSummary: {
-    messages: {
-      one: "escribió {{count}} mensaje",
-      other: "escribió {{count}} mensajes",
-    },
+    details: "Ver detalles del turno",
+    sentBy: "Enviado por {{name}}",
+    showMore: "Mostrar más",
+    showLess: "Mostrar menos",
   },
   toolCallGroup: {
+    thought: "Razonó",
     editedFiles: {
       one: "editó {{count}} archivo",
       other: "editó {{count}} archivos",
@@ -2305,6 +2306,7 @@ export const es: TranslationResources = {
       connections: "Conexiones",
       agents: "Agents",
       metadata: "Metadatos",
+      voice: "Voz",
       workspaces: "Workspaces",
       providers: "Proveedores",
       usage: "Uso",
@@ -2326,6 +2328,69 @@ export const es: TranslationResources = {
       modelHint: "Solo se usa este modelo. Si falla, Paseo no prueba otro modelo",
       docs: "Documentación",
       saveError: "No se pudo actualizar la generación de metadatos",
+    },
+    voice: {
+      offline: "Conéctate a este host para configurar la voz.",
+      updateHost: "Actualiza el host para configurar la voz.",
+      saveError: "No se pudo actualizar la configuración de voz",
+      provider: "Proveedor",
+      providers: {
+        local: "Local",
+        openai: "OpenAI",
+      },
+      voice: "Voz",
+      save: "Guardar",
+      retry: "Reintentar",
+      cancel: "Cancelar",
+      model: "Modelo",
+      language: "Idioma",
+      languagePlaceholder: "Detección automática",
+      setBy: "Definido por {{name}}",
+      unknownProvider: "Actualiza la app para configurar {{provider}}",
+      sites: {
+        dictationStt: "Voz a texto",
+        voiceModeStt: "Escucha",
+        voiceModeTts: "Habla",
+      },
+      dictation: {
+        title: "Dictado",
+        enabled: "Dictado",
+        enabledHint: "Habla en el cuadro de mensaje en lugar de escribir",
+      },
+      voiceMode: {
+        title: "Modo de voz",
+        info: "El modo de voz transcribe lo que dices y lee en voz alta las respuestas del agente.",
+        enabled: "Modo de voz",
+        enabledHint: "Habla con tus agentes sin usar las manos",
+      },
+      openai: {
+        apiKey: "Clave de API",
+        apiKeyHint: "Se guarda en el host y no se vuelve a mostrar.",
+        keyPlaceholder: "sk-...",
+        savedKeyPlaceholder: "Guardada",
+        missingKey: "Falta la clave de API",
+        baseUrl: "URL base",
+        baseUrlHint: "Para servidores compatibles con OpenAI. Déjala vacía para usar OpenAI.",
+      },
+      models: {
+        loading: "Cargando modelos...",
+        loadError: "No se pudieron cargar los modelos locales",
+        none: "No hay modelos disponibles",
+        downloaded: "Descargado",
+        inUse: "En uso",
+        recommended: "Recomendado",
+        download: "Descargar",
+        downloadAction: "Descargar {{label}}",
+        downloading: "Descargando...",
+        downloadingPercent: "Descargando {{percent}} %",
+        extracting: "Extrayendo...",
+        delete: "Eliminar",
+        deleteAction: "Eliminar {{label}}",
+        deleteTitle: "¿Eliminar {{label}}?",
+        deleteMessage: "Esto libera {{size}}. Puedes volver a descargarlo más tarde.",
+        languages: "Idiomas de {{label}}",
+        moreLanguages: "{{languages}} y {{count}} más",
+      },
     },
     general: {
       title: "General",
@@ -2353,6 +2418,14 @@ export const es: TranslationResources = {
           queue:
             "Cuando el agente se está ejecutando, Enter pone en cola. Command/Ctrl+Enter envía.",
         },
+        commandEnterDescriptions: {
+          interrupt:
+            "Cuando el agente se está ejecutando, {{modifier}}+Enter interrumpe. Enter inserta una línea nueva.",
+          steer:
+            "Cuando el agente se está ejecutando, {{modifier}}+Enter dirige el turno activo. Enter inserta una línea nueva.",
+          queue:
+            "Cuando el agente se está ejecutando, {{modifier}}+Enter pone en cola. Enter inserta una línea nueva.",
+        },
         options: {
           interrupt: "Interrumpir",
           steer: "Dirigir",
@@ -2366,6 +2439,13 @@ export const es: TranslationResources = {
         systemDefault: "Predeterminado del sistema",
         deviceFallback: "Dispositivo de salida {{number}}",
         unavailable: "Dispositivo no disponible",
+      },
+      sendShortcut: {
+        label: "Atajo de envío",
+        options: {
+          enter: "Enter",
+          "mod-enter": "{{modifier}}+Enter",
+        },
       },
       serviceUrls: {
         options: {

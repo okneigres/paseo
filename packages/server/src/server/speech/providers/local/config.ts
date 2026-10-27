@@ -31,6 +31,7 @@ export interface LocalSpeechProviderConfig {
 
 export interface ResolvedLocalSpeechConfig {
   local: LocalSpeechProviderConfig | undefined;
+  modelsDir: string;
   sttLanguages: LocalSpeechSttLanguageConfig;
 }
 
@@ -71,12 +72,24 @@ const LocalSpeechResolutionSchema = z.object({
 function persistedLocalFeatureModel(
   provider: RequestedSpeechProviders[keyof RequestedSpeechProviders]["provider"],
   enabled: boolean | undefined,
-  model: string | undefined,
+  site: { provider: string; model?: string } | undefined,
 ): string | undefined {
   if (provider !== "local" || enabled === false) {
     return undefined;
   }
-  return model;
+  return site?.provider === "local" ? site.model : undefined;
+}
+
+/** The second local model is only meaningful for a local site; the openai site has no such field. */
+function persistedLocalSecondaryModel(
+  provider: RequestedSpeechProviders[keyof RequestedSpeechProviders]["provider"],
+  enabled: boolean | undefined,
+  site: { provider: string; secondaryModel?: string } | undefined,
+): string | undefined {
+  if (provider !== "local" || enabled === false) {
+    return undefined;
+  }
+  return site?.provider === "local" ? site.secondaryModel : undefined;
 }
 
 function shouldIncludeLocalProviderConfig(params: {
@@ -146,6 +159,8 @@ function buildLocalSpeechResolutionInput(params: {
   includeProviderConfig: boolean;
 }): Record<string, unknown> {
   const { paseoHome, env, persisted, providers, includeProviderConfig } = params;
+  const tts = persisted.features?.voiceMode?.tts;
+  const localTts = tts?.provider === "local" ? tts : undefined;
   return {
     includeProviderConfig,
     modelsDir: firstDefinedValue<string>([
@@ -158,7 +173,7 @@ function buildLocalSpeechResolutionInput(params: {
       persistedLocalFeatureModel(
         providers.dictationStt.provider,
         providers.dictationStt.enabled,
-        persisted.features?.dictation?.stt?.model,
+        persisted.features?.dictation?.stt,
       ),
       DEFAULT_LOCAL_STT_MODEL,
     ]),
@@ -167,16 +182,16 @@ function buildLocalSpeechResolutionInput(params: {
       persistedLocalFeatureModel(
         providers.voiceStt.provider,
         providers.voiceStt.enabled,
-        persisted.features?.voiceMode?.stt?.model,
+        persisted.features?.voiceMode?.stt,
       ),
       DEFAULT_LOCAL_STT_MODEL,
     ]),
     voiceLocalSttSecondaryModel: firstDefinedValue<string>([
       env.PASEO_VOICE_LOCAL_STT_SECONDARY_MODEL,
-      persistedLocalFeatureModel(
+      persistedLocalSecondaryModel(
         providers.voiceStt.provider,
         providers.voiceStt.enabled,
-        persisted.features?.voiceMode?.stt?.secondaryModel,
+        persisted.features?.voiceMode?.stt,
       ),
     ]),
     voiceLocalTtsModel: firstDefinedValue<string>([
@@ -184,18 +199,18 @@ function buildLocalSpeechResolutionInput(params: {
       persistedLocalFeatureModel(
         providers.voiceTts.provider,
         providers.voiceTts.enabled,
-        persisted.features?.voiceMode?.tts?.model,
+        persisted.features?.voiceMode?.tts,
       ),
       DEFAULT_LOCAL_TTS_MODEL,
     ]),
     ...buildLocalSpeechLanguageResolutionInput({ env, persisted }),
     voiceLocalTtsSpeakerId: firstDefinedValue<string | number>([
       env.PASEO_VOICE_LOCAL_TTS_SPEAKER_ID,
-      persisted.features?.voiceMode?.tts?.speakerId,
+      localTts?.speakerId,
     ]),
     voiceLocalTtsSpeed: firstDefinedValue<string | number>([
       env.PASEO_VOICE_LOCAL_TTS_SPEED,
-      persisted.features?.voiceMode?.tts?.speed,
+      localTts?.speed,
     ]),
   };
 }
@@ -211,11 +226,10 @@ export function resolveLocalSpeechConfig(params: {
     buildLocalSpeechResolutionInput({ ...params, includeProviderConfig }),
   );
 
-  const resolvedVoiceTtsSpeakerId =
-    parsed.voiceLocalTtsSpeakerId ??
-    (parsed.voiceLocalTtsModel === "kokoro-en-v0_19" ? 0 : undefined);
+  const resolvedVoiceTtsSpeakerId = parsed.voiceLocalTtsSpeakerId ?? 0;
 
   return {
+    modelsDir: parsed.modelsDir,
     sttLanguages: {
       dictation: parsed.dictationLanguage,
       voice: parsed.voiceLanguage,

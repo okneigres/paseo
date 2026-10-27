@@ -6,7 +6,7 @@ import { PersistedConfigSchema } from "../persisted-config.js";
 import { resolveSpeechConfig } from "./speech-config-resolver.js";
 
 describe("resolveSpeechConfig", () => {
-  test("resolves local-first defaults without env overrides", () => {
+  test("resolves local-first defaults with voice mode off until turned on", () => {
     const paseoHome = "/tmp/paseo-home";
     const persisted = PersistedConfigSchema.parse({});
     const env = {} as NodeJS.ProcessEnv;
@@ -26,17 +26,17 @@ describe("resolveSpeechConfig", () => {
     expect(result.speech.providers.voiceTurnDetection).toEqual({
       provider: "local",
       explicit: false,
-      enabled: true,
+      enabled: false,
     });
     expect(result.speech.providers.voiceStt).toEqual({
       provider: "local",
       explicit: false,
-      enabled: true,
+      enabled: false,
     });
     expect(result.speech.providers.voiceTts).toEqual({
       provider: "local",
       explicit: false,
-      enabled: true,
+      enabled: false,
     });
     expect(result.speech.local).toEqual({
       modelsDir: path.join(paseoHome, "models", "local-speech"),
@@ -61,12 +61,10 @@ describe("resolveSpeechConfig", () => {
     const persisted = PersistedConfigSchema.parse({
       features: {
         voiceMode: {
+          enabled: true,
           turnDetection: { provider: "local" },
-          stt: { provider: "openai", model: "gpt-4o-transcribe" },
+          stt: { provider: "openai", apiKey: "persisted-key", model: "gpt-4o-transcribe" },
         },
-      },
-      providers: {
-        openai: { apiKey: "persisted-key" },
       },
     });
     const env = {
@@ -130,80 +128,45 @@ describe("resolveSpeechConfig", () => {
       voice: "pt",
     });
     expect(result.openai?.stt?.apiKey).toBe("persisted-key");
-    expect(result.openai?.tts?.apiKey).toBe("persisted-key");
+    expect(result.openai?.tts?.apiKey).toBe("env-key");
     expect(result.openai?.stt?.model).toBe("gpt-4o-transcribe");
   });
 
-  describe("a second voice speech-to-text model", () => {
-    const resolve = (voiceStt: Record<string, unknown>, env: NodeJS.ProcessEnv = {}) =>
-      resolveSpeechConfig({
+  test.each(["local", "openai"])(
+    "resolves STT language from env, settings, and voice-to-dictation fallback (%s)",
+    (provider) => {
+      const persisted = PersistedConfigSchema.parse({
+        features: {
+          dictation: {
+            stt: {
+              provider,
+              language: "fr",
+            },
+          },
+          voiceMode: {
+            stt: {
+              provider,
+              language: "de",
+            },
+          },
+        },
+      });
+
+      const result = resolveSpeechConfig({
         paseoHome: "/tmp/paseo-home",
-        env,
-        persisted: PersistedConfigSchema.parse({
-          features: { voiceMode: { stt: { provider: "local", ...voiceStt } } },
-        }),
-      }).speech.local?.models;
-
-    test("is read from the voice mode settings", () => {
-      const models = resolve({
-        model: "parakeet-tdt-0.6b-v3-int8",
-        secondaryModel: "gigaam-v2-russian",
+        env: {
+          PASEO_DICTATION_LANGUAGE: "es",
+          PASEO_VOICE_LANGUAGE: "  ",
+        } as NodeJS.ProcessEnv,
+        persisted,
       });
-      expect(models?.voiceStt).toBe("parakeet-tdt-0.6b-v3-int8");
-      expect(models?.voiceSttSecondary).toBe("gigaam-v2-russian");
-    });
 
-    test("can be set from the environment", () => {
-      const models = resolve(
-        { model: "parakeet-tdt-0.6b-v3-int8" },
-        { PASEO_VOICE_LOCAL_STT_SECONDARY_MODEL: "gigaam-v2-russian" },
-      );
-      expect(models?.voiceSttSecondary).toBe("gigaam-v2-russian");
-    });
-
-    test("is left out when it is the same model as the first", () => {
-      const models = resolve({
-        model: "gigaam-v2-russian",
-        secondaryModel: "gigaam-v2-russian",
+      expect(result.speech.sttLanguages).toEqual({
+        dictation: "es",
+        voice: "es",
       });
-      expect(models?.voiceSttSecondary).toBeUndefined();
-    });
-
-    test("is absent by default", () => {
-      expect(resolve({ model: "parakeet-tdt-0.6b-v3-int8" })?.voiceSttSecondary).toBeUndefined();
-    });
-  });
-
-  test("resolves STT language from env, settings, and voice-to-dictation fallback", () => {
-    const persisted = PersistedConfigSchema.parse({
-      features: {
-        dictation: {
-          stt: {
-            language: "fr",
-          },
-        },
-        voiceMode: {
-          stt: {
-            language: "de",
-          },
-        },
-      },
-    });
-
-    const result = resolveSpeechConfig({
-      paseoHome: "/tmp/paseo-home",
-      env: {
-        PASEO_DICTATION_LANGUAGE: "es",
-        PASEO_VOICE_LANGUAGE: "  ",
-      } as NodeJS.ProcessEnv,
-      persisted,
-    });
-
-    expect(result.speech.sttLanguages).toEqual({
-      dictation: "es",
-      voice: "es",
-    });
-  });
+    },
+  );
 
   test("respects disabled dictation and voice mode feature flags", () => {
     const persisted = PersistedConfigSchema.parse({

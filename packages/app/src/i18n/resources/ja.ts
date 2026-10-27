@@ -2071,12 +2071,13 @@ export const ja: TranslationResources = {
     output: "出力",
   },
   turnSummary: {
-    messages: {
-      one: "{{count}}件のメッセージを送信",
-      other: "{{count}}件のメッセージを送信",
-    },
+    details: "ターンの詳細を表示",
+    sentBy: "{{name}} から送信",
+    showMore: "もっと見る",
+    showLess: "折りたたむ",
   },
   toolCallGroup: {
+    thought: "思考",
     editedFiles: {
       one: "{{count}}個のファイルを編集",
       other: "{{count}}個のファイルを編集",
@@ -2278,6 +2279,7 @@ export const ja: TranslationResources = {
       connections: "接続",
       agents: "エージェント",
       metadata: "メタデータ",
+      voice: "音声",
       workspaces: "ワークスペース",
       providers: "プロバイダー",
       usage: "使用状況",
@@ -2299,6 +2301,69 @@ export const ja: TranslationResources = {
       modelHint: "このモデルのみを使用します。失敗しても、Paseo は別のモデルを試しません",
       docs: "ドキュメント",
       saveError: "メタデータ生成を更新できません",
+    },
+    voice: {
+      offline: "音声を設定するには、このホストに接続してください。",
+      updateHost: "音声を設定するには、ホストを更新してください。",
+      saveError: "音声設定を更新できませんでした",
+      provider: "プロバイダー",
+      providers: {
+        local: "ローカル",
+        openai: "OpenAI",
+      },
+      voice: "ボイス",
+      save: "保存",
+      retry: "再試行",
+      cancel: "キャンセル",
+      model: "モデル",
+      language: "言語",
+      languagePlaceholder: "自動検出",
+      setBy: "{{name}} で設定",
+      unknownProvider: "{{provider}} を設定するにはアプリを更新してください",
+      sites: {
+        dictationStt: "音声入力",
+        voiceModeStt: "聞き取り",
+        voiceModeTts: "読み上げ",
+      },
+      dictation: {
+        title: "音声入力",
+        enabled: "音声入力",
+        enabledHint: "入力する代わりにメッセージ欄に話しかけます",
+      },
+      voiceMode: {
+        title: "ボイスモード",
+        info: "ボイスモードは話した内容を文字起こしし、エージェントの返答を読み上げます。",
+        enabled: "ボイスモード",
+        enabledHint: "ハンズフリーでエージェントと会話します",
+      },
+      openai: {
+        apiKey: "API キー",
+        apiKeyHint: "ホストに保存され、再表示されません。",
+        keyPlaceholder: "sk-...",
+        savedKeyPlaceholder: "保存済み",
+        missingKey: "API キーがありません",
+        baseUrl: "ベース URL",
+        baseUrlHint: "OpenAI 互換サーバー用です。OpenAI を使う場合は空欄のままにします。",
+      },
+      models: {
+        loading: "モデルを読み込み中...",
+        loadError: "ローカルモデルを読み込めませんでした",
+        none: "利用できるモデルがありません",
+        downloaded: "ダウンロード済み",
+        inUse: "使用中",
+        recommended: "おすすめ",
+        download: "ダウンロード",
+        downloadAction: "{{label}} をダウンロード",
+        downloading: "ダウンロード中...",
+        downloadingPercent: "ダウンロード中 {{percent}}%",
+        extracting: "展開中...",
+        delete: "削除",
+        deleteAction: "{{label}} を削除",
+        deleteTitle: "{{label}} を削除しますか？",
+        deleteMessage: "{{size}} が解放されます。後で再ダウンロードできます。",
+        languages: "{{label}} の対応言語",
+        moreLanguages: "{{languages}} ほか {{count}} 言語",
+      },
     },
     general: {
       title: "一般",
@@ -2322,6 +2387,12 @@ export const ja: TranslationResources = {
             "エージェント実行中、Enterで現在のターンに指示を送ります。Command/Ctrl+Enterでキューに追加。",
           queue: "エージェント実行中、Enterでキューに追加します。Command/Ctrl+Enterで送信。",
         },
+        commandEnterDescriptions: {
+          interrupt: "エージェント実行中、{{modifier}}+Enterで中断します。Enterで改行します。",
+          steer:
+            "エージェント実行中、{{modifier}}+Enterで現在のターンに指示を送ります。Enterで改行します。",
+          queue: "エージェント実行中、{{modifier}}+Enterでキューに追加します。Enterで改行します。",
+        },
         options: {
           interrupt: "中断",
           steer: "指示",
@@ -2335,6 +2406,13 @@ export const ja: TranslationResources = {
         systemDefault: "システムの既定",
         deviceFallback: "出力デバイス {{number}}",
         unavailable: "利用できないデバイス",
+      },
+      sendShortcut: {
+        label: "送信ショートカット",
+        options: {
+          enter: "Enter",
+          "mod-enter": "{{modifier}}+Enter",
+        },
       },
       serviceUrls: {
         options: {

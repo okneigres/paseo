@@ -3,18 +3,11 @@ import pino from "pino";
 import type { StreamingTranscriptionSession } from "../../speech-provider.js";
 import type { TurnDetectionSession } from "../../turn-detection-provider.js";
 import { getLocalSpeechModelDir, type LocalSttModelId, type LocalTtsModelId } from "./models.js";
+import { getLocalSttEngine, getLocalTtsEngine } from "./sherpa/model-catalog.js";
 import { SherpaOfflineRecognizerEngine } from "./sherpa/sherpa-offline-recognizer.js";
 import { SherpaOnnxParakeetSTT } from "./sherpa/sherpa-parakeet-stt.js";
 import { SherpaParakeetRealtimeTranscriptionSession } from "./sherpa/sherpa-parakeet-realtime-session.js";
 import { SherpaOnnxTTS } from "./sherpa/sherpa-tts.js";
-import { getSherpaOnnxModelSpec } from "./sherpa/model-catalog.js";
-
-const PARAKEET_STT_FILES = {
-  encoder: "encoder.int8.onnx",
-  decoder: "decoder.int8.onnx",
-  joiner: "joiner.int8.onnx",
-  tokens: "tokens.txt",
-};
 import {
   ensureSileroVadModel,
   SherpaSileroTurnDetectionProvider,
@@ -56,16 +49,10 @@ function sendToParent(message: LocalSpeechWorkerToParentMessage): void {
   }
 }
 
-// "voice2" is the second model that reads voice audio beside "voice".
-type SttRole = "voice" | "voice2" | "dictation";
-
-function sttModelId(config: LocalSpeechWorkerConfig, model: SttRole): LocalSttModelId {
-  if (model === "voice2") {
-    if (!config.voiceSttSecondaryModel) {
-      throw new Error("No secondary voice speech-to-text model is configured");
-    }
-    return config.voiceSttSecondaryModel as LocalSttModelId;
-  }
+function sttModelId(
+  config: LocalSpeechWorkerConfig,
+  model: "voice" | "dictation",
+): LocalSttModelId {
   return (model === "voice" ? config.voiceSttModel : config.dictationSttModel) as LocalSttModelId;
 }
 
@@ -86,7 +73,10 @@ function ttsKey(config: LocalSpeechWorkerConfig): string {
   ].join(":");
 }
 
-function getSttEngine(config: LocalSpeechWorkerConfig, model: SttRole): LocalSttEngine {
+function getSttEngine(
+  config: LocalSpeechWorkerConfig,
+  model: "voice" | "dictation",
+): LocalSttEngine {
   const modelId = sttModelId(config, model);
   const key = sttEngineKey(config, modelId);
   const existing = sttEngines.get(key);
@@ -94,16 +84,10 @@ function getSttEngine(config: LocalSpeechWorkerConfig, model: SttRole): LocalStt
     return existing;
   }
   const modelDir = getLocalSpeechModelDir(config.modelsDir, modelId);
-  const files = getSherpaOnnxModelSpec(modelId).sttFiles ?? PARAKEET_STT_FILES;
   const created = new SherpaOfflineRecognizerEngine(
     {
-      model: {
-        kind: "nemo_transducer",
-        encoder: `${modelDir}/${files.encoder}`,
-        decoder: `${modelDir}/${files.decoder}`,
-        joiner: `${modelDir}/${files.joiner}`,
-        tokens: `${modelDir}/${files.tokens}`,
-      },
+      modelDir,
+      engine: getLocalSttEngine(modelId),
       numThreads: 2,
       debug: 0,
     },
@@ -113,7 +97,10 @@ function getSttEngine(config: LocalSpeechWorkerConfig, model: SttRole): LocalStt
   return created;
 }
 
-function getSttProvider(config: LocalSpeechWorkerConfig, model: SttRole): SherpaOnnxParakeetSTT {
+function getSttProvider(
+  config: LocalSpeechWorkerConfig,
+  model: "voice" | "dictation",
+): SherpaOnnxParakeetSTT {
   const modelId = sttModelId(config, model);
   const key = sttEngineKey(config, modelId);
   const existing = sttProviders.get(key);
@@ -134,8 +121,9 @@ function getTtsProvider(config: LocalSpeechWorkerConfig): SherpaOnnxTTS {
   const modelDir = getLocalSpeechModelDir(config.modelsDir, ttsModelId(config));
   const created = new SherpaOnnxTTS(
     {
-      preset: ttsModelId(config),
+      modelId: ttsModelId(config),
       modelDir,
+      engine: getLocalTtsEngine(ttsModelId(config)),
       speakerId: config.voiceTtsSpeakerId,
       speed: config.voiceTtsSpeed,
     },
@@ -190,9 +178,6 @@ function trackTurnDetectionSession(sessionId: string, session: TurnDetectionSess
   session.on("speech_started", () => {
     sendToParent({ type: "session.speech_started", sessionId });
   });
-  session.on("speech_sustained", () => {
-    sendToParent({ type: "session.speech_sustained", sessionId });
-  });
   session.on("speech_stopped", () => {
     sendToParent({ type: "session.speech_stopped", sessionId });
   });
@@ -225,13 +210,12 @@ async function createSession(
     return { requiredSampleRate: session.requiredSampleRate };
   }
 
-  const model: SttRole =
-    message.kind === "voiceStt" ? "voice" : message.kind === "voiceStt2" ? "voice2" : "dictation";
+  const model = message.kind === "voiceStt" ? "voice" : "dictation";
   const engine = getSttEngine(message.config, model);
   const session =
-    model === "dictation"
-      ? new SherpaParakeetRealtimeTranscriptionSession({ engine })
-      : getSttProvider(message.config, model).createSession({ logger });
+    message.kind === "voiceStt"
+      ? getSttProvider(message.config, "voice").createSession({ logger })
+      : new SherpaParakeetRealtimeTranscriptionSession({ engine });
   trackTranscriptionSession(message.sessionId, session);
   await session.connect();
   sessions.set(message.sessionId, session);

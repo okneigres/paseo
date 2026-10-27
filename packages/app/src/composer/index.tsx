@@ -1118,7 +1118,8 @@ function ComposerAutocompleteBinding({
   recall,
   configuration,
   inputRef,
-  anchorRef,
+  children,
+  anchorStyle,
   show,
   ref,
 }: {
@@ -1130,7 +1131,8 @@ function ComposerAutocompleteBinding({
     "userInput" | "cursorIndex" | "onAutocompleteApplied"
   >;
   inputRef: React.RefObject<MessageInputRef | null>;
-  anchorRef: React.RefObject<View | null>;
+  children: React.ReactNode;
+  anchorStyle: React.ComponentProps<typeof View>["style"];
   show: boolean;
   ref: React.Ref<ComposerAutocompleteHandle>;
 }) {
@@ -1157,7 +1159,7 @@ function ComposerAutocompleteBinding({
   return (
     <ComposerAutocomplete
       visible={autocomplete.isVisible && isShown}
-      anchorRef={anchorRef}
+      anchorStyle={anchorStyle}
       options={autocomplete.options}
       selectedIndex={autocomplete.selectedIndex}
       onSelect={onSelect}
@@ -1165,7 +1167,9 @@ function ComposerAutocompleteBinding({
       errorMessage={autocomplete.errorMessage}
       loadingText={autocomplete.loadingText}
       emptyText={autocomplete.emptyText}
-    />
+    >
+      {children}
+    </ComposerAutocomplete>
   );
 }
 
@@ -2556,7 +2560,6 @@ function ComposerContentImpl({
       pluginClientSlashCommands,
     ],
   );
-  const messageInputContainerRef = useRef<View>(null);
 
   const isSubmitLoadingVisible =
     isProcessing || isSubmitLoading || isUploadingFile || pendingNativeImagePastes > 0;
@@ -2615,17 +2618,16 @@ function ComposerContentImpl({
             {isFullscreen ? null : queueList}
             {!isFullscreen && sendErrorNode}
 
-            <View ref={messageInputContainerRef} style={messageInputContainerStyle}>
-              <ComposerAutocompleteBinding
-                text={textSource}
-                cursor={cursor}
-                recall={recall}
-                inputRef={messageInputRef}
-                anchorRef={messageInputContainerRef}
-                show={mode.showAutocomplete && !isFullscreen}
-                ref={autocompleteRef}
-                configuration={autocompleteConfiguration}
-              />
+            <ComposerAutocompleteBinding
+              text={textSource}
+              cursor={cursor}
+              recall={recall}
+              inputRef={messageInputRef}
+              anchorStyle={messageInputContainerStyle}
+              show={mode.showAutocomplete && !isFullscreen}
+              ref={autocompleteRef}
+              configuration={autocompleteConfiguration}
+            >
               <ComposerForgeBinding
                 text={textSource}
                 configuration={forgeConfiguration}
@@ -2671,6 +2673,7 @@ function ComposerContentImpl({
                   voiceAgentId={agentId}
                   isAgentRunning={isAgentRunning}
                   defaultSendBehavior={activeSendBehavior}
+                  sendShortcut={appSettings.sendShortcut}
                   onQueue={handleQueue}
                   onSubmitLoadingPress={submitLoadingPressHandler}
                   onKeyPress={handleCommandKeyPress}
@@ -2706,7 +2709,7 @@ function ComposerContentImpl({
                 renderOption={renderGithubPickerOption}
               />
               {pluginAttachments.picker}
-            </View>
+            </ComposerAutocompleteBinding>
           </View>
         </View>
       </View>
