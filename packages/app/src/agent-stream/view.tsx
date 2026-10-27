@@ -524,10 +524,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           head: effectiveStreamHead ?? EMPTY_STREAM_HEAD,
           transform: transformTimelineItem,
           display: chatDisplay,
-          autoExpandReasoning,
           expandedTurnHostIds,
           isTurnActive,
-          activeTurnId: effectiveTurnPresentation.turnId,
         }),
       [
         presentStream,
@@ -535,10 +533,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         effectiveStreamHead,
         transformTimelineItem,
         chatDisplay,
-        autoExpandReasoning,
         expandedTurnHostIds,
         isTurnActive,
-        effectiveTurnPresentation.turnId,
       ],
     );
     const {
@@ -580,12 +576,12 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           isTurnActive,
           history: baseRenderModel.history,
           liveHead: baseRenderModel.segments.liveHead,
-          timingByItemId: baseRenderModel.turnTiming.byItemId,
+          timingByAssistantId: baseRenderModel.turnTiming.byAssistantId,
         }),
       [
         baseRenderModel.history,
         baseRenderModel.segments.liveHead,
-        baseRenderModel.turnTiming.byItemId,
+        baseRenderModel.turnTiming.byAssistantId,
         isTurnActive,
         streamRenderStrategy,
       ],
@@ -726,7 +722,6 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             agentId={agentId}
             messageId={item.messageId}
             message={item.text}
-            sender={item.sender}
             images={item.images}
             attachments={item.attachments}
             timestamp={item.timestamp.getTime()}
@@ -792,9 +787,6 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       [agentId, client, handleInlinePathPress, resolvedServerId, toast, workspaceRoot],
     );
 
-    const isExpandedTurnItem = useStableEvent((id: string) =>
-      presentation.turns.nestedItemIds.has(id),
-    );
     const renderThoughtItem = useCallback(
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "thought" }>) => {
         return (
@@ -804,11 +796,11 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             text={item.text}
             status={item.status}
             isLastInSequence={layoutItem.isLastInToolSequence}
-            defaultExpanded={autoExpandReasoning || isExpandedTurnItem(item.id)}
+            defaultExpanded={autoExpandReasoning}
           />
         );
       },
-      [autoExpandReasoning, setInlineDetailsExpanded, isExpandedTurnItem],
+      [autoExpandReasoning, setInlineDetailsExpanded],
     );
 
     const renderSingleToolCallItem = useCallback(
@@ -838,8 +830,6 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               itemId={item.id}
               onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
               toolName={data.name}
-              defaultExpanded={isExpandedTurnItem(item.id)}
-              forceInline={isExpandedTurnItem(item.id)}
               error={data.error}
               status={data.status}
               detail={data.detail}
@@ -869,13 +859,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           />
         );
       },
-      [
-        context.cwd,
-        resolvedServerId,
-        setInlineDetailsExpanded,
-        handleToolCallOpenFile,
-        isExpandedTurnItem,
-      ],
+      [context.cwd, resolvedServerId, setInlineDetailsExpanded, handleToolCallOpenFile],
     );
 
     // Read through a stable event so live group updates do not change the renderer identity
@@ -884,15 +868,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       presentation.groupsByHostId.get(hostId),
     );
     const renderToolCallItem = useCallback(
-      (
-        layoutItem: StreamLayoutItem,
-        item: Extract<StreamItem, { kind: "tool_call" | "thought" }>,
-      ) => {
+      (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "tool_call" }>) => {
         const group = getToolCallGroup(item.id);
         if (!group) {
-          return item.kind === "thought"
-            ? renderThoughtItem(layoutItem, item)
-            : renderSingleToolCallItem(item, layoutItem.isLastInToolSequence);
+          return renderSingleToolCallItem(item, layoutItem.isLastInToolSequence);
         }
         const expanded = expandedToolCallGroupIds.has(group.run.id);
         return (
@@ -905,21 +884,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             {expanded
               ? group.run.calls.map((call, index) => (
                   <React.Fragment key={call.id}>
-                    {call.kind === "thought" ? (
-                      <ThoughtSlot
-                        itemId={call.id}
-                        text={call.text}
-                        status={call.status}
-                        isLastInSequence={index === group.run.calls.length - 1}
-                        defaultExpanded
-                        onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
-                      />
-                    ) : (
-                      renderSingleToolCallItem(
-                        call,
-                        index === group.run.calls.length - 1,
-                        GROUPED_TOOL_CALL_DETAIL_MAX_HEIGHT,
-                      )
+                    {renderSingleToolCallItem(
+                      call,
+                      index === group.run.calls.length - 1,
+                      GROUPED_TOOL_CALL_DETAIL_MAX_HEIGHT,
                     )}
                   </React.Fragment>
                 ))
@@ -929,8 +897,6 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       },
       [
         expandedToolCallGroupIds,
-        renderThoughtItem,
-        setInlineDetailsExpanded,
         getToolCallGroup,
         renderSingleToolCallItem,
         setToolCallGroupExpanded,
@@ -948,20 +914,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             return renderAssistantMessageItem(layoutItem, item);
 
           case "thought":
-            return renderToolCallItem(layoutItem, item);
+            return renderThoughtItem(layoutItem, item);
 
           case "tool_call":
-            return (
-              <>
-                {renderToolCallItem(layoutItem, item)}
-                {getCollapsedTurn(item.id) ? (
-                  <TurnSummaryLine
-                    turn={getCollapsedTurn(item.id)!}
-                    onExpandedChange={setTurnExpanded}
-                  />
-                ) : null}
-              </>
-            );
+            return renderToolCallItem(layoutItem, item);
 
           case "notification":
             return <Notification level={item.level} message={item.message} />;
@@ -991,9 +947,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         agentId,
         renderUserMessageItem,
         renderAssistantMessageItem,
+        renderThoughtItem,
         renderToolCallItem,
-        getCollapsedTurn,
-        setTurnExpanded,
         resolvedServerId,
       ],
     );

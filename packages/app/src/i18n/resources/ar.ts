@@ -2051,13 +2051,12 @@ export const ar: TranslationResources = {
     output: "الإخراج",
   },
   turnSummary: {
-    details: "عرض تفاصيل الجولة",
-    sentBy: "أرسلها {{name}}",
-    showMore: "عرض المزيد",
-    showLess: "عرض أقل",
+    messages: {
+      one: "كتب {{count}} رسالة",
+      other: "كتب {{count}} رسائل",
+    },
   },
   toolCallGroup: {
-    thought: "فكّر",
     editedFiles: {
       one: "حرّر {{count}} ملفًا",
       other: "حرّر {{count}} ملفات",

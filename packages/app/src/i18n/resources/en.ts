@@ -2076,13 +2076,12 @@ export const en = {
     output: "Output",
   },
   turnSummary: {
-    details: "View turn details",
-    sentBy: "Sent by {{name}}",
-    showMore: "Show more",
-    showLess: "Show less",
+    messages: {
+      one: "wrote {{count}} message",
+      other: "wrote {{count}} messages",
+    },
   },
   toolCallGroup: {
-    thought: "Thought",
     editedFiles: {
       one: "edited {{count}} file",
       other: "edited {{count}} files",

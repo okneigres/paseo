@@ -107,7 +107,6 @@ export class InMemoryAgentTimelineStore {
       direction: reset ? "tail" : direction,
       cursorSeq: cursor?.seq,
       limit: options?.limit ?? DEFAULT_TIMELINE_FETCH_LIMIT,
-      wholeTurns: options?.wholeTurns,
     });
     return {
       epoch: state.epoch,

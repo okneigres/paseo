@@ -2099,13 +2099,12 @@ export const fr: TranslationResources = {
     output: "Sortie",
   },
   turnSummary: {
-    details: "Voir les détails du tour",
-    sentBy: "Envoyé par {{name}}",
-    showMore: "Afficher plus",
-    showLess: "Afficher moins",
+    messages: {
+      one: "{{count}} message écrit",
+      other: "{{count}} messages écrits",
+    },
   },
   toolCallGroup: {
-    thought: "Réfléchi",
     editedFiles: {
       one: "{{count}} fichier modifié",
       other: "{{count}} fichiers modifiés",

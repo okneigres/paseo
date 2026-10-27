@@ -1,4 +1,3 @@
-import { MessagePreview, MessageSender } from "@/components/user-message";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
 import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
@@ -90,7 +89,6 @@ export type { InlinePathTarget } from "@/assistant-file-links";
 export type { AssistantForkTarget };
 
 interface UserMessageProps {
-  sender?: AgentMessage["sender"];
   serverId?: string;
   agentId?: string;
   messageId?: string;
@@ -389,7 +387,6 @@ function UserMessageImagePill({ image, onOpen, accessibilityLabel }: UserMessage
 const MESSAGE_TEXT_DATASET = { messageText: "true" };
 
 export const UserMessage = memo(function UserMessage({
-  sender,
   serverId,
   agentId,
   messageId,
@@ -476,45 +473,42 @@ export const UserMessage = memo(function UserMessage({
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
-        {sender ? <MessageSender sender={sender} serverId={serverId} /> : null}
         <View style={userMessageStylesheet.bubble}>
-          <MessagePreview>
-            {hasImages ? (
-              <View style={imagePreviewContainerStyle}>
-                {images.map((image) => (
-                  <UserMessageImagePill
-                    key={image.id}
-                    image={image}
-                    onOpen={setLightboxMetadata}
-                    accessibilityLabel={t("composer.attachments.openImage")}
-                  />
-                ))}
-              </View>
-            ) : null}
-            {hasAttachments ? (
-              <View style={attachmentPreviewContainerStyle}>
-                {attachments.map((attachment, index) => {
-                  const content = getAgentAttachmentPillContent(attachment, t);
-                  return (
-                    <AttachmentFrame
-                      key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
-                    >
-                      <AttachmentLabel
-                        icon={content.icon}
-                        title={content.title}
-                        subtitle={content.subtitle}
-                      />
-                    </AttachmentFrame>
-                  );
-                })}
-              </View>
-            ) : null}
-            {hasText ? (
-              <Text selectable style={userMessageStylesheet.text} dataSet={MESSAGE_TEXT_DATASET}>
-                {message}
-              </Text>
-            ) : null}
-          </MessagePreview>
+          {hasImages ? (
+            <View style={imagePreviewContainerStyle}>
+              {images.map((image) => (
+                <UserMessageImagePill
+                  key={image.id}
+                  image={image}
+                  onOpen={setLightboxMetadata}
+                  accessibilityLabel={t("composer.attachments.openImage")}
+                />
+              ))}
+            </View>
+          ) : null}
+          {hasAttachments ? (
+            <View style={attachmentPreviewContainerStyle}>
+              {attachments.map((attachment, index) => {
+                const content = getAgentAttachmentPillContent(attachment, t);
+                return (
+                  <AttachmentFrame
+                    key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
+                  >
+                    <AttachmentLabel
+                      icon={content.icon}
+                      title={content.title}
+                      subtitle={content.subtitle}
+                    />
+                  </AttachmentFrame>
+                );
+              })}
+            </View>
+          ) : null}
+          {hasText ? (
+            <Text selectable style={userMessageStylesheet.text} dataSet={MESSAGE_TEXT_DATASET}>
+              {message}
+            </Text>
+          ) : null}
         </View>
         {hasText ? (
           <View
@@ -547,7 +541,7 @@ export const UserMessage = memo(function UserMessage({
 });
 
 interface AssistantTurnFooterProps {
-  getContent?: () => string;
+  getContent: () => string;
   completedAt?: Date;
   durationMs?: number | null;
   onFork?: (target: AssistantForkTarget) => Promise<void> | void;
@@ -647,12 +641,10 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
 
   return (
     <View style={assistantTurnFooterStylesheet.container}>
-      {getContent ? (
-        <TurnCopyButton
-          getContent={getContent}
-          containerStyle={assistantTurnFooterStylesheet.copyButton}
-        />
-      ) : null}
+      <TurnCopyButton
+        getContent={getContent}
+        containerStyle={assistantTurnFooterStylesheet.copyButton}
+      />
       {canFork ? <AssistantForkMenu onFork={handleFork} /> : null}
       {primaryLabel ? (
         <Pressable

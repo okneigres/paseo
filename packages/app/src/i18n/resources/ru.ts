@@ -2084,13 +2084,12 @@ export const ru: TranslationResources = {
     output: "Выходные данные",
   },
   turnSummary: {
-    details: "Показать подробности хода",
-    sentBy: "Отправлено агентом {{name}}",
-    showMore: "Показать больше",
-    showLess: "Свернуть",
+    messages: {
+      one: "написано {{count}} сообщение",
+      other: "написаны сообщения ({{count}})",
+    },
   },
   toolCallGroup: {
-    thought: "Обдумал",
     editedFiles: {
       one: "изменён {{count}} файл",
       other: "изменены файлы ({{count}})",

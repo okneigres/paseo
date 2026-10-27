@@ -2061,13 +2061,12 @@ export const ko: TranslationResources = {
     output: "출력",
   },
   turnSummary: {
-    details: "턴 세부 정보 보기",
-    sentBy: "{{name}}이(가) 보냄",
-    showMore: "더 보기",
-    showLess: "접기",
+    messages: {
+      one: "{{count}} 메시지를 작성했습니다.",
+      other: "{{count}} 메시지를 작성했습니다.",
+    },
   },
   toolCallGroup: {
-    thought: "생각함",
     editedFiles: {
       one: "{{count}} 파일을 편집했습니다.",
       other: "{{count}} 파일을 편집했습니다.",

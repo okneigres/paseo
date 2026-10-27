@@ -189,7 +189,6 @@ class TimelineWorld {
           direction: "tail",
           limit: 40,
           projection: "projected",
-          wholeTurns: true,
         });
       } finally {
         this.forcedTimelineTailReplacements.delete(agentId);
@@ -342,12 +341,7 @@ test("uses a tail fetch when an agent becomes visible", async () => {
   membership.succeed();
 
   const fetch = await world.nextFetch("agent-a");
-  expect(fetch.request).toEqual({
-    direction: "tail",
-    limit: 40,
-    projection: "projected",
-    wholeTurns: true,
-  });
+  expect(fetch.request).toEqual({ direction: "tail", limit: 40, projection: "projected" });
   fetch.respond({ hasNewer: false });
 });
 
@@ -372,7 +366,6 @@ test("loads the cache before choosing the authoritative network request", async 
     cursor: { epoch: "cached-epoch", seq: 17 },
     limit: 40,
     projection: "projected",
-    wholeTurns: true,
   });
   fetch.respond({ hasNewer: false });
 });
@@ -391,7 +384,6 @@ test("catches up after the restored cursor when an agent becomes visible", async
     cursor: { epoch: "epoch-agent-a", seq: 42 },
     limit: 40,
     projection: "projected",
-    wholeTurns: true,
   });
   fetch.respond({ hasNewer: false });
 });
@@ -409,12 +401,7 @@ test("falls back to the latest tail when a restored cursor has more than one cat
   probe.respond({ hasNewer: true, seq: 82 });
 
   const fallback = await world.nextFetch("agent-a");
-  expect(fallback.request).toEqual({
-    direction: "tail",
-    limit: 40,
-    projection: "projected",
-    wholeTurns: true,
-  });
+  expect(fallback.request).toEqual({ direction: "tail", limit: 40, projection: "projected" });
   expect(
     world.applyTimelineResponse({
       requestId: "fallback-tail",
@@ -457,7 +444,6 @@ test("a gap absorbed by a running tail is recovered after the tail completes", a
     cursor: { epoch: "epoch-agent-a", seq: 9 },
     limit: 40,
     projection: "projected",
-    wholeTurns: true,
   });
   recovery.respond({ hasNewer: false });
   await vi.waitFor(() => expect(world.sync.getAgentTimelineStatus("agent-a")).toBe("ready"));
@@ -541,7 +527,6 @@ test("unchanged visible-set publication does not cancel paged catch-up", async (
     cursor: { epoch: "epoch-agent-a", seq: 5 },
     limit: 40,
     projection: "projected",
-    wholeTurns: true,
   });
   world.expectNoPendingMembership();
 });
@@ -912,14 +897,12 @@ test("gap recovery supersedes completed catch-up and pages through the current t
       cursor: { epoch: "epoch-agent-a", seq: 10 },
       limit: 40,
       projection: "projected",
-      wholeTurns: true,
     },
     {
       direction: "after",
       cursor: { epoch: "epoch-agent-a", seq: 15 },
       limit: 40,
       projection: "projected",
-      wholeTurns: true,
     },
   ]);
 });
