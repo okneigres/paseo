@@ -465,6 +465,42 @@ export const SHERPA_ONNX_MODEL_CATALOG = {
     ...releaseArchive("tts-models", "vits-piper-es_ES-davefx-medium-int8"),
     engine: piperEngine("es_ES-davefx-medium"),
   },
+  "piper-ru-irina": {
+    kind: "tts",
+    label: "Piper Irina (Russian)",
+    description: "Lightweight Russian female voice.",
+    languages: ["ru"],
+    downloadSizeBytes: 21149417,
+    ...releaseArchive("tts-models", "vits-piper-ru_RU-irina-medium-int8"),
+    engine: piperEngine("ru_RU-irina-medium"),
+  },
+  "piper-ru-denis": {
+    kind: "tts",
+    label: "Piper Denis (Russian)",
+    description: "Lightweight Russian male voice.",
+    languages: ["ru"],
+    downloadSizeBytes: 21058905,
+    ...releaseArchive("tts-models", "vits-piper-ru_RU-denis-medium-int8"),
+    engine: piperEngine("ru_RU-denis-medium"),
+  },
+  "piper-ru-dmitri": {
+    kind: "tts",
+    label: "Piper Dmitri (Russian)",
+    description: "Lightweight Russian male voice.",
+    languages: ["ru"],
+    downloadSizeBytes: 21129441,
+    ...releaseArchive("tts-models", "vits-piper-ru_RU-dmitri-medium-int8"),
+    engine: piperEngine("ru_RU-dmitri-medium"),
+  },
+  "piper-ru-ruslan": {
+    kind: "tts",
+    label: "Piper Ruslan (Russian)",
+    description: "Lightweight Russian male voice.",
+    languages: ["ru"],
+    downloadSizeBytes: 21127907,
+    ...releaseArchive("tts-models", "vits-piper-ru_RU-ruslan-medium-int8"),
+    engine: piperEngine("ru_RU-ruslan-medium"),
+  },
 } as const satisfies Record<string, SherpaOnnxCatalogEntry>;
 
 export type SherpaOnnxModelId = keyof typeof SHERPA_ONNX_MODEL_CATALOG;

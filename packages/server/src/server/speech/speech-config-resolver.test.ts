@@ -168,6 +168,43 @@ describe("resolveSpeechConfig", () => {
     },
   );
 
+  describe("a second voice speech-to-text model", () => {
+    const resolve = (voiceStt: Record<string, unknown>, env: NodeJS.ProcessEnv = {}) =>
+      resolveSpeechConfig({
+        paseoHome: "/tmp/paseo-home",
+        env,
+        persisted: PersistedConfigSchema.parse({
+          features: { voiceMode: { enabled: true, stt: { provider: "local", ...voiceStt } } },
+        }),
+      }).speech.local?.models;
+
+    test("is read from the voice mode settings", () => {
+      const models = resolve({
+        model: "parakeet-tdt-0.6b-v3-int8",
+        secondaryModel: "giga-am-v3-ru",
+      });
+      expect(models?.voiceStt).toBe("parakeet-tdt-0.6b-v3-int8");
+      expect(models?.voiceSttSecondary).toBe("giga-am-v3-ru");
+    });
+
+    test("can be set from the environment", () => {
+      const models = resolve(
+        { model: "parakeet-tdt-0.6b-v3-int8" },
+        { PASEO_VOICE_LOCAL_STT_SECONDARY_MODEL: "giga-am-v3-ru" },
+      );
+      expect(models?.voiceSttSecondary).toBe("giga-am-v3-ru");
+    });
+
+    test("is left out when it is the same model as the first", () => {
+      const models = resolve({ model: "giga-am-v3-ru", secondaryModel: "giga-am-v3-ru" });
+      expect(models?.voiceSttSecondary).toBeUndefined();
+    });
+
+    test("is absent by default", () => {
+      expect(resolve({ model: "parakeet-tdt-0.6b-v3-int8" })?.voiceSttSecondary).toBeUndefined();
+    });
+  });
+
   test("respects disabled dictation and voice mode feature flags", () => {
     const persisted = PersistedConfigSchema.parse({
       features: {
