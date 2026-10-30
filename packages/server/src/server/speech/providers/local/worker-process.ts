@@ -49,10 +49,16 @@ function sendToParent(message: LocalSpeechWorkerToParentMessage): void {
   }
 }
 
-function sttModelId(
-  config: LocalSpeechWorkerConfig,
-  model: "voice" | "dictation",
-): LocalSttModelId {
+// "voice2" is the second model that reads voice audio beside "voice".
+type SttRole = "voice" | "voice2" | "dictation";
+
+function sttModelId(config: LocalSpeechWorkerConfig, model: SttRole): LocalSttModelId {
+  if (model === "voice2") {
+    if (!config.voiceSttSecondaryModel) {
+      throw new Error("No secondary voice speech-to-text model is configured");
+    }
+    return config.voiceSttSecondaryModel as LocalSttModelId;
+  }
   return (model === "voice" ? config.voiceSttModel : config.dictationSttModel) as LocalSttModelId;
 }
 
@@ -73,10 +79,7 @@ function ttsKey(config: LocalSpeechWorkerConfig): string {
   ].join(":");
 }
 
-function getSttEngine(
-  config: LocalSpeechWorkerConfig,
-  model: "voice" | "dictation",
-): LocalSttEngine {
+function getSttEngine(config: LocalSpeechWorkerConfig, model: SttRole): LocalSttEngine {
   const modelId = sttModelId(config, model);
   const key = sttEngineKey(config, modelId);
   const existing = sttEngines.get(key);
@@ -97,10 +100,7 @@ function getSttEngine(
   return created;
 }
 
-function getSttProvider(
-  config: LocalSpeechWorkerConfig,
-  model: "voice" | "dictation",
-): SherpaOnnxParakeetSTT {
+function getSttProvider(config: LocalSpeechWorkerConfig, model: SttRole): SherpaOnnxParakeetSTT {
   const modelId = sttModelId(config, model);
   const key = sttEngineKey(config, modelId);
   const existing = sttProviders.get(key);
@@ -178,6 +178,9 @@ function trackTurnDetectionSession(sessionId: string, session: TurnDetectionSess
   session.on("speech_started", () => {
     sendToParent({ type: "session.speech_started", sessionId });
   });
+  session.on("speech_sustained", () => {
+    sendToParent({ type: "session.speech_sustained", sessionId });
+  });
   session.on("speech_stopped", () => {
     sendToParent({ type: "session.speech_stopped", sessionId });
   });
@@ -210,12 +213,13 @@ async function createSession(
     return { requiredSampleRate: session.requiredSampleRate };
   }
 
-  const model = message.kind === "voiceStt" ? "voice" : "dictation";
+  const model: SttRole =
+    message.kind === "voiceStt" ? "voice" : message.kind === "voiceStt2" ? "voice2" : "dictation";
   const engine = getSttEngine(message.config, model);
   const session =
-    message.kind === "voiceStt"
-      ? getSttProvider(message.config, "voice").createSession({ logger })
-      : new SherpaParakeetRealtimeTranscriptionSession({ engine });
+    model === "dictation"
+      ? new SherpaParakeetRealtimeTranscriptionSession({ engine })
+      : getSttProvider(message.config, model).createSession({ logger });
   trackTranscriptionSession(message.sessionId, session);
   await session.connect();
   sessions.set(message.sessionId, session);

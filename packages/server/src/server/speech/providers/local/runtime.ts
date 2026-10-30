@@ -122,7 +122,7 @@ function initializeLocalTurnDetection(params: {
 }
 
 function secondaryVoiceSttLabel(modelId: string): string {
-  return modelId.startsWith("gigaam") ? "STT B GigaAM" : `STT B ${modelId}`;
+  return /^giga-?am/i.test(modelId) ? "STT B GigaAM" : `STT B ${modelId}`;
 }
 
 function initializeLocalVoiceStt(params: {
