@@ -68,6 +68,7 @@ export const ja: TranslationResources = {
       daemonClientUnavailable: "デーモンクライアントが利用できません",
       daemonClientDisconnected: "デーモンクライアントが切断されています",
       noFileFound: "{{token}}のファイルが見つかりません",
+      folderOutsideWorkspace: "{{path}} はこのワークスペースの外にあります",
       unexpectedDictationError: "音声入力処理中に予期しないエラーが発生しました。",
     },
     connectionStatus: {
@@ -1962,7 +1963,6 @@ export const ja: TranslationResources = {
     parent: {
       backToParent: "親に戻る",
       backTo: "{{label}} に戻る",
-      parent: "親",
       parentAgent: "親エージェント",
       openParent: "親を開く",
     },
@@ -2193,6 +2193,7 @@ export const ja: TranslationResources = {
       days: "{{value}}日",
       hours: "{{value}}時間",
       minutes: "{{value}}分",
+      pair: "{{first}}{{second}}",
     },
     timing: {
       lastUpdated: "最終更新: {{relativeTime}}",
@@ -2200,6 +2201,8 @@ export const ja: TranslationResources = {
       resetTimePassed: "リセット時刻を過ぎています",
       resettingNow: "まもなくリセット",
       resetsIn: "{{duration}}後にリセット",
+      resetsAtWeekday: "{{weekday}} {{time}}",
+      resetsAtDate: "{{date}} {{time}}",
       runsOutNow: "まもなく上限に到達",
       runsOutIn: "{{duration}}後に上限に到達",
       justNow: "たった今",
@@ -2808,6 +2811,14 @@ export const ja: TranslationResources = {
       },
       agents: {
         unavailable: "エージェントを管理するにはこのホストに接続してください",
+        resumeOnStartup: {
+          title: "再起動後にエージェントを再開",
+          info: "ホストの停止時に作業中だったエージェントを開き直し、再開メッセージを送信します。通常の再起動とクラッシュの両方に適用されます。",
+          hint: "中断された作業を自動的に続行します。",
+          prompt: "再開メッセージ",
+          edit: "編集",
+          editAccessibilityLabel: "メッセージを編集",
+        },
         idleRuntimeCleanup: {
           title: "アイドル状態のエージェントを解放",
           hint: "1 時間のアイドル状態の後にメモリを解放します。",
@@ -2906,6 +2917,10 @@ export const ja: TranslationResources = {
           requestFailedTitle: "エラー",
           requestFailedMessage:
             "再起動リクエストの送信に失敗しました。Paseoは自動的に再接続します。ホストがオンラインになったら再試行してください。",
+          closeTerminals: "再起動してターミナルを閉じる",
+          closeTerminalsHint: "再起動し、このホストのすべてのターミナルも閉じます。",
+          closeTerminalsConfirmMessage:
+            "デーモンを再起動し、すべてのターミナルを閉じます。ターミナルで実行中のプログラムは終了します。アプリは自動的に再接続します。",
           dialogFailedMessage: "再起動確認ダイアログを開けませんでした。",
         },
         update: {

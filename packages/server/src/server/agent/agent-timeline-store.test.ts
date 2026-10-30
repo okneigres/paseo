@@ -1,3 +1,4 @@
+import { measureMainThreadWork } from "../../test-utils/main-thread-work.js";
 import { describe, expect, it } from "vitest";
 import { selectReferenceProjectedTimelinePage } from "./test-utils/timeline-page-reference.js";
 import type { AgentTimelineItem } from "./agent-sdk-types.js";
@@ -258,25 +259,19 @@ it.each([false, true])(
     for (let index = 0; index < 100_000; index++) {
       store.append("large", { type: "user_message", text: String(index) });
     }
-    // Generation and its GC are outside the measured request window.
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    const started = performance.now();
-    const probe = new Promise<number>((resolve) =>
-      setImmediate(() => resolve(performance.now() - started)),
+    const { result: tail, blockingMs } = await measureMainThreadWork(
+      `timeline tail main-thread work (wholeTurns=${wholeTurns})`,
+      () => {
+        let page = store.fetch("large", { limit: 200, wholeTurns });
+        for (let repeat = 1; repeat < 8; repeat++)
+          page = store.fetch("large", { limit: 200, wholeTurns });
+        return page;
+      },
     );
-    let page = store.fetch("large", { limit: 200, wholeTurns });
-    for (let repeat = 1; repeat < 8; repeat++)
-      page = store.fetch("large", { limit: 200, wholeTurns });
-    const duration = performance.now() - started;
-    const loopGap = await probe;
-    console.info({ duration, loopGap });
-    expect(page.rows).toHaveLength(200);
-    expect(page.startSeq).toBe(99_801);
-    expect(page.endSeq).toBe(100_000);
-    // CI runners can pause for scheduling/GC; the local per-request 2 ms gate
-    // is measured separately. Eight requests amplify the old full-history work.
-    expect(duration).toBeLessThan(50);
-    expect(loopGap).toBeLessThan(50);
+    expect(tail.rows).toHaveLength(200);
+    expect(tail.startSeq).toBe(99_801);
+    expect(tail.endSeq).toBe(100_000);
+    expect(blockingMs).toBeLessThan(50);
   },
 );
 
