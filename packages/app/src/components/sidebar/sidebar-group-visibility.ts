@@ -16,12 +16,17 @@ export function createWorkspaceVisibilityPolicy<T extends { workspaceKey: string
   };
 }
 
+/** How many rows a pinned section shows before "Show more". */
+export const PINNED_VISIBLE_LIMIT = 20;
+/** How many project workspaces show before "Show more"; active rows beyond it stay visible. */
+export const WORKSPACES_VISIBLE_LIMIT = 70;
+
 export function selectSidebarGroupVisibility<T>(
   items: readonly T[],
   expanded: boolean,
   policy: SidebarGroupVisibilityPolicy<T>,
 ) {
-  const limit = policy.kind === "pinned" ? 20 : 7;
+  const limit = policy.kind === "pinned" ? PINNED_VISIBLE_LIMIT : WORKSPACES_VISIBLE_LIMIT;
   const baseline = items.filter(
     (item, index) =>
       index < limit || (policy.kind === "workspaces" && policy.getStatusBucket(item) !== "done"),
