@@ -628,6 +628,7 @@ export const ru: TranslationResources = {
     terminal: {
       hostDisconnected: "Хост не подключён",
       updateHost: "Обновите хост, чтобы использовать нативный рендерер терминала.",
+      restoreRequiresUpdate: "Обновите хост, чтобы просматривать терминалы.",
       unableToSubscribe: "Не удалось подключиться к терминалу",
       fileUploaded: "Файл загружен",
       pasteFileFailed: "Не удалось вставить файл: {{reason}}",
@@ -2079,7 +2080,6 @@ export const ru: TranslationResources = {
   toolCallDetails: {
     error: "Ошибка",
     empty: "Дополнительные сведения отсутствуют",
-    subAgentActivity: "Активность субагента",
     input: "Входные данные",
     output: "Выходные данные",
   },
