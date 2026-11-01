@@ -467,7 +467,7 @@ describe("sidebar group visibility", () => {
 
   it.each([0, LIMIT, LIMIT + 1])("limits %i Done rows to the visible limit", (count) => {
     const items = entries(Array(count).fill("done"));
-    const { result } = renderHook(() => useLimitedSidebarGroup(items, policy));
+    const { result } = renderHook(() => useLimitedSidebarGroup({ items, selection: null, policy }));
     expect(result.current.visibleItems).toEqual(items.slice(0, LIMIT));
     expect(result.current.canToggle).toBe(count > LIMIT);
   });
@@ -476,7 +476,9 @@ describe("sidebar group visibility", () => {
     "keeps the first active row beyond the limit visible for %s without filling gaps",
     (status) => {
       const items = entries([...Array(LIMIT + 4).fill("done"), status]);
-      const { result } = renderHook(() => useLimitedSidebarGroup(items, policy));
+      const { result } = renderHook(() =>
+        useLimitedSidebarGroup({ items, selection: null, policy }),
+      );
       expect(names(result.current.visibleItems)).toEqual([
         ...names(items.slice(0, LIMIT)),
         `row-${LIMIT + 5}`,
@@ -491,7 +493,11 @@ describe("sidebar group visibility", () => {
     const hydrated = new Map(items.slice(0, LIMIT + 1).map((item) => [item.workspaceKey, item]));
     for (const entriesByKey of [new Map(), hydrated]) {
       const { result } = renderHook(() =>
-        useLimitedSidebarGroup(items, createWorkspaceVisibilityPolicy(entriesByKey)),
+        useLimitedSidebarGroup({
+          items,
+          selection: null,
+          policy: createWorkspaceVisibilityPolicy(entriesByKey),
+        }),
       );
       expect(result.current.canToggle).toBe(true);
       expect(names(result.current.visibleItems)).toEqual(
@@ -513,7 +519,7 @@ describe("sidebar group visibility", () => {
       "needs_input",
       "failed",
     ]);
-    const { result } = renderHook(() => useLimitedSidebarGroup(items, policy));
+    const { result } = renderHook(() => useLimitedSidebarGroup({ items, selection: null, policy }));
     expect(result.current.visibleItems).toEqual(items);
     expect(result.current.canToggle).toBe(false);
   });
@@ -528,7 +534,7 @@ describe("sidebar group visibility", () => {
       "attention",
     ]);
     const { result, rerender, unmount } = renderHook(
-      ({ rows }) => useLimitedSidebarGroup(rows, policy),
+      ({ rows }) => useLimitedSidebarGroup({ items: rows, selection: null, policy }),
       { initialProps: { rows: items } },
     );
     expect(names(result.current.visibleItems)).toEqual([
@@ -555,7 +561,7 @@ describe("sidebar group visibility", () => {
     expect(result.current.expanded).toBe(false);
     act(() => result.current.toggleExpanded());
     unmount();
-    const remounted = renderHook(() => useLimitedSidebarGroup(items, policy));
+    const remounted = renderHook(() => useLimitedSidebarGroup({ items, selection: null, policy }));
     expect(remounted.result.current.expanded).toBe(false);
     expect(remounted.result.current.visibleItems).toHaveLength(LIMIT + 3);
   });
@@ -579,7 +585,12 @@ describe("sidebar group visibility", () => {
       lifecycle: "active" as const,
     };
     const { result, rerender } = renderHook(
-      ({ last }) => useLimitedSidebarGroup([...items.slice(0, LIMIT), last], policy),
+      ({ last }) =>
+        useLimitedSidebarGroup({
+          items: [...items.slice(0, LIMIT), last],
+          selection: null,
+          policy,
+        }),
       { initialProps: { last: items[LIMIT] } },
     );
     expect(result.current.visibleItems).toHaveLength(LIMIT);
@@ -622,7 +633,7 @@ describe("sidebar group visibility", () => {
 
   it("preserves the twenty-row pinned policy regardless of status", () => {
     const items = entries(Array(21).fill("running"));
-    const { result } = renderHook(() => useLimitedSidebarGroup(items));
+    const { result } = renderHook(() => useLimitedSidebarGroup({ items, selection: null }));
     expect(result.current.visibleItems).toEqual(items.slice(0, 20));
     expect(result.current.canToggle).toBe(true);
     act(() => result.current.toggleExpanded());

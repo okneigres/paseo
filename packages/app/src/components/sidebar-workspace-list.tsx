@@ -1667,6 +1667,70 @@ function WorkspaceRow({
   );
 }
 
+/**
+ * The rows under a project's header: the open workspace the limit would hide, then the draggable
+ * siblings, then the "Show more" row.
+ */
+function ProjectWorkspaceChildren({
+  projectViewKey,
+  leadingWorkspace,
+  visibleWorkspaces,
+  renderWorkspace,
+  onDragEnd,
+  activeWorkspaceSelection,
+  useNestable,
+  parentGestureRef,
+  dragGestureHostActive,
+  canToggle,
+  expanded,
+  onToggle,
+}: {
+  projectViewKey: string;
+  leadingWorkspace: SidebarWorkspacePlacement | null;
+  visibleWorkspaces: SidebarWorkspacePlacement[];
+  renderWorkspace: (info: DraggableRenderItemInfo<SidebarWorkspacePlacement>) => ReactElement;
+  onDragEnd: (workspaces: SidebarWorkspacePlacement[]) => void;
+  activeWorkspaceSelection: ActiveWorkspaceSelection | null;
+  useNestable: boolean;
+  parentGestureRef?: MutableRefObject<GestureType | undefined>;
+  dragGestureHostActive?: boolean;
+  canToggle: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  if (leadingWorkspace === null && visibleWorkspaces.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {leadingWorkspace
+        ? renderWorkspace({ item: leadingWorkspace, index: 0, drag: noop, isActive: false })
+        : null}
+      <DraggableList
+        testID={`sidebar-workspace-list-${projectViewKey}`}
+        data={visibleWorkspaces}
+        keyExtractor={workspaceKeyExtractor}
+        renderItem={renderWorkspace}
+        onDragEnd={onDragEnd}
+        extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
+        scrollEnabled={false}
+        useDragHandle
+        nestable={useNestable}
+        simultaneousGestureRef={parentGestureRef}
+        gestureHostPresented={dragGestureHostActive}
+        containerStyle={styles.projectWorkspaceListContainer}
+      />
+      {canToggle ? (
+        <SidebarGroupToggleRow
+          expanded={expanded}
+          onPress={onToggle}
+          testID={`sidebar-project-show-more-${projectViewKey}`}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function ProjectBlock({
   project,
   workspaceEntriesByKey,
@@ -1725,11 +1789,16 @@ function ProjectBlock({
     [workspaceEntriesByKey],
   );
   const {
+    leadingItem: leadingWorkspace,
     visibleItems: visibleWorkspaces,
     expanded: workspacesExpanded,
     canToggle: canToggleWorkspaces,
     toggleExpanded: toggleWorkspacesExpanded,
-  } = useLimitedSidebarGroup(childWorkspaces, workspaceVisibilityPolicy);
+  } = useLimitedSidebarGroup({
+    items: childWorkspaces,
+    selection: selectionEnabled ? activeWorkspaceSelection : null,
+    policy: workspaceVisibilityPolicy,
+  });
   const activeServerId = activeWorkspaceSelection?.serverId ?? null;
   const activeHostStatus = useHostRuntimeConnectionStatus(activeServerId ?? "");
   const preferredServerId = activeHostStatus === "online" ? activeServerId : null;
@@ -2000,33 +2069,22 @@ function ProjectBlock({
   let projectChildren = null;
   if (!collapsed) {
     if (headerWorkspace) {
-      if (childWorkspaces.length > 0) {
-        projectChildren = (
-          <>
-            <DraggableList
-              testID={`sidebar-workspace-list-${project.viewKey}`}
-              data={visibleWorkspaces}
-              keyExtractor={workspaceKeyExtractor}
-              renderItem={renderWorkspace}
-              onDragEnd={handleWorkspaceDragEnd}
-              extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
-              scrollEnabled={false}
-              useDragHandle
-              nestable={useNestable}
-              simultaneousGestureRef={parentGestureRef}
-              gestureHostPresented={dragGestureHostActive}
-              containerStyle={styles.projectWorkspaceListContainer}
-            />
-            {canToggleWorkspaces ? (
-              <SidebarGroupToggleRow
-                expanded={workspacesExpanded}
-                onPress={toggleWorkspacesExpanded}
-                testID={`sidebar-project-show-more-${project.viewKey}`}
-              />
-            ) : null}
-          </>
-        );
-      }
+      projectChildren = (
+        <ProjectWorkspaceChildren
+          projectViewKey={project.viewKey}
+          leadingWorkspace={leadingWorkspace}
+          visibleWorkspaces={visibleWorkspaces}
+          renderWorkspace={renderWorkspace}
+          onDragEnd={handleWorkspaceDragEnd}
+          activeWorkspaceSelection={activeWorkspaceSelection}
+          useNestable={useNestable}
+          parentGestureRef={parentGestureRef}
+          dragGestureHostActive={dragGestureHostActive}
+          canToggle={canToggleWorkspaces}
+          expanded={workspacesExpanded}
+          onToggle={toggleWorkspacesExpanded}
+        />
+      );
     } else if (rowModel.trailingAction.kind === "new_workspace") {
       projectChildren = (
         <NewWorkspaceGhostRow
@@ -2429,11 +2487,15 @@ function ProjectModeList({
   const activeWorkspaceSelection = useActiveWorkspaceSelection();
   const { pinnedChats, unpinnedProjects } = pinnedGroups;
   const {
+    leadingItem: leadingPinnedChat,
     visibleItems: visiblePinnedChats,
     expanded: pinnedChatsExpanded,
     canToggle: canTogglePinnedChats,
     toggleExpanded: togglePinnedChatsExpanded,
-  } = useLimitedSidebarGroup(pinnedChats);
+  } = useLimitedSidebarGroup({
+    items: pinnedChats,
+    selection: selectionEnabled ? activeWorkspaceSelection : null,
+  });
   const nativeScrollGestureProps = useMemo(
     () =>
       parentGestureRef
@@ -2658,34 +2720,35 @@ function ProjectModeList({
     [removeSeparator, renameSeparator, renderProjectBlock],
   );
 
-  const renderPinnedChat = useCallback(
-    ({
-      item: workspace,
-      drag,
-      isActive,
-      dragHandleProps,
-    }: DraggableRenderItemInfo<SidebarWorkspacePlacement>) => {
-      return (
-        <MemoWorkspaceRowItem
-          workspace={workspace}
-          workspaceEntry={workspaceEntriesByKey.get(workspace.workspaceKey) ?? null}
-          hostBadge={hostBadgeByServerId.get(workspace.serverId) ?? null}
-          leadingProjectName={workspace.projectName}
-          shortcutNumber={shortcutIndexByWorkspaceKey.get(workspace.workspaceKey) ?? null}
-          showShortcutBadge={showShortcutBadges}
-          canCopyBranchName={workspace.projectKind === "git"}
-          canPin={supportsPinningByServerId.get(workspace.serverId) === true}
-          onToggleWorkspacePin={onToggleWorkspacePin}
-          isCreating={creatingWorkspaceIds.has(workspace.workspaceId)}
-          selectionEnabled={selectionEnabled}
-          activeWorkspaceSelection={activeWorkspaceSelection}
-          onWorkspacePress={onWorkspacePress}
-          drag={drag}
-          isDragging={isActive}
-          dragHandleProps={dragHandleProps}
-        />
-      );
-    },
+  const renderPinnedChatRow = useCallback(
+    (
+      workspace: SidebarWorkspacePlacement,
+      input?: {
+        drag?: () => void;
+        isDragging?: boolean;
+        dragHandleProps?: DraggableListDragHandleProps;
+      },
+    ) => (
+      <MemoWorkspaceRowItem
+        key={workspace.workspaceKey}
+        workspace={workspace}
+        workspaceEntry={workspaceEntriesByKey.get(workspace.workspaceKey) ?? null}
+        hostBadge={hostBadgeByServerId.get(workspace.serverId) ?? null}
+        leadingProjectName={workspace.projectName}
+        shortcutNumber={shortcutIndexByWorkspaceKey.get(workspace.workspaceKey) ?? null}
+        showShortcutBadge={showShortcutBadges}
+        canCopyBranchName={workspace.projectKind === "git"}
+        canPin={supportsPinningByServerId.get(workspace.serverId) === true}
+        onToggleWorkspacePin={onToggleWorkspacePin}
+        isCreating={creatingWorkspaceIds.has(workspace.workspaceId)}
+        selectionEnabled={selectionEnabled}
+        activeWorkspaceSelection={activeWorkspaceSelection}
+        onWorkspacePress={onWorkspacePress}
+        drag={input?.drag}
+        isDragging={input?.isDragging}
+        dragHandleProps={input?.dragHandleProps}
+      />
+    ),
     [
       activeWorkspaceSelection,
       creatingWorkspaceIds,
@@ -2698,6 +2761,22 @@ function ProjectModeList({
       onToggleWorkspacePin,
       workspaceEntriesByKey,
     ],
+  );
+
+  const renderPinnedChat = useCallback(
+    ({
+      item: workspace,
+      drag,
+      isActive,
+      dragHandleProps,
+    }: DraggableRenderItemInfo<SidebarWorkspacePlacement>) => {
+      return renderPinnedChatRow(workspace, {
+        drag,
+        isDragging: isActive,
+        dragHandleProps,
+      });
+    },
+    [renderPinnedChatRow],
   );
 
   const projectBody =
@@ -2732,6 +2811,7 @@ function ProjectModeList({
           />
           {pinnedCollapsed ? null : (
             <>
+              {leadingPinnedChat ? renderPinnedChatRow(leadingPinnedChat) : null}
               <DraggableList
                 testID="sidebar-pinned-list"
                 data={visiblePinnedChats}
