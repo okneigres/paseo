@@ -158,7 +158,7 @@ export function TextFileToolbar({
           ) : null}
           {view && onViewChange ? (
             <SegmentedControl
-              size="xs"
+              size="sm"
               value={view}
               onValueChange={onViewChange}
               testID="file-preview-mode"
