@@ -1,3 +1,4 @@
+import { useOverlayRegistration, type KeyboardInputEvent } from "@/keyboard";
 import { useAddHost } from "@/hosts/add-host";
 import { Modal } from "@/components/ui/modal";
 import { usePanelStore } from "@/stores/panel-store";
@@ -78,7 +79,7 @@ import {
 import { buildProjectPickerOptions } from "@/components/project-picker-options";
 import { Shortcut } from "@/components/ui/shortcut";
 import { useRevealActiveItem } from "@/components/ui/scroll-reveal";
-import { useKeyboardShortcutsAvailable } from "@/keyboard/availability";
+import { useHardwareKeyboardPresent } from "@/keyboard";
 import { getIsElectronRuntime } from "@/constants/layout";
 import { isNative, isWeb } from "@/constants/platform";
 import { pickDirectory } from "@/desktop/pick-directory";
@@ -86,11 +87,7 @@ import { useFetchQuery } from "@/data/query";
 import { getOpenProjectFailureReason, registerProjectDescriptor } from "@/hooks/open-project";
 import { useIsLocalDaemon, useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 import { useCloneGithubProject, useOpenProject } from "@/hooks/use-open-project";
-import {
-  OverlayLayerProvider,
-  useGlobalWebOverlayLayer,
-  useWebOverlayRegistration,
-} from "@/lib/overlay-root";
+import { OverlayLayerProvider, useGlobalOverlayLayer } from "@/lib/overlay-root";
 import {
   useHosts,
   useHostRuntimeClient,
@@ -371,7 +368,7 @@ function NewDirectoryRow({
 }
 
 function FlowHint({ keys, action }: { keys: string[]; action: string }) {
-  const shortcutsAvailable = useKeyboardShortcutsAvailable();
+  const shortcutsAvailable = useHardwareKeyboardPresent();
   if (!shortcutsAvailable) return null;
 
   return (
@@ -558,13 +555,10 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   });
 
   const handleBack = useCallback(() => {
-    setState((current) => {
-      const previous = backAddProjectPage(current);
-      if (previous) return previous;
-      onClose();
-      return current;
-    });
-  }, [onClose]);
+    const previous = backAddProjectPage(state);
+    if (previous) setState(previous);
+    else onClose();
+  }, [onClose, state]);
 
   const openNewWorkspaceForProject = useCallback(
     (serverId: string, project: WorkspaceProjectDescriptorPayload) => {
@@ -1014,19 +1008,20 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     [activeIndex, handleBack, page, rows, submitActive],
   );
 
-  const modalLayer = useGlobalWebOverlayLayer("modal", isWeb);
-  const handleWebOverlayKeyDown = useCallback(
-    (event: KeyboardEvent) => {
+  const modalLayer = useGlobalOverlayLayer("modal", true);
+  const handleOverlayKeyDown = useCallback(
+    (event: KeyboardInputEvent) => {
       if (!handleKey(event.key)) return false;
       event.preventDefault();
       return true;
     },
     [handleKey],
   );
-  const setWebOverlayScope = useWebOverlayRegistration({
-    active: isWeb,
+  const setOverlayScope = useOverlayRegistration({
+    keys: ["Escape", "Enter", "ArrowUp", "ArrowDown"],
+    active: true,
     layer: modalLayer,
-    onKeyDown: handleWebOverlayKeyDown,
+    onKeyDown: handleOverlayKeyDown,
   });
 
   const handleNativeKeyPress = useCallback(
@@ -1086,7 +1081,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       <View style={styles.overlay} testID="add-project-flow">
         <Pressable style={styles.backdrop} onPress={onClose} testID="add-project-flow-backdrop" />
         <View
-          ref={setWebOverlayScope}
+          ref={setOverlayScope}
           style={styles.panel}
           testID={`add-project-flow-page-${page.kind}`}
           accessibilityLabel={`Add project: ${page.kind}`}
@@ -1263,10 +1258,16 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     </Modal>
   );
 
-  return createElement(OverlayLayerProvider, { layer: isWeb ? modalLayer : 0 }, modal);
+  return createElement(OverlayLayerProvider, { layer: modalLayer }, modal);
 }
 
 const styles = StyleSheet.create((theme) => ({
+  keyboardCapture: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
   overlay: {
     flex: 1,
     justifyContent: "flex-start",
@@ -1337,12 +1338,6 @@ const styles = StyleSheet.create((theme) => ({
     paddingVertical: theme.spacing[1],
     outlineStyle: "none",
   } as object,
-  keyboardCapture: {
-    position: "absolute",
-    width: 1,
-    height: 1,
-    opacity: 0,
-  },
   results: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
   resultsContent: { paddingVertical: theme.spacing[2] },
   row: {
