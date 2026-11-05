@@ -109,7 +109,11 @@ export function buildWorkspaceStructureProjects(input: {
       iconWorkingDir: draft.iconWorkingDir,
       hosts: Array.from(draft.hosts.values()),
       workspaceKeys: draft.workspaces
-        .sort(input.workspaceSort ? compareWorkspaceTimes : compareWorkspaceStructureItems)
+        .sort(
+          input.workspaceSort
+            ? (left, right) => compareWorkspaceTimes(left, right, input.workspaceSort!)
+            : compareWorkspaceStructureItems,
+        )
         .map((workspace) => workspace.workspaceKey),
     }))
     .sort(
@@ -226,6 +230,14 @@ function workspaceSortTime(
   return time?.getTime() ?? 0;
 }
 
-function compareWorkspaceTimes(left: WorkspaceSortItem, right: WorkspaceSortItem): number {
-  return right.sortTime - left.sortTime || left.workspaceKey.localeCompare(right.workspaceKey);
+function compareWorkspaceTimes(
+  left: WorkspaceSortItem,
+  right: WorkspaceSortItem,
+  sort: WorkspaceSort,
+): number {
+  // "created" reads oldest-first so a workspace created now appears last in its project, while
+  // "lastPrompt" keeps the most recently used one on top.
+  const byTime =
+    sort === "created" ? left.sortTime - right.sortTime : right.sortTime - left.sortTime;
+  return byTime || left.workspaceKey.localeCompare(right.workspaceKey);
 }

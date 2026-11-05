@@ -980,7 +980,7 @@ it("retains unrelated projects and keyed row placements when one project reorder
   expect(after.projects[0].workspaces[1]).toBe(before.projects[0].workspaces[0]);
 });
 
-it("prepends newly discovered manual workspaces without dropping filtered saved keys", () => {
+it("appends newly discovered manual workspaces without dropping filtered saved keys", () => {
   const projects = [sidebarProject({ projectKey: "p", workspaceKeys: ["new", "b", "a"] })];
   expect(
     computeSidebarOrderUpdates({
@@ -990,7 +990,7 @@ it("prepends newly discovered manual workspaces without dropping filtered saved 
     }),
   ).toEqual({
     projectOrder: null,
-    workspaceOrders: [{ projectViewKey: "p", order: ["srv:new", "srv:hidden", "srv:a", "srv:b"] }],
+    workspaceOrders: [{ projectViewKey: "p", order: ["srv:hidden", "srv:a", "srv:b", "srv:new"] }],
   });
   expect(
     computeSidebarOrderUpdates({ projects, persistedProjectOrder: ["p"] }).workspaceOrders,

@@ -199,7 +199,7 @@ test("sorts by creation or human prompt without changing picker name order", () 
   ];
   expect(
     buildWorkspaceStructureProjects({ sessions, workspaceSort: "created" })[0].workspaceKeys,
-  ).toEqual(["host:fresh", "host:old"]);
+  ).toEqual(["host:old", "host:fresh"]);
   expect(
     buildWorkspaceStructureProjects({ sessions, workspaceSort: "lastPrompt" })[0].workspaceKeys,
   ).toEqual(["host:old", "host:fresh"]);
