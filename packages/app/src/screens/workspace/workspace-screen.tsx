@@ -3535,7 +3535,6 @@ function WorkspaceScreenContent({
     return (
       <SplitContainer
         layout={workspaceLayout}
-        renderMainHeader={renderWorkspaceScreenHeader}
         renderCompactHeader={renderCompactWorkspaceHeader}
         focusModeEnabled={desktopFocusModeEnabled}
         onExitFocusMode={toggleFocusMode}
@@ -3572,7 +3571,6 @@ function WorkspaceScreenContent({
   }, [
     canRenderDesktopPaneSplits,
     workspaceLayout,
-    renderWorkspaceScreenHeader,
     renderCompactWorkspaceHeader,
     persistenceKey,
     desktopFocusModeEnabled,
@@ -3605,7 +3603,6 @@ function WorkspaceScreenContent({
     handleReorderTabsInPane,
   ]);
   const desktopContent = desktopSplitContent ?? content;
-  const rendersDesktopSplitContent = !isMobile && desktopSplitContent !== null;
 
   const workspacePanelTabIds = useMemo(
     () => [...uiTabs.map((tab) => tab.tabId), ...sheets.map((sheet) => sheet.tab.tabId)],
@@ -3651,41 +3648,39 @@ function WorkspaceScreenContent({
     </View>
   ) : (
     <View style={styles.centerColumn}>
-      {rendersDesktopSplitContent ? null : (
-        <AdaptiveWorkspaceChrome compactHeader={compactWorkspaceHeader}>
-          {fullWorkspaceActions}
-          {renderWorkspaceScreenHeader()}
+      <AdaptiveWorkspaceChrome compactHeader={compactWorkspaceHeader}>
+        {fullWorkspaceActions}
+        {renderWorkspaceScreenHeader()}
 
-          {shouldRenderDesktopPaneFallback ? (
-            <NewTabLauncherProvider value={newTabLauncher}>
-              <WorkspaceDesktopTabsRow
-                paneId={focusedPaneIdOrUndefined}
-                ownsKeyboardShortcuts={false}
-                isFocused={isRouteFocused}
-                tabs={desktopTabRowItems}
-                normalizedServerId={normalizedServerId}
-                normalizedWorkspaceId={normalizedWorkspaceId}
-                setHoveredCloseTabKey={setHoveredCloseTabKey}
-                onNavigateTab={navigateToTabId}
-                onCloseTab={handleCloseTabById}
-                onCopyResumeCommand={handleCopyResumeCommand}
-                onCopyAgentId={handleCopyAgentId}
-                onCopyTerminalId={handleCopyTerminalId}
-                onCopyFilePath={handleCopyFilePath}
-                onReloadAgent={handleReloadAgent}
-                onRenameTab={handleRenameTab}
-                onCloseTabsToLeft={handleCloseTabsToLeft}
-                onCloseTabsToRight={handleCloseTabsToRight}
-                onCloseOtherTabs={handleCloseOtherTabs}
-                onCreateNewTab={handleCreateNewTab}
-                onReorderTabs={handleReorderTabsInFocusedPane}
-                focusModeEnabled={desktopFocusModeEnabled}
-                onExitFocusMode={toggleFocusMode}
-              />
-            </NewTabLauncherProvider>
-          ) : null}
-        </AdaptiveWorkspaceChrome>
-      )}
+        {shouldRenderDesktopPaneFallback ? (
+          <NewTabLauncherProvider value={newTabLauncher}>
+            <WorkspaceDesktopTabsRow
+              paneId={focusedPaneIdOrUndefined}
+              ownsKeyboardShortcuts={false}
+              isFocused={isRouteFocused}
+              tabs={desktopTabRowItems}
+              normalizedServerId={normalizedServerId}
+              normalizedWorkspaceId={normalizedWorkspaceId}
+              setHoveredCloseTabKey={setHoveredCloseTabKey}
+              onNavigateTab={navigateToTabId}
+              onCloseTab={handleCloseTabById}
+              onCopyResumeCommand={handleCopyResumeCommand}
+              onCopyAgentId={handleCopyAgentId}
+              onCopyTerminalId={handleCopyTerminalId}
+              onCopyFilePath={handleCopyFilePath}
+              onReloadAgent={handleReloadAgent}
+              onRenameTab={handleRenameTab}
+              onCloseTabsToLeft={handleCloseTabsToLeft}
+              onCloseTabsToRight={handleCloseTabsToRight}
+              onCloseOtherTabs={handleCloseOtherTabs}
+              onCreateNewTab={handleCreateNewTab}
+              onReorderTabs={handleReorderTabsInFocusedPane}
+              focusModeEnabled={desktopFocusModeEnabled}
+              onExitFocusMode={toggleFocusMode}
+            />
+          </NewTabLauncherProvider>
+        ) : null}
+      </AdaptiveWorkspaceChrome>
       <View style={styles.centerContent}>
         <View style={styles.content}>{desktopContent}</View>
       </View>

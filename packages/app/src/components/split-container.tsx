@@ -66,11 +66,11 @@ import { isNative } from "@/constants/platform";
 
 interface SplitContainerProps {
   layout: WorkspaceLayout;
-  renderMainHeader?: () => ReactNode;
   renderCompactHeader: (
     tabs: WorkspaceTabDescriptor[],
     activeTabKey: string,
     actions: WorkspaceCompactHeaderActions,
+    actionsOnly?: boolean,
   ) => ReactNode;
   workspaceKey: string;
   normalizedServerId: string;
@@ -184,7 +184,6 @@ export function SplitContainer({
   onReorderTabsInPane,
   focusModeEnabled,
   onExitFocusMode,
-  renderMainHeader,
   renderCompactHeader,
 }: SplitContainerProps) {
   const inheritedWindowChromeCorners = useWindowChromeCorners();
@@ -290,7 +289,6 @@ export function SplitContainer({
                 onTogglePaneMaximized={handleTogglePaneMaximized}
                 focusModeEnabled={focusModeEnabled}
                 onExitFocusMode={onExitFocusMode}
-                renderMainHeader={renderMainHeader}
                 renderCompactHeader={renderCompactHeader}
               />
             ) : null}
@@ -423,7 +421,6 @@ function SplitNodeView({
   onTogglePaneMaximized,
   focusModeEnabled,
   onExitFocusMode,
-  renderMainHeader,
   renderCompactHeader,
 }: SplitNodeViewProps) {
   const [groupContainerSize, setGroupContainerSize] = useState(0);
@@ -511,7 +508,6 @@ function SplitNodeView({
             onTogglePaneMaximized={onTogglePaneMaximized}
             focusModeEnabled={focusModeEnabled}
             onExitFocusMode={onExitFocusMode}
-            renderMainHeader={renderMainHeader}
             renderCompactHeader={renderCompactHeader}
           />
         </WindowChromeRegion>
@@ -578,7 +574,6 @@ function SplitNodeView({
               onTogglePaneMaximized={onTogglePaneMaximized}
               focusModeEnabled={focusModeEnabled}
               onExitFocusMode={onExitFocusMode}
-              renderMainHeader={renderMainHeader}
               renderCompactHeader={renderCompactHeader}
             />
           </SplitGroupChild>
@@ -638,7 +633,6 @@ const SplitPaneView = memo(function SplitPaneView({
   onTogglePaneMaximized,
   focusModeEnabled,
   onExitFocusMode,
-  renderMainHeader,
   renderCompactHeader,
 }: SplitPaneViewProps) {
   recordRenderProfileReasons(`SplitPaneView:${pane.id}`, ["render"]);
@@ -773,7 +767,8 @@ const SplitPaneView = memo(function SplitPaneView({
     () => (
       <WindowChromeSafeArea placement="inline">
         <TitlebarDragRegion />
-        {renderCompactHeader(paneTabs, activeTabDescriptor?.key ?? "", compactHeaderActions)}
+        {/* The workspace header renders once above the split; a pane only owns its tab switcher. */}
+        {renderCompactHeader(paneTabs, activeTabDescriptor?.key ?? "", compactHeaderActions, true)}
       </WindowChromeSafeArea>
     ),
     [renderCompactHeader, paneTabs, activeTabDescriptor?.key, compactHeaderActions],
@@ -787,7 +782,6 @@ const SplitPaneView = memo(function SplitPaneView({
         testID={`workspace-pane-${pane.id}`}
       >
         <AdaptiveWorkspaceChrome compactHeader={compactHeader}>
-          {renderMainHeader?.()}
           <WindowChromeRegion corners={focusModeEnabled ? "both" : "none"}>
             <WindowChromeSafeArea placement="inline" style={styles.paneTabs}>
               <TitlebarDragRegion />
