@@ -133,12 +133,11 @@ interface WorkspaceLayoutStore {
   /** Published once by the app shell; callers never pass a form factor to open a tab. */
   layoutMode: WorkspaceLayoutMode;
   pendingOpenByWorkspace: Record<string, OpenWorkspaceTabInput>;
-  /** Session-only: workspaces created here that still owe their first browser pane. */
-  initialBrowserPaneByWorkspace: Record<string, true>;
+  /** Persisted: workspaces that already got their one shot at the first browser tile. */
+  initialBrowserPaneAttemptedByWorkspace: Record<string, true>;
   deferOpenTab: (input: OpenWorkspaceTabInput) => null;
-  /** Marks a workspace the app just created so its first open seeds the browser pane. */
-  requestInitialBrowserPane: (workspaceKey: string) => void;
-  consumeInitialBrowserPane: (workspaceKey: string) => boolean;
+  /** Remembers that a workspace already tried the first browser tile. */
+  markInitialBrowserPaneAttempted: (workspaceKey: string) => void;
   consumePendingOpen: (workspaceKey: string) => string | null;
   /**
    * Each workspace's sheet tabs in the order they opened, so the last is the sheet on top. The
@@ -985,6 +984,7 @@ const PERSISTED_SLICES = [
   "explorerSidebarPaneIdByWorkspace",
   "sidePaneIdByWorkspace",
   "pullRequestTabAutoOpenedByWorkspace",
+  "initialBrowserPaneAttemptedByWorkspace",
 ] as const;
 
 // Zustand persist re-runs partialize after every set, including ones that return the state
@@ -1019,6 +1019,7 @@ function createPersistedStateProjection() {
       explorerPaneIdByWorkspace: source.explorerSidebarPaneIdByWorkspace,
       sidePaneIdByWorkspace: source.sidePaneIdByWorkspace,
       pullRequestTabAutoOpenedByWorkspace: source.pullRequestTabAutoOpenedByWorkspace,
+      initialBrowserPaneAttemptedByWorkspace: source.initialBrowserPaneAttemptedByWorkspace,
     };
     previous = { source, state };
     return state;
@@ -1069,33 +1070,18 @@ export function createWorkspaceLayoutStore(
         },
         panelRevisionByWorkspace: {},
         pendingOpenByWorkspace: {},
-        initialBrowserPaneByWorkspace: {},
-        requestInitialBrowserPane: (workspaceKey) => {
+        initialBrowserPaneAttemptedByWorkspace: {},
+        markInitialBrowserPaneAttempted: (workspaceKey) => {
           const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);
           if (!normalizedWorkspaceKey) {
             return;
           }
           set((state) => ({
-            initialBrowserPaneByWorkspace: {
-              ...state.initialBrowserPaneByWorkspace,
+            initialBrowserPaneAttemptedByWorkspace: {
+              ...state.initialBrowserPaneAttemptedByWorkspace,
               [normalizedWorkspaceKey]: true,
             },
           }));
-        },
-        consumeInitialBrowserPane: (workspaceKey) => {
-          const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);
-          if (
-            !normalizedWorkspaceKey ||
-            !get().initialBrowserPaneByWorkspace[normalizedWorkspaceKey]
-          ) {
-            return false;
-          }
-          set((state) => {
-            const { [normalizedWorkspaceKey]: _consumed, ...initialBrowserPaneByWorkspace } =
-              state.initialBrowserPaneByWorkspace;
-            return { initialBrowserPaneByWorkspace };
-          });
-          return true;
         },
         deferOpenTab: (input) => {
           set((state) => ({
@@ -2290,6 +2276,7 @@ export function createWorkspaceLayoutStore(
               normalizedWorkspaceKey in state.explorerSidebarPaneIdByWorkspace ||
               normalizedWorkspaceKey in state.sidePaneIdByWorkspace ||
               normalizedWorkspaceKey in state.pullRequestTabAutoOpenedByWorkspace ||
+              normalizedWorkspaceKey in state.initialBrowserPaneAttemptedByWorkspace ||
               normalizedWorkspaceKey in state.sheetsByWorkspace;
             if (!hasAny) {
               return state;
@@ -2300,6 +2287,10 @@ export function createWorkspaceLayoutStore(
               [normalizedWorkspaceKey]: _autoOpened,
               ...pullRequestTabAutoOpenedByWorkspace
             } = state.pullRequestTabAutoOpenedByWorkspace;
+            const {
+              [normalizedWorkspaceKey]: _browserAttempted,
+              ...initialBrowserPaneAttemptedByWorkspace
+            } = state.initialBrowserPaneAttemptedByWorkspace;
             const { [normalizedWorkspaceKey]: _layout, ...layoutByWorkspace } =
               state.layoutByWorkspace;
             const { [normalizedWorkspaceKey]: _splits, ...splitSizesByWorkspace } =
@@ -2324,6 +2315,7 @@ export function createWorkspaceLayoutStore(
               ...withSheets(state, normalizedWorkspaceKey, NO_SHEETS),
               pendingOpenByWorkspace,
               pullRequestTabAutoOpenedByWorkspace,
+              initialBrowserPaneAttemptedByWorkspace,
               layoutByWorkspace,
               splitSizesByWorkspace,
               explorerSidebarWidthByWorkspace,
@@ -2397,6 +2389,8 @@ export function createWorkspaceLayoutStore(
             sidePaneIdByWorkspace: result.data.sidePaneIdByWorkspace ?? {},
             pullRequestTabAutoOpenedByWorkspace:
               result.data.pullRequestTabAutoOpenedByWorkspace ?? {},
+            initialBrowserPaneAttemptedByWorkspace:
+              result.data.initialBrowserPaneAttemptedByWorkspace ?? {},
           };
         },
       },

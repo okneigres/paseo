@@ -79,12 +79,7 @@ import type { UserComposerAttachment } from "@/attachments/types";
 import type { AgentAttachment, ForgeSearchItem } from "@getpaseo/protocol/messages";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { AgentProvider } from "@getpaseo/protocol/agent-types";
-import {
-  buildWorkspaceTabPersistenceKey,
-  type WorkspaceDraftTabSetup,
-  type WorkspaceTabTarget,
-} from "@/workspace-tabs/model";
-import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import type { WorkspaceDraftTabSetup, WorkspaceTabTarget } from "@/workspace-tabs/model";
 import { isEmptyWorkspaceSubmission, runCreateEmptyWorkspace } from "./new-workspace-empty";
 import {
   getWorkspaceNamingAttachments,
@@ -1269,16 +1264,6 @@ export function NewWorkspaceScreen({
         serverId: selectedServerId,
         createFailedMessage: t("newWorkspace.errors.createWorktreeFailed"),
       });
-      // The workspace screen is about to open; seed its first browser pane.
-      const createdWorkspaceKey = selectedServerId
-        ? buildWorkspaceTabPersistenceKey({
-            serverId: selectedServerId,
-            workspaceId: normalizedWorkspace.workspace.id,
-          })
-        : null;
-      if (createdWorkspaceKey) {
-        useWorkspaceLayoutStore.getState().requestInitialBrowserPane(createdWorkspaceKey);
-      }
       setCreationResult(normalizedWorkspace);
       return normalizedWorkspace;
     },
