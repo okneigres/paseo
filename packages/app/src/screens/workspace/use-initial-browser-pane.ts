@@ -10,6 +10,10 @@ import {
   useWorkspaceLayoutStore,
   useWorkspaceLayoutStoreHydrated,
 } from "@/stores/workspace-layout-store";
+import {
+  BROWSER_TILE_SIZES,
+  findHalfHeightBrowserTileGroup,
+} from "@/screens/workspace/browser-tile-height";
 
 /** Whether any tab in the workspace is already a browser. */
 function hasBrowserTab(tabs: ReturnType<typeof collectAllTabs>): boolean {
@@ -40,6 +44,12 @@ export function useInitialBrowserPane(input: {
 
     const layout = store.layoutByWorkspace[workspaceKey];
     if (layout && hasBrowserTab(collectAllTabs(layout.root))) {
+      // Tiles seeded before the quarter-height rule keep their user's drag; only the untouched
+      // half-half seed this build created is corrected once.
+      const legacyGroupId = findHalfHeightBrowserTileGroup(layout);
+      if (legacyGroupId) {
+        store.resizeSplit(workspaceKey, legacyGroupId, [...BROWSER_TILE_SIZES]);
+      }
       return;
     }
     const targetPaneId = layout
@@ -49,7 +59,7 @@ export function useInitialBrowserPane(input: {
       targetPaneId,
       position: "top",
       // A quarter of the workspace height: enough for a page, the agent keeps the rest.
-      sizes: [0.25, 0.75],
+      sizes: BROWSER_TILE_SIZES,
     });
     if (!browserPaneId) {
       return;
