@@ -183,6 +183,7 @@ import {
   WorkspacePaneContent,
   type WorkspacePaneContentModel,
 } from "@/screens/workspace/workspace-pane-content";
+import { useInitialBrowserPane } from "@/screens/workspace/use-initial-browser-pane";
 import { useMountedTabSet } from "@/screens/workspace/use-mounted-tab-set";
 import { ensurePanelsRegistered } from "@/panels/register-panels";
 import { SheetPaneHostProvider, type SheetPaneHost } from "@/screens/workspace/sheet-pane";
@@ -1352,6 +1353,10 @@ function WorkspaceScreenContent({
   const reconcileWorkspaceTabs = useWorkspaceLayoutStore((state) => state.reconcileTabs);
   const splitWorkspacePane = useWorkspaceLayoutStore((state) => state.splitPane);
   const splitWorkspacePaneEmpty = useWorkspaceLayoutStore((state) => state.splitPaneEmpty);
+  useInitialBrowserPane({
+    workspaceKey: persistenceKey,
+    workspaceExists: workspaceDescriptor != null,
+  });
   const moveWorkspaceTabToPane = useWorkspaceLayoutStore((state) => state.moveTabToPane);
   const closeWorkspacePane = useWorkspaceLayoutStore((state) => state.closePane);
   const handleToggleExplorerSidebar = useCallback(() => {

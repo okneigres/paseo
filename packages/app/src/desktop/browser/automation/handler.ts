@@ -347,7 +347,7 @@ async function openBrowserTabForRequest(params: {
     });
   }
 
-  const url = command.args.url ?? "https://example.com";
+  const url = command.args.url ?? "about:blank";
   const { browserId, url: normalizedUrl } = createWorkspaceBrowser({ initialUrl: url });
   const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
   if (!workspaceKey) {

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { create } from "zustand";
+import { MIN_EXPLORER_SIDEBAR_WIDTH } from "@/components/explorer-sidebar-layout";
 import { persist, type StateStorage } from "zustand/middleware";
 import type { z } from "zod";
 import { WorkspaceLayoutPersistedStateSchema } from "./workspace-layout-storage";
@@ -1297,10 +1298,22 @@ export function createWorkspaceLayoutStore(
           if (!paneId || get().layoutMode === "compact") return paneId;
           set((state) => {
             const layout = state.layoutByWorkspace[workspaceKey];
+            const wasHidden = layout ? findPaneById(layout.root, paneId)?.hidden === true : false;
             const next = setPaneHiddenInLayout({ layout, paneId, hidden: false });
-            return next
-              ? { layoutByWorkspace: { ...state.layoutByWorkspace, [workspaceKey]: next } }
-              : state;
+            if (!next) return state;
+            return {
+              layoutByWorkspace: { ...state.layoutByWorkspace, [workspaceKey]: next },
+              // Opening the panel always starts from its narrowest width; dragging widens it again.
+              // An unset width already resolves to the minimum, so only a widened panel is stored.
+              ...(wasHidden && state.explorerSidebarWidthByWorkspace[workspaceKey] !== undefined
+                ? {
+                    explorerSidebarWidthByWorkspace: {
+                      ...state.explorerSidebarWidthByWorkspace,
+                      [workspaceKey]: MIN_EXPLORER_SIDEBAR_WIDTH,
+                    },
+                  }
+                : {}),
+            };
           });
           return paneId;
         },

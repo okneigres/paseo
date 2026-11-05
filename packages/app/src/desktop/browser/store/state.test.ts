@@ -36,9 +36,9 @@ describe("normalizeBrowserUrl", () => {
     expect(normalizeBrowserUrl("file:///tmp/example.html")).toBe("file:///tmp/example.html");
   });
 
-  it("falls back to a default URL when input is blank", () => {
-    expect(normalizeBrowserUrl(null)).toBe("https://example.com");
-    expect(normalizeBrowserUrl("   ")).toBe("https://example.com");
+  it("falls back to a blank page when input is empty", () => {
+    expect(normalizeBrowserUrl(null)).toBe("about:blank");
+    expect(normalizeBrowserUrl("   ")).toBe("about:blank");
   });
 });
 

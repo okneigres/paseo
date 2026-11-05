@@ -40,7 +40,7 @@ function useBrowserPanelDescriptor(target: {
   browserId: string;
 }): PanelDescriptor {
   const browser = useBrowserStore((state) => state.browsersById[target.browserId] ?? null);
-  const url = browser?.url ?? "https://example.com";
+  const url = browser?.url ?? "about:blank";
   const icon = createBrowserTabIcon(browser?.faviconUrl ?? null);
   const label = getBrowserLabel({ title: browser?.title ?? "", url });
 
