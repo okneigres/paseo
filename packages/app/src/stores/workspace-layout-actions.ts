@@ -216,6 +216,8 @@ interface SplitPaneEmptyInLayoutInput {
   layout: WorkspaceLayout;
   targetPaneId: string;
   position: "left" | "right" | "top" | "bottom";
+  /** Sizes of the group this call creates; the target pane keeps its slot. */
+  sizes?: readonly [number, number];
   createNodeId: (prefix: WorkspaceLayoutNodeIdPrefix) => string;
   maxTreeDepth: number;
 }
@@ -1988,7 +1990,7 @@ export function splitPaneEmptyInLayout(
       id: input.createNodeId("group"),
       direction,
       children: insertAfter ? [targetNode, newPaneNode] : [newPaneNode, targetNode],
-      sizes: [0.5, 0.5],
+      sizes: input.sizes ? [...input.sizes] : [0.5, 0.5],
     });
     nextRoot = replaceNodeAtPath(layout.root, targetPath, () => newGroup);
   }

@@ -133,7 +133,12 @@ interface WorkspaceLayoutStore {
   /** Published once by the app shell; callers never pass a form factor to open a tab. */
   layoutMode: WorkspaceLayoutMode;
   pendingOpenByWorkspace: Record<string, OpenWorkspaceTabInput>;
+  /** Session-only: workspaces created here that still owe their first browser pane. */
+  initialBrowserPaneByWorkspace: Record<string, true>;
   deferOpenTab: (input: OpenWorkspaceTabInput) => null;
+  /** Marks a workspace the app just created so its first open seeds the browser pane. */
+  requestInitialBrowserPane: (workspaceKey: string) => void;
+  consumeInitialBrowserPane: (workspaceKey: string) => boolean;
   consumePendingOpen: (workspaceKey: string) => string | null;
   /**
    * Each workspace's sheet tabs in the order they opened, so the last is the sheet on top. The
@@ -202,6 +207,7 @@ interface WorkspaceLayoutStore {
     input: {
       targetPaneId: string;
       position: "left" | "right" | "top" | "bottom";
+      sizes?: readonly [number, number];
     },
   ) => string | null;
   moveTabToPane: (workspaceKey: string, tabId: string, toPaneId: string) => void;
@@ -1063,6 +1069,34 @@ export function createWorkspaceLayoutStore(
         },
         panelRevisionByWorkspace: {},
         pendingOpenByWorkspace: {},
+        initialBrowserPaneByWorkspace: {},
+        requestInitialBrowserPane: (workspaceKey) => {
+          const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);
+          if (!normalizedWorkspaceKey) {
+            return;
+          }
+          set((state) => ({
+            initialBrowserPaneByWorkspace: {
+              ...state.initialBrowserPaneByWorkspace,
+              [normalizedWorkspaceKey]: true,
+            },
+          }));
+        },
+        consumeInitialBrowserPane: (workspaceKey) => {
+          const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);
+          if (
+            !normalizedWorkspaceKey ||
+            !get().initialBrowserPaneByWorkspace[normalizedWorkspaceKey]
+          ) {
+            return false;
+          }
+          set((state) => {
+            const { [normalizedWorkspaceKey]: _consumed, ...initialBrowserPaneByWorkspace } =
+              state.initialBrowserPaneByWorkspace;
+            return { initialBrowserPaneByWorkspace };
+          });
+          return true;
+        },
         deferOpenTab: (input) => {
           set((state) => ({
             pendingOpenByWorkspace: {
@@ -1861,6 +1895,7 @@ export function createWorkspaceLayoutStore(
             layout: currentLayout,
             targetPaneId: normalizedTargetPaneId,
             position: input.position,
+            sizes: input.sizes,
             maxTreeDepth: MAX_TREE_DEPTH,
             createNodeId: ids.createNodeId,
           });

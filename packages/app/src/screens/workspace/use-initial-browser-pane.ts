@@ -1,64 +1,51 @@
 import { useEffect } from "react";
 import { getIsElectron } from "@/constants/platform";
 import { createWorkspaceBrowser } from "@/desktop/browser/store";
+import { DEFAULT_PANE_ID } from "@/stores/workspace-layout-actions";
 import {
-  DEFAULT_PANE_ID,
-  collectAllPanes,
-  collectAllTabs,
-  type WorkspaceLayout,
-} from "@/stores/workspace-layout-actions";
-import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
-
-/** Workspaces that never got past the launch tab are the ones that open with a browser. */
-function isUntouchedWorkspaceLayout(layout: WorkspaceLayout): boolean {
-  if (collectAllPanes(layout.root).length !== 1) {
-    return false;
-  }
-  const tabs = collectAllTabs(layout.root);
-  return tabs.length === 1 && tabs[0]?.target.kind === "new_tab";
-}
-
-const openedWorkspaceKeys = new Set<string>();
+  useWorkspaceLayoutStore,
+  useWorkspaceLayoutStoreHydrated,
+} from "@/stores/workspace-layout-store";
 
 /**
- * A freshly opened workspace starts tiled: a browser on top of the agent, half the height each.
- * Only the untouched initial layout qualifies, so a browser the user closed stays closed.
+ * A workspace the app just created opens tiled: an about:blank browser on top of the agent pane,
+ * half the height each. Creation marks the workspace; the mark is consumed once, after the layout
+ * hydrates, so reopened workspaces and manually closed browsers stay as the user left them.
  */
 export function useInitialBrowserPane(input: {
   workspaceKey: string | null;
   workspaceExists: boolean;
 }): void {
-  const splitPaneEmpty = useWorkspaceLayoutStore((state) => state.splitPaneEmpty);
-  const openTab = useWorkspaceLayoutStore((state) => state.openTab);
-  const layout = useWorkspaceLayoutStore((state) =>
-    input.workspaceKey ? (state.layoutByWorkspace[input.workspaceKey] ?? null) : null,
+  const layoutHydrated = useWorkspaceLayoutStoreHydrated();
+  const pending = useWorkspaceLayoutStore((state) =>
+    input.workspaceKey ? state.initialBrowserPaneByWorkspace[input.workspaceKey] === true : false,
   );
   const { workspaceKey, workspaceExists } = input;
 
   useEffect(() => {
-    if (!workspaceKey || !workspaceExists || !getIsElectron()) {
+    if (!workspaceKey || !workspaceExists || !layoutHydrated || !pending || !getIsElectron()) {
       return;
     }
-    if (openedWorkspaceKeys.has(workspaceKey)) {
+    const store = useWorkspaceLayoutStore.getState();
+    if (!store.consumeInitialBrowserPane(workspaceKey)) {
       return;
     }
-    // A stored layout means the workspace was already used; only the fresh default qualifies.
-    if (layout !== null && !isUntouchedWorkspaceLayout(layout)) {
-      return;
-    }
-    openedWorkspaceKeys.add(workspaceKey);
-
-    const targetPaneId = layout?.focusedPaneId ?? DEFAULT_PANE_ID;
-    const browserPaneId = splitPaneEmpty(workspaceKey, { targetPaneId, position: "top" });
+    const targetPaneId = store.layoutByWorkspace[workspaceKey]?.focusedPaneId ?? DEFAULT_PANE_ID;
+    const browserPaneId = store.splitPaneEmpty(workspaceKey, {
+      targetPaneId,
+      position: "top",
+      // A quarter of the workspace height: enough for a page, the agent keeps the rest.
+      sizes: [0.25, 0.75],
+    });
     if (!browserPaneId) {
       return;
     }
     const { browserId } = createWorkspaceBrowser({ initialUrl: "about:blank" });
-    openTab({
+    store.openTab({
       workspaceKey,
       target: { kind: "browser", browserId },
       intent: "new",
       placement: { mode: "pane", paneId: browserPaneId },
     });
-  }, [layout, openTab, splitPaneEmpty, workspaceExists, workspaceKey]);
+  }, [layoutHydrated, pending, workspaceExists, workspaceKey]);
 }

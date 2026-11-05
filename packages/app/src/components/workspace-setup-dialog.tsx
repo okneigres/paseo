@@ -7,6 +7,8 @@ import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
+import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { FileDropZone } from "@/components/file-drop/file-drop-zone";
 import { Composer } from "@/composer";
 import { ProjectIconView } from "@/components/project-icon-view";
@@ -275,6 +277,13 @@ export function WorkspaceSetupDialog() {
       if (payload.agent) input.onAgentCreated?.(payload.agent);
       const normalizedWorkspace = normalizeWorkspaceDescriptor(payload.workspace);
       mergeWorkspaces(pendingWorkspaceSetup.serverId, [normalizedWorkspace]);
+      const createdWorkspaceKey = buildWorkspaceTabPersistenceKey({
+        serverId: pendingWorkspaceSetup.serverId,
+        workspaceId: normalizedWorkspace.id,
+      });
+      if (createdWorkspaceKey) {
+        useWorkspaceLayoutStore.getState().requestInitialBrowserPane(createdWorkspaceKey);
+      }
       if (pendingWorkspaceSetup.creationMethod === "open_project") {
         setHasHydratedWorkspaces(pendingWorkspaceSetup.serverId, true);
       }
