@@ -56,17 +56,11 @@ export function buildWorkspaceStructureProjects(input: {
 }): WorkspaceStructureProject[] {
   const byProject = new Map<string, ProjectDraft>();
   const projectEntries: Array<{ serverId: string; project: ProjectDescriptor }> = [];
-  const keyCountsByServer = new Map<string, Map<string, number>>();
   const viewKeyByServerProjectId = new Map<string, Map<string, string>>();
 
   for (const session of input.sessions) {
     for (const project of session.projects) {
       projectEntries.push({ serverId: session.serverId, project });
-      const sharedKey = project.projectKey ?? null;
-      if (sharedKey) {
-        const counts = getOrCreate(keyCountsByServer, session.serverId, () => new Map());
-        counts.set(sharedKey, (counts.get(sharedKey) ?? 0) + 1);
-      }
     }
   }
 
@@ -77,7 +71,6 @@ export function buildWorkspaceStructureProjects(input: {
   for (const { serverId, project } of projectEntries) {
     const viewKey = addProjectToView({
       byProject,
-      keyCountsByServer,
       allocatedViewKeys,
       serverId,
       project,
@@ -156,18 +149,15 @@ function allocatePlacementViewKey(
 
 function addProjectToView(input: {
   byProject: Map<string, ProjectDraft>;
-  keyCountsByServer: Map<string, Map<string, number>>;
   allocatedViewKeys: Set<string>;
   serverId: string;
   project: ProjectDescriptor;
 }): string {
-  const { byProject, keyCountsByServer, serverId, project } = input;
+  const { byProject, serverId, project } = input;
   const sharedKey = project.projectKey ?? null;
-  const canUseSharedKey =
-    sharedKey !== null && keyCountsByServer.get(serverId)?.get(sharedKey) === 1;
-  const viewKey = canUseSharedKey
-    ? createProjectViewKey({ kind: "equivalence", projectKey: sharedKey })
-    : allocatePlacementViewKey(input.allocatedViewKeys, serverId, project.projectId);
+  // Host-scoped identity: the same git remote on two hosts is two projects with two rows, so a
+  // host that is offline cannot hide behind the other host's project.
+  const viewKey = allocatePlacementViewKey(input.allocatedViewKeys, serverId, project.projectId);
   const placement: WorkspaceStructureHostPlacement = {
     serverId,
     projectId: project.projectId,
