@@ -952,6 +952,9 @@ export const ru: TranslationResources = {
         },
       },
       diff: {
+        baseBranch: {
+          title: "Базовая ветка",
+        },
         openChangesTab: "Открыть вкладку «Изменения»",
         openDiffTab: "Открыть вкладку «Дифф»",
         closeChangesTab: "Закрыть вкладку «Изменения»",
@@ -1265,6 +1268,7 @@ export const ru: TranslationResources = {
       hosts: "Хосты",
       settings: "Настройки",
       closeSidebar: "Закрыть боковую панель",
+      moreActions: "Дополнительные действия",
     },
     separator: {
       add: "Добавить разделитель",
