@@ -17,7 +17,8 @@ import {
 } from "../../workspace-registry.js";
 import type { WorkspaceGitService } from "../../workspace-git-service.js";
 import type { CreatePaseoWorktreeWorkflowResult } from "../../worktree-session.js";
-import { deriveProjectKey } from "../../project-key.js";
+import { deriveProjectKey, deriveProjectNameFromRemoteUrl } from "../../project-key.js";
+import { getProjectNameRemoteUrl } from "../../../utils/checkout-git.js";
 import { areEquivalentPaths, createRealpathAwarePathMatcher } from "../../../utils/path.js";
 import type { UntrustedWorkspaceSource } from "../../workspace-automation-gate.js";
 import { readPaseoWorktreeMetadata } from "../../../utils/worktree-metadata.js";
@@ -204,11 +205,13 @@ export function createWorkspaceProvisioningService(deps: {
   async function findOrCreateProjectForDirectory(cwd: string): Promise<PersistedProjectRecord> {
     const rootPath = resolve(cwd);
     const checkout = await workspaceGitService.getCheckout(rootPath);
+    const groupingRemoteUrl = await getProjectNameRemoteUrl(rootPath);
     const timestamp = new Date().toISOString();
     return projectRegistry.getOrCreateActiveByRoot({
       rootPath,
       kind: checkout.isGit ? "git" : "non_git",
-      displayName: basename(rootPath) || rootPath,
+      displayName:
+        deriveProjectNameFromRemoteUrl(groupingRemoteUrl) || basename(rootPath) || rootPath,
       projectKey: deriveProjectKey({
         rootPath,
         remoteUrl: checkout.remoteUrl,
@@ -356,10 +359,14 @@ export function createWorkspaceProvisioningService(deps: {
     }
 
     const checkout = await workspaceGitService.getCheckout(input.repoRoot);
+    const groupingRemoteUrl = await getProjectNameRemoteUrl(input.repoRoot);
     const project = await projectRegistry.getOrCreateActiveByRoot({
       rootPath: input.repoRoot,
       kind: "git",
-      displayName: basename(input.repoRoot) || input.repoRoot,
+      displayName:
+        deriveProjectNameFromRemoteUrl(groupingRemoteUrl) ||
+        basename(input.repoRoot) ||
+        input.repoRoot,
       projectKey: deriveProjectKey({
         rootPath: input.repoRoot,
         remoteUrl: checkout.remoteUrl,
@@ -514,11 +521,26 @@ export function createWorkspaceProvisioningService(deps: {
       mainRepoRoot: projectCheckout.mainRepoRoot,
       serverId,
     });
-    if (project.kind === kind && project.projectKey === projectKey) return project;
+    // Once per default-named project: the naming remote renames it, and the guard keeps that from
+    // costing a git config read on every later refresh.
+    const carriesFolderName =
+      !project.customName && project.displayName === basename(project.rootPath);
+    const preferredName = carriesFolderName
+      ? deriveProjectNameFromRemoteUrl(await getProjectNameRemoteUrl(project.rootPath))
+      : null;
+    const displayName = preferredName ?? project.displayName;
+    if (
+      project.kind === kind &&
+      project.projectKey === projectKey &&
+      project.displayName === displayName
+    ) {
+      return project;
+    }
     const refreshed = {
       ...project,
       kind,
       projectKey,
+      displayName,
       updatedAt: new Date().toISOString(),
     };
     await projectRegistry.upsert(refreshed);

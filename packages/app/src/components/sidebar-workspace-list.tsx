@@ -171,7 +171,6 @@ import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu
 import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 import type { HostBadgeModel } from "@/hosts/appearance";
 import { useHostBadges } from "@/hosts/use-host-badges";
-import { useSidebarRowItems } from "@/components/sidebar/display-preferences/model";
 import { PullRequestStateIcon } from "@/git/pull-request-state-icon";
 import { bySizing } from "@/components/ui/control-geometry";
 
@@ -1259,7 +1258,6 @@ function WorkspaceRowInner({
             >
               <SidebarWorkspaceRowContent
                 workspace={workspace}
-                hostBadge={hostBadge}
                 leadingProjectName={leadingProjectName}
                 projectCollapse={projectCollapse}
                 projectNamePrefix={projectNamePrefix}
@@ -2231,15 +2229,9 @@ export function SidebarWorkspaceList({
 }: SidebarWorkspaceListProps) {
   const pathname = usePathname();
   const hosts = useHosts();
-  const rowItems = useSidebarRowItems();
-  // Host badge visibility is a lattice, not three competing switches: this gate is the global
-  // "off", the registry count is the automatic "there is only one host so it says nothing", and
-  // each host's own `badgeDisplay` decides name vs icon vs hidden. The count comes from the
-  // registry, not from the projects on screen: a host that is offline keeps its rows hidden, and
-  // counting placements alone made the remaining host's rows lose their badge with it.
-  const hostBadgeByServerId = useHostBadges({
-    enabled: rowItems.host && hosts.length >= 2,
-  });
+  // Every workspace row says which host it lives on: this fork runs across machines, so there is
+  // no "single host, stay quiet" case to detect. Only each host's own `badgeDisplay` can hide it.
+  const hostBadgeByServerId = useHostBadges({ enabled: true });
   const serverIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
   const supportsMultiplicityByServerId = useHostFeatureMap(serverIds, "workspaceMultiplicity");
   const supportsPinningByServerId = useHostFeatureMap(serverIds, "workspacePinning");

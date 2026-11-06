@@ -1431,6 +1431,16 @@ async function isWorkingTreeDirty(cwd: string, context?: CheckoutContext): Promi
   return stdout.trim().length > 0;
 }
 
+/** The remote whose URL names a project on this group's machines; `origin` is only a fallback. */
+export const PROJECT_NAME_REMOTE = "h01";
+
+export async function getProjectNameRemoteUrl(
+  cwd: string,
+  context?: CheckoutContext,
+): Promise<string | null> {
+  return getGitConfigValue(cwd, `remote.${PROJECT_NAME_REMOTE}.url`, context);
+}
+
 export async function getOriginRemoteUrl(
   cwd: string,
   context?: CheckoutContext,

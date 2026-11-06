@@ -915,7 +915,6 @@ function StatusWorkspaceRowInnerContent({
             >
               <SidebarWorkspaceRowContent
                 workspace={workspace}
-                hostBadge={hostBadge}
                 leadingProjectName={projectName}
                 serviceSummary={serviceSummary}
                 isHovered={isHovered}

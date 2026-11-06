@@ -322,7 +322,6 @@ function WorkspaceRowBody({
             >
               <SidebarWorkspaceRowContent
                 workspace={workspace}
-                hostBadge={hostBadge}
                 serviceSummary={serviceSummary}
                 isHovered={isHovered}
                 isLoading={isArchiving || isCreating}

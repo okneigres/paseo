@@ -55,3 +55,14 @@ function lastPathSegment(inputPath: string): string {
 function looksLikeWindowsPath(value: string): boolean {
   return /^[a-zA-Z]:[\\/]/u.test(value) || /^[/\\]{2}[^/\\]+[/\\][^/\\]+/u.test(value);
 }
+
+/** The project's name as the naming remote spells it: its last path segment. */
+export function deriveProjectNameFromRemoteUrl(
+  remoteUrl: string | null | undefined,
+): string | null {
+  if (!remoteUrl) return null;
+  const remote = parseGitRemoteLocation(remoteUrl);
+  if (!remote) return null;
+  const segments = remote.path.split("/").filter(Boolean);
+  return segments[segments.length - 1] ?? null;
+}

@@ -17,8 +17,6 @@ import {
   type WorkspaceServiceSummary,
 } from "@/components/sidebar/workspace-meta-row";
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card";
-import type { HostBadgeModel } from "@/hosts/appearance";
-import { HostBadge } from "@/hosts/host-badge";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import {
   hasSidebarWorkspaceTrailing,
@@ -118,7 +116,6 @@ export interface SidebarProjectCollapseControl {
 
 export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowContent({
   workspace,
-  hostBadge,
   leadingProjectName = null,
   projectCollapse = null,
   projectNamePrefix = null,
@@ -132,7 +129,6 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
-  hostBadge?: HostBadgeModel | null;
   /** Project a hoisted row belongs to; it names that project in the meta line. */
   leadingProjectName?: string | null;
   /** Set on the workspace row that stands in for its project row: hover swaps the icon for the chevron. */
@@ -177,11 +173,11 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
     />
   );
 
-  // The row that stands in for its project row names the project and the host its workspace lives
-  // on, so the title reads "project · host · workspace". The host name comes from the registry
-  // rather than from the row's badge: the local host's badge is hidden by default, and this line
-  // names it regardless.
-  const hostLabel = useHostLabel(projectNamePrefix ? workspace.serverId : null);
+  // Every row names its host, and the registry's label is used rather than the row's badge: a
+  // host's badge setting can hide or shrink it, while this line always says which machine the
+  // workspace lives on. On the row that stands in for its project row the title reads
+  // "project · host · workspace"; everywhere else it reads "host · workspace".
+  const hostLabel = useHostLabel(workspace.serverId);
   // The host rides along at half size: the same string for every workspace on a machine, so it
   // reads as a note beside the project name rather than as a third name.
   const titlePrefix = projectNamePrefix ?? null;
@@ -192,16 +188,14 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
         <View style={styles.workspaceLeadingGroup}>{leadingVisual}</View>
         <View style={styles.workspaceContentColumn}>
           <View style={styles.workspaceTitleRow}>
-            <View style={styles.workspaceTitleLead}>
-              {/* The header row already names its host ahead of the project name. */}
-              {titlePrefix || !hostBadge ? null : <HostBadge badge={hostBadge} />}
-              <Text style={workspaceBranchTextStyle} numberOfLines={1}>
-                {titlePrefix ? (
-                  <WorkspaceTitlePrefix projectName={titlePrefix} hostLabel={hostLabel} />
-                ) : null}
-                {workspaceLabel}
-              </Text>
-            </View>
+            <Text style={workspaceBranchTextStyle} numberOfLines={1}>
+              {titlePrefix ? (
+                <WorkspaceTitlePrefix projectName={titlePrefix} hostLabel={hostLabel} />
+              ) : (
+                <WorkspaceHostTitlePrefix hostLabel={hostLabel} />
+              )}
+              {workspaceLabel}
+            </Text>
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>
           </View>
           <WorkspaceMetaRow
@@ -254,6 +248,19 @@ function WorkspaceTitlePrefix({
       {hostLabel ? <Text style={styles.workspaceTitleSeparator}> · </Text> : null}
       {hostLabel ? <Text style={styles.workspaceTitleHost}>{hostLabel}</Text> : null}
       {hostLabel ? <Text style={styles.workspaceTitleSeparator}> · </Text> : null}
+    </>
+  );
+}
+
+/** The host a workspace lives on, ahead of its name, in the same small type as the project row. */
+function WorkspaceHostTitlePrefix({ hostLabel }: { hostLabel: string | null }): ReactNode {
+  if (!hostLabel) {
+    return null;
+  }
+  return (
+    <>
+      <Text style={styles.workspaceTitleHost}>{hostLabel}</Text>
+      <Text style={styles.workspaceTitleSeparator}> · </Text>
     </>
   );
 }
@@ -681,14 +688,6 @@ const styles = StyleSheet.create((theme) => ({
   workspaceContentColumn: {
     flex: 1,
     minWidth: 0,
-  },
-  workspaceTitleLead: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1.5],
-    flexShrink: 1,
-    minWidth: 0,
-    height: 20,
   },
   workspaceTitleRow: {
     flexDirection: "row",
