@@ -1,7 +1,8 @@
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, Text, View, type GestureResponderEvent, type ViewStyle } from "react-native";
+import { Text, View, type GestureResponderEvent, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import {
   ChevronDown,
   ChevronRight,
@@ -17,6 +18,7 @@ import {
 } from "@/components/sidebar/workspace-meta-row";
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card";
 import type { HostBadgeModel } from "@/hosts/appearance";
+import { HostBadge } from "@/hosts/host-badge";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import {
   hasSidebarWorkspaceTrailing,
@@ -190,20 +192,23 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
         <View style={styles.workspaceLeadingGroup}>{leadingVisual}</View>
         <View style={styles.workspaceContentColumn}>
           <View style={styles.workspaceTitleRow}>
-            <Text style={workspaceBranchTextStyle} numberOfLines={1}>
-              {titlePrefix ? (
-                <WorkspaceTitlePrefix projectName={titlePrefix} hostLabel={hostLabel} />
-              ) : null}
-              {workspaceLabel}
-            </Text>
+            <View style={styles.workspaceTitleLead}>
+              {/* The header row already names its host ahead of the project name. */}
+              {titlePrefix || !hostBadge ? null : <HostBadge badge={hostBadge} />}
+              <Text style={workspaceBranchTextStyle} numberOfLines={1}>
+                {titlePrefix ? (
+                  <WorkspaceTitlePrefix projectName={titlePrefix} hostLabel={hostLabel} />
+                ) : null}
+                {workspaceLabel}
+              </Text>
+            </View>
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>
           </View>
           <WorkspaceMetaRow
             currentBranch={workspace.currentBranch}
-            // The header row names its project and host in the title, so repeating either under
-            // the title would be the same string twice on one row.
+            // The header row names its project in the title; the host sits ahead of every title.
             projectName={projectNamePrefix ? null : leadingProjectName}
-            hostBadge={projectNamePrefix ? null : (hostBadge ?? null)}
+            hostBadge={null}
             prHint={workspace.prHint}
             serviceSummary={serviceSummary}
             labels={labels}
@@ -273,7 +278,7 @@ function ProjectCollapseControl({
   );
 
   return (
-    <Pressable
+    <PressHighlight
       // Not a button on web: this control sits inside the row's own button, and a nested <button>
       // is invalid DOM that React rejects. Same convention the row's trailing controls use.
       accessibilityRole={isWeb ? undefined : "button"}
@@ -290,7 +295,7 @@ function ProjectCollapseControl({
       ) : (
         <ThemedChevronDown size={14} uniProps={foregroundMutedColorMapping} />
       )}
-    </Pressable>
+    </PressHighlight>
   );
 }
 
@@ -676,6 +681,14 @@ const styles = StyleSheet.create((theme) => ({
   workspaceContentColumn: {
     flex: 1,
     minWidth: 0,
+  },
+  workspaceTitleLead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+    flexShrink: 1,
+    minWidth: 0,
+    height: 20,
   },
   workspaceTitleRow: {
     flexDirection: "row",
