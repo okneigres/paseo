@@ -461,16 +461,6 @@ export function buildSidebarProjectsFromHostProjects(input: {
 // space once the visible sidebar spans more than one host. Counting distinct hosts
 // across the visible projects (not all connected hosts) keeps labels off when a host
 // filter pins the view to a single host.
-export function shouldShowSidebarHostLabels(projects: SidebarProjectEntry[]): boolean {
-  const serverIds = new Set<string>();
-  for (const project of projects) {
-    for (const host of project.hosts) {
-      serverIds.add(host.serverId);
-    }
-  }
-  return serverIds.size >= 2;
-}
-
 export function applyStoredOrdering<T>(input: {
   items: T[];
   storedOrder: string[];
@@ -540,6 +530,39 @@ export interface SidebarOrderUpdates {
   workspaceOrders: Array<{ projectViewKey: string; order: string[] }>;
 }
 
+/**
+ * View keys changed shape between releases: a host-local project used to be stored as the
+ * `["<serverId>","<projectId>"]` placement key, and a merged project as its remote key. A stored
+ * order that predates the current shape still names the same projects, so its old keys are
+ * rewritten in place instead of being dropped and re-appended at the bottom — that is what used to
+ * scatter separators the user had placed between projects.
+ */
+function resolveStoredProjectKeys(input: {
+  projects: SidebarProjectEntry[];
+  storedKeys: string[];
+}): string[] {
+  const currentViewKeys = new Set(input.projects.map((project) => project.viewKey));
+  const viewKeyByPlacement = new Map<string, string>();
+  for (const project of input.projects) {
+    for (const host of project.hosts) {
+      viewKeyByPlacement.set(JSON.stringify([host.serverId, host.projectId]), project.viewKey);
+    }
+  }
+  const resolved: string[] = [];
+  const seen = new Set<string>();
+  for (const key of input.storedKeys) {
+    const mapped = currentViewKeys.has(key) ? key : (viewKeyByPlacement.get(key) ?? key);
+    if (seen.has(mapped)) continue;
+    seen.add(mapped);
+    resolved.push(mapped);
+  }
+  return resolved;
+}
+
+function sameKeys(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
 export function computeSidebarOrderUpdates(input: {
   projects: SidebarProjectEntry[];
   persistedProjectOrder: string[];
@@ -549,18 +572,32 @@ export function computeSidebarOrderUpdates(input: {
     return { projectOrder: null, workspaceOrders: [] };
   }
 
+  const resolvedOrder = resolveStoredProjectKeys({
+    projects: input.projects,
+    storedKeys: input.persistedProjectOrder,
+  });
   const nextProjectOrder = appendMissingOrderKeys({
-    currentOrder: input.persistedProjectOrder,
+    currentOrder: resolvedOrder,
     visibleKeys: input.projects.map((project) => project.viewKey),
   });
-  const projectOrder = nextProjectOrder === input.persistedProjectOrder ? null : nextProjectOrder;
+  const projectOrder = sameKeys(nextProjectOrder, input.persistedProjectOrder)
+    ? null
+    : nextProjectOrder;
 
   const workspaceOrders: Array<{ projectViewKey: string; order: string[] }> = [];
   for (const project of input.projects) {
     if (!input.getWorkspaceOrder) break;
+    // A workspace order can be filed under the project's previous key for the same reason.
+    const legacyKey = project.hosts
+      .map((host) => JSON.stringify([host.serverId, host.projectId]))
+      .find((key) => key !== project.viewKey && input.getWorkspaceOrder!(key).length > 0);
     const persistedWorkspaceOrder = input.getWorkspaceOrder(project.viewKey);
+    const effectiveOrder =
+      persistedWorkspaceOrder.length > 0 || !legacyKey
+        ? persistedWorkspaceOrder
+        : input.getWorkspaceOrder(legacyKey);
     const nextWorkspaceOrder = appendMissingOrderKeys({
-      currentOrder: persistedWorkspaceOrder,
+      currentOrder: effectiveOrder,
       visibleKeys: project.workspaces.map((workspace) => workspace.workspaceKey),
     });
     if (nextWorkspaceOrder !== persistedWorkspaceOrder) {
