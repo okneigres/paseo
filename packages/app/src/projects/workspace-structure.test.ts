@@ -40,7 +40,7 @@ function workspace(id: string, projectId: string, root: string): WorkspaceDescri
 }
 
 describe("buildWorkspaceStructureProjects", () => {
-  test("keeps the same project key on two hosts as separate host-scoped projects", () => {
+  test("groups the same project key across hosts and keeps host-local ids", () => {
     const key = "remote:github.com/acme/app";
     const result = buildWorkspaceStructureProjects({
       sessions: [
@@ -57,29 +57,16 @@ describe("buildWorkspaceStructureProjects", () => {
       ],
     });
 
-    expect(result).toHaveLength(2);
-    expect(result.map((item) => item.hosts)).toEqual([
-      [
-        {
-          serverId: "host-a",
-          projectId: "prj_a",
-          iconWorkingDir: "/a/app",
-          worktreeSupport: "supported",
-        },
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      viewKey: key,
+      projectKey: key,
+      hosts: [
+        { serverId: "host-a", projectId: "prj_a" },
+        { serverId: "host-b", projectId: "prj_b" },
       ],
-      [
-        {
-          serverId: "host-b",
-          projectId: "prj_b",
-          iconWorkingDir: "/b/app",
-          worktreeSupport: "supported",
-        },
-      ],
-    ]);
-    expect(result.flatMap((item) => item.workspaceKeys).sort()).toEqual([
-      "host-a:ws-a",
-      "host-b:ws-b",
-    ]);
+      workspaceKeys: ["host-a:ws-a", "host-b:ws-b"],
+    });
   });
 
   test("keeps two clones with the same key on one host separate", () => {
@@ -185,7 +172,7 @@ describe("buildWorkspaceStructureProjects", () => {
     expect(result).toHaveLength(2);
     expect(new Set(result.map((item) => item.viewKey)).size).toBe(2);
     expect(result.find((item) => item.projectKey === placementShapedKey)?.viewKey).toBe(
-      createProjectViewKey({ kind: "placement", serverId: "host-a", projectId: "prj_a" }),
+      placementShapedKey,
     );
   });
 });
