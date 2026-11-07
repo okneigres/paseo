@@ -8,6 +8,7 @@ export function deriveProjectKey(input: {
   remoteUrl: string | null;
   worktreeRoot: string | null;
   mainRepoRoot: string | null;
+  /** Accepted for callers that still pass it; host-local identity is the path alone now. */
   serverId?: string;
 }): string {
   const remote = input.remoteUrl ? parseGitRemoteLocation(input.remoteUrl) : null;
@@ -28,8 +29,9 @@ export function deriveProjectKey(input: {
   const resolvedLocalPath = localPathParts.some(looksLikeWindowsPath)
     ? win32.resolve(...localPathParts)
     : resolve(...localPathParts);
-  const localPath = normalizePathForIdentity(resolvedLocalPath);
-  return input.serverId ? `host:${input.serverId}:${localPath}` : localPath;
+  // No remote at all: the full path is the identity, without the host. Two machines that keep the
+  // project at the same path are the same project; anything else is a different one.
+  return normalizePathForIdentity(resolvedLocalPath);
 }
 
 export function deriveProjectGroupingDisplayName(input: {

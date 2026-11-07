@@ -33,7 +33,7 @@ describe("deriveProjectKey", () => {
     );
   });
 
-  test("keeps projects without a remote host-local", () => {
+  test("identifies a project without a remote by its full path, whichever host sees it", () => {
     const hostA = deriveProjectKey({
       rootPath,
       remoteUrl: null,
@@ -48,7 +48,16 @@ describe("deriveProjectKey", () => {
       mainRepoRoot: null,
       serverId: "host-b",
     });
-    expect(hostA).not.toBe(hostB);
+    expect(hostA).toBe(hostB);
+    expect(hostA).not.toContain("host:");
+    expect(
+      deriveProjectKey({
+        rootPath: `${rootPath}-other`,
+        remoteUrl: null,
+        worktreeRoot: null,
+        mainRepoRoot: null,
+      }),
+    ).not.toBe(hostA);
   });
 
   test("uses one host-local key for two spellings of the same directory", () => {

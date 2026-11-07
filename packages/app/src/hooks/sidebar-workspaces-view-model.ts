@@ -548,6 +548,7 @@ function resolveStoredProjectKeys(input: {
       viewKeyByPlacement.set(JSON.stringify([host.serverId, host.projectId]), project.viewKey);
       // A project without a shared remote used to be keyed by its own path on that host.
       viewKeyByPlacement.set(`host:${host.serverId}:${host.iconWorkingDir}`, project.viewKey);
+      viewKeyByPlacement.set(host.iconWorkingDir, project.viewKey);
     }
   }
   // The project's identity remote changed shape once (origin -> naming remote). The old keys
