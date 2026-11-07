@@ -203,21 +203,31 @@ export function createWorkspaceProvisioningService(deps: {
   }
 
   /**
-   * The remote that identifies the project across hosts. `origin` wins so existing keys stay put;
-   * a checkout without one falls back to the naming remote, without which it could only ever get a
-   * host-local path key and never group with its counterpart on another machine.
+   * The remote that identifies the project across hosts: the naming remote (`h01`) wins, because it
+   * is the one every checkout in this group carries and points at the same repository from any
+   * machine. Without it, `origin` is used, and a checkout with neither falls back to its own path.
+   * The read is cached per root: it only changes when someone edits git config by hand.
    */
+  const namingRemoteUrlByRoot = new Map<string, string | null>();
+  async function resolveNamingRemoteUrl(rootPath: string): Promise<string | null> {
+    const cached = namingRemoteUrlByRoot.get(rootPath);
+    if (cached !== undefined) return cached;
+    const url = await getProjectNameRemoteUrl(rootPath);
+    namingRemoteUrlByRoot.set(rootPath, url);
+    return url;
+  }
+
   async function resolveProjectIdentityRemoteUrl(
     rootPath: string,
     originUrl: string | null,
   ): Promise<string | null> {
-    return originUrl ?? (await getProjectNameRemoteUrl(rootPath));
+    return (await resolveNamingRemoteUrl(rootPath)) ?? originUrl;
   }
 
   async function findOrCreateProjectForDirectory(cwd: string): Promise<PersistedProjectRecord> {
     const rootPath = resolve(cwd);
     const checkout = await workspaceGitService.getCheckout(rootPath);
-    const groupingRemoteUrl = await getProjectNameRemoteUrl(rootPath);
+    const groupingRemoteUrl = await resolveNamingRemoteUrl(rootPath);
     const timestamp = new Date().toISOString();
     return projectRegistry.getOrCreateActiveByRoot({
       rootPath,
@@ -371,7 +381,7 @@ export function createWorkspaceProvisioningService(deps: {
     }
 
     const checkout = await workspaceGitService.getCheckout(input.repoRoot);
-    const groupingRemoteUrl = await getProjectNameRemoteUrl(input.repoRoot);
+    const groupingRemoteUrl = await resolveNamingRemoteUrl(input.repoRoot);
     const project = await projectRegistry.getOrCreateActiveByRoot({
       rootPath: input.repoRoot,
       kind: "git",

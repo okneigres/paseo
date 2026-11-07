@@ -550,15 +550,51 @@ function resolveStoredProjectKeys(input: {
       viewKeyByPlacement.set(`host:${host.serverId}:${host.iconWorkingDir}`, project.viewKey);
     }
   }
+  // The project's identity remote changed shape once (origin -> naming remote). The old keys
+  // still name the same project, so a remote key whose repository name unambiguously matches one
+  // project is mapped to it rather than dropped.
+  const viewKeyByName = new Map<string, string | null>();
+  for (const project of input.projects) {
+    const names = new Set<string>([
+      normalizeProjectName(project.projectName),
+      normalizeProjectName(lastPathSegment(project.iconWorkingDir)),
+    ]);
+    for (const name of names) {
+      if (!name) continue;
+      const existing = viewKeyByName.get(name);
+      viewKeyByName.set(name, existing && existing !== project.viewKey ? null : project.viewKey);
+    }
+  }
+
   const resolved: string[] = [];
   const seen = new Set<string>();
   for (const key of input.storedKeys) {
-    const mapped = currentViewKeys.has(key) ? key : (viewKeyByPlacement.get(key) ?? key);
+    let mapped = currentViewKeys.has(key) ? key : viewKeyByPlacement.get(key);
+    if (!mapped && key.startsWith("remote:")) {
+      const name = normalizeProjectName(remoteRepositoryName(key));
+      mapped = (name ? viewKeyByName.get(name) : undefined) ?? undefined;
+    }
+    mapped ??= key;
     if (seen.has(mapped)) continue;
     seen.add(mapped);
     resolved.push(mapped);
   }
   return resolved;
+}
+
+function lastPathSegment(path: string): string {
+  const segments = path.split(/[\\/]/u).filter(Boolean);
+  return segments[segments.length - 1] ?? "";
+}
+
+function remoteRepositoryName(key: string): string {
+  const withoutPrefix = key.slice("remote:".length);
+  const withoutSubdir = withoutPrefix.split("#")[0] ?? withoutPrefix;
+  return lastPathSegment(withoutSubdir).replace(/\.git$/u, "");
+}
+
+function normalizeProjectName(name: string): string {
+  return name.trim().toLowerCase();
 }
 
 function sameKeys(left: readonly string[], right: readonly string[]): boolean {
