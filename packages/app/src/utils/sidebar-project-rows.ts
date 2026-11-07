@@ -24,8 +24,8 @@ function separatorIdFromOrderKey(key: string): string | null {
  * The list's rows in stored order.
  *
  * Keys the order knows but the data does not are dropped (a removed project, a deleted
- * separator); rows the order does not know are appended, which is how a newly created project or
- * separator first appears — at the bottom, where the user put the last thing they made.
+ * separator); rows the order does not know appear at the top — a project the user just created is
+ * what they are looking for — while a new separator joins the end of the list.
  */
 export function buildSidebarProjectRows(input: {
   projects: readonly SidebarProjectEntry[];
@@ -52,11 +52,13 @@ export function buildSidebarProjectRows(input: {
     }
   }
 
+  const unseenProjects: SidebarProjectRow[] = [];
   for (const project of input.projects) {
     if (!placed.has(project.viewKey)) {
-      rows.push({ kind: "project", key: project.viewKey, project });
+      unseenProjects.push({ kind: "project", key: project.viewKey, project });
     }
   }
+  rows.unshift(...unseenProjects);
   for (const separator of input.separators) {
     const key = sidebarSeparatorOrderKey(separator.id);
     if (!placed.has(key)) {

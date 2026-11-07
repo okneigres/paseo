@@ -34,14 +34,14 @@ describe("buildSidebarProjectRows", () => {
     expect(rows.map((row) => row.kind)).toEqual(["project", "separator", "project", "separator"]);
   });
 
-  it("appends rows the order has never seen, projects first", () => {
+  it("puts an unseen project on top and an unseen separator at the end", () => {
     const rows = buildSidebarProjectRows({
       projects: [project("a"), project("b")],
       separators: [separator("s1")],
       projectOrder: ["b"],
     });
 
-    expect(rows.map((row) => row.key)).toEqual(["b", "a", sidebarSeparatorOrderKey("s1")]);
+    expect(rows.map((row) => row.key)).toEqual(["a", "b", sidebarSeparatorOrderKey("s1")]);
   });
 
   it("drops order keys whose project or separator is gone", () => {

@@ -525,6 +525,25 @@ export function appendMissingOrderKeys(input: {
   return [...input.currentOrder, ...missingKeys];
 }
 
+/**
+ * Adds keys the order has not seen yet to the front. A project the user just created belongs on
+ * top, where the eye lands when the sidebar is reopened.
+ */
+export function prependMissingOrderKeys(input: {
+  currentOrder: string[];
+  visibleKeys: string[];
+}): string[] {
+  if (input.visibleKeys.length === 0) {
+    return input.currentOrder;
+  }
+  const existingKeys = new Set(input.currentOrder);
+  const missingKeys = input.visibleKeys.filter((key) => !existingKeys.has(key));
+  if (missingKeys.length === 0) {
+    return input.currentOrder;
+  }
+  return [...missingKeys, ...input.currentOrder];
+}
+
 export interface SidebarOrderUpdates {
   projectOrder: string[] | null;
   workspaceOrders: Array<{ projectViewKey: string; order: string[] }>;
@@ -615,7 +634,7 @@ export function computeSidebarOrderUpdates(input: {
     projects: input.projects,
     storedKeys: input.persistedProjectOrder,
   });
-  const nextProjectOrder = appendMissingOrderKeys({
+  const nextProjectOrder = prependMissingOrderKeys({
     currentOrder: resolvedOrder,
     visibleKeys: input.projects.map((project) => project.viewKey),
   });

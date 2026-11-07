@@ -546,7 +546,7 @@ describe("computeSidebarOrderUpdates", () => {
     expect(updates).toEqual({ projectOrder: null, workspaceOrders: [] });
   });
 
-  it("appends unseen projects without changing saved project order", () => {
+  it("puts unseen projects on top without changing saved project order", () => {
     const projects = [
       sidebarProject({ projectKey: "project-a", workspaceKeys: ["ws-1", "ws-2"] }),
       sidebarProject({ projectKey: "project-b", workspaceKeys: ["ws-3"] }),
@@ -557,7 +557,7 @@ describe("computeSidebarOrderUpdates", () => {
       persistedProjectOrder: ["project-a"],
     });
 
-    expect(updates.projectOrder).toEqual(["project-a", "project-b"]);
+    expect(updates.projectOrder).toEqual(["project-b", "project-a"]);
   });
 
   it("returns no project-order update when persisted order already covers visible keys", () => {
