@@ -94,6 +94,7 @@ import { useToast } from "@/contexts/toast-context";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import { toWorktreeArchiveRisk } from "@/git/worktree-archive-warning";
 import { hasVisibleOrderChanged, mergeWithRemainder } from "@/utils/sidebar-reorder";
+import { shouldShowHostLabel } from "@/utils/sidebar-host-label";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { SidebarStatusWorkspaceList } from "@/components/sidebar/sidebar-status-list";
 import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels";
@@ -284,6 +285,7 @@ interface ProjectHeaderRowProps {
 interface WorkspaceRowInnerProps {
   workspace: SidebarWorkspaceEntry;
   hostBadge?: HostBadgeModel | null;
+  showHost?: boolean;
   leadingProjectName?: string | null;
   /** Set on the row standing in for its project row: it carries that project's collapse control. */
   projectCollapse?: SidebarProjectCollapseControl | null;
@@ -1120,6 +1122,7 @@ function ProjectHeaderRow({
 function WorkspaceRowInner({
   workspace,
   hostBadge,
+  showHost = true,
   leadingProjectName,
   projectCollapse,
   projectNamePrefix,
@@ -1258,6 +1261,7 @@ function WorkspaceRowInner({
             >
               <SidebarWorkspaceRowContent
                 workspace={workspace}
+                showHost={showHost}
                 leadingProjectName={leadingProjectName}
                 projectCollapse={projectCollapse}
                 projectNamePrefix={projectNamePrefix}
@@ -1303,6 +1307,7 @@ function WorkspaceRowInner({
 function WorkspaceRowWithMenu({
   workspace,
   hostBadge,
+  showHost = true,
   leadingProjectName,
   selected,
   shortcutNumber,
@@ -1323,6 +1328,7 @@ function WorkspaceRowWithMenu({
 }: {
   workspace: SidebarWorkspaceEntry;
   hostBadge?: HostBadgeModel | null;
+  showHost?: boolean;
   leadingProjectName?: string | null;
   projectCollapse?: SidebarProjectCollapseControl | null;
   projectNamePrefix?: string | null;
@@ -1427,6 +1433,7 @@ function WorkspaceRowWithMenu({
       <WorkspaceRowInner
         workspace={workspace}
         hostBadge={hostBadge}
+        showHost={showHost}
         leadingProjectName={leadingProjectName}
         projectCollapse={projectCollapse}
         projectNamePrefix={projectNamePrefix}
@@ -1470,6 +1477,8 @@ interface WorkspaceRowItemProps {
   workspace: SidebarWorkspacePlacement;
   workspaceEntry: SidebarWorkspaceEntry | null;
   hostBadge?: HostBadgeModel | null;
+  /** False when the row above already named this host. */
+  showHost?: boolean;
   leadingProjectName?: string | null;
   /** Set on the row standing in for its project row: it carries that project's affordances. */
   projectCollapse?: SidebarProjectCollapseControl | null;
@@ -1495,6 +1504,7 @@ function WorkspaceRowItem({
   workspace,
   workspaceEntry,
   hostBadge,
+  showHost = true,
   leadingProjectName,
   projectCollapse,
   projectNamePrefix,
@@ -1526,6 +1536,7 @@ function WorkspaceRowItem({
     <WorkspaceRow
       workspaceEntry={workspaceEntry}
       hostBadge={hostBadge}
+      showHost={showHost}
       leadingProjectName={leadingProjectName}
       projectCollapse={projectCollapse}
       projectNamePrefix={projectNamePrefix}
@@ -1598,6 +1609,7 @@ const MemoWorkspaceRowItem = memo(WorkspaceRowItem, areWorkspaceRowItemPropsEqua
 function WorkspaceRow({
   workspaceEntry,
   hostBadge,
+  showHost = true,
   leadingProjectName,
   projectCollapse,
   projectNamePrefix,
@@ -1618,6 +1630,7 @@ function WorkspaceRow({
 }: {
   workspaceEntry: SidebarWorkspaceEntry | null;
   hostBadge?: HostBadgeModel | null;
+  showHost?: boolean;
   leadingProjectName?: string | null;
   projectCollapse?: SidebarProjectCollapseControl | null;
   projectNamePrefix?: string | null;
@@ -1644,6 +1657,7 @@ function WorkspaceRow({
     <WorkspaceRowWithMenu
       workspace={workspaceEntry}
       hostBadge={hostBadge}
+      showHost={showHost}
       leadingProjectName={leadingProjectName}
       projectCollapse={projectCollapse}
       projectNamePrefix={projectNamePrefix}
@@ -1863,6 +1877,7 @@ function ProjectBlock({
         drag?: () => void;
         isDragging?: boolean;
         dragHandleProps?: DraggableListDragHandleProps;
+        showHost?: boolean;
       },
     ) => {
       return (
@@ -1870,6 +1885,7 @@ function ProjectBlock({
           workspace={item}
           workspaceEntry={workspaceEntriesByKey.get(item.workspaceKey) ?? null}
           hostBadge={hostBadgeByServerId.get(item.serverId) ?? null}
+          showHost={input?.showHost ?? true}
           shortcutNumber={shortcutIndexByWorkspaceKey.get(item.workspaceKey) ?? null}
           showShortcutBadge={showShortcutBadges}
           canCopyBranchName={project.projectKind === "git"}
@@ -1903,6 +1919,7 @@ function ProjectBlock({
   const renderWorkspace = useCallback(
     ({
       item,
+      index,
       drag: workspaceDrag,
       isActive,
       dragHandleProps: workspaceDragHandleProps,
@@ -1911,9 +1928,16 @@ function ProjectBlock({
         drag: workspaceDrag,
         isDragging: isActive,
         dragHandleProps: workspaceDragHandleProps,
+        showHost: shouldShowHostLabel({
+          workspace: item,
+          index,
+          rows: visibleWorkspaces,
+          leading: leadingWorkspace,
+          fallbackServerId: headerWorkspace?.serverId ?? null,
+        }),
       });
     },
-    [renderWorkspaceRow],
+    [headerWorkspace, leadingWorkspace, renderWorkspaceRow, visibleWorkspaces],
   );
 
   const handleWorkspaceDragEnd = useCallback(
@@ -2720,6 +2744,7 @@ function ProjectModeList({
         drag?: () => void;
         isDragging?: boolean;
         dragHandleProps?: DraggableListDragHandleProps;
+        showHost?: boolean;
       },
     ) => (
       <MemoWorkspaceRowItem
@@ -2727,6 +2752,7 @@ function ProjectModeList({
         workspace={workspace}
         workspaceEntry={workspaceEntriesByKey.get(workspace.workspaceKey) ?? null}
         hostBadge={hostBadgeByServerId.get(workspace.serverId) ?? null}
+        showHost={input?.showHost ?? true}
         leadingProjectName={workspace.projectName}
         shortcutNumber={shortcutIndexByWorkspaceKey.get(workspace.workspaceKey) ?? null}
         showShortcutBadge={showShortcutBadges}
@@ -2759,6 +2785,7 @@ function ProjectModeList({
   const renderPinnedChat = useCallback(
     ({
       item: workspace,
+      index,
       drag,
       isActive,
       dragHandleProps,
@@ -2767,9 +2794,15 @@ function ProjectModeList({
         drag,
         isDragging: isActive,
         dragHandleProps,
+        showHost: shouldShowHostLabel({
+          workspace,
+          index,
+          rows: visiblePinnedChats,
+          leading: leadingPinnedChat,
+        }),
       });
     },
-    [renderPinnedChatRow],
+    [leadingPinnedChat, renderPinnedChatRow, visiblePinnedChats],
   );
 
   const projectBody =
@@ -2804,7 +2837,9 @@ function ProjectModeList({
           />
           {pinnedCollapsed ? null : (
             <>
-              {leadingPinnedChat ? renderPinnedChatRow(leadingPinnedChat) : null}
+              {leadingPinnedChat
+                ? renderPinnedChatRow(leadingPinnedChat, { showHost: true })
+                : null}
               <DraggableList
                 testID="sidebar-pinned-list"
                 data={visiblePinnedChats}

@@ -37,6 +37,7 @@ import {
 import { useToast } from "@/contexts/toast-context";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
 import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
+import { shouldShowHostLabel } from "@/utils/sidebar-host-label";
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
 import { toWorktreeArchiveRisk } from "@/git/worktree-archive-warning";
@@ -167,12 +168,19 @@ export function SidebarStatusWorkspaceList({
   const renderPinnedWorkspace = useCallback(
     ({
       item: workspace,
+      index,
       drag,
       isActive,
       dragHandleProps,
     }: DraggableRenderItemInfo<SidebarWorkspaceEntry>) => (
       <StatusWorkspaceRow
         workspace={workspace}
+        showHost={shouldShowHostLabel({
+          workspace,
+          index,
+          rows: visiblePinnedWorkspaces,
+          leading: leadingPinnedWorkspace,
+        })}
         {...buildStatusRowProjectPresentation({
           workspace,
           hostBadgeByServerId,
@@ -190,11 +198,13 @@ export function SidebarStatusWorkspaceList({
     ),
     [
       hostBadgeByServerId,
+      leadingPinnedWorkspace,
       onToggleWorkspacePin,
       onWorkspacePress,
       showShortcutBadges,
       statusShortcutIndex,
       supportsPinningByServerId,
+      visiblePinnedWorkspaces,
     ],
   );
   const content = (
@@ -358,10 +368,11 @@ function StatusGroupRows({
     policy: STATUS_GROUP_VISIBILITY,
   });
 
-  const renderStatusRow = (workspace: SidebarWorkspaceEntry) => (
+  const renderStatusRow = (workspace: SidebarWorkspaceEntry, showHost: boolean) => (
     <StatusWorkspaceRow
       key={workspace.workspaceKey}
       workspace={workspace}
+      showHost={showHost}
       {...buildStatusRowProjectPresentation({
         workspace,
         hostBadgeByServerId,
@@ -382,8 +393,18 @@ function StatusGroupRows({
           style={styles.statusWorkspaceListContainer}
           testID={`sidebar-status-group-rows-${group.key}`}
         >
-          {leadingWorkspace ? renderStatusRow(leadingWorkspace) : null}
-          {visibleWorkspaces.map((workspace) => renderStatusRow(workspace))}
+          {leadingWorkspace ? renderStatusRow(leadingWorkspace, true) : null}
+          {visibleWorkspaces.map((workspace, index) =>
+            renderStatusRow(
+              workspace,
+              shouldShowHostLabel({
+                workspace,
+                index,
+                rows: visibleWorkspaces,
+                leading: leadingWorkspace,
+              }),
+            ),
+          )}
           {canToggleWorkspaces ? (
             <SidebarGroupToggleRow
               expanded={workspacesExpanded}
@@ -508,6 +529,7 @@ function StatusGroupIcon({ bucket }: { bucket: StatusBucket }) {
 const StatusWorkspaceRow = memo(function StatusWorkspaceRow({
   workspace,
   hostBadge,
+  showHost = true,
   projectName,
   shortcutNumber,
   showShortcutBadge,
@@ -521,6 +543,8 @@ const StatusWorkspaceRow = memo(function StatusWorkspaceRow({
 }: {
   workspace: SidebarWorkspaceEntry;
   hostBadge: HostBadgeModel | null;
+  /** False when the row above already named this host. */
+  showHost?: boolean;
   projectName: string;
   shortcutNumber: number | null;
   showShortcutBadge: boolean;
@@ -551,6 +575,7 @@ const StatusWorkspaceRow = memo(function StatusWorkspaceRow({
     <StatusWorkspaceRowWithMenu
       workspace={workspace}
       hostBadge={hostBadge}
+      showHost={showHost}
       projectName={projectName}
       selected={selected}
       shortcutNumber={shortcutNumber}
@@ -570,6 +595,7 @@ const StatusWorkspaceRow = memo(function StatusWorkspaceRow({
 function StatusWorkspaceRowWithMenu({
   workspace,
   hostBadge,
+  showHost = true,
   projectName,
   selected,
   shortcutNumber,
@@ -585,6 +611,7 @@ function StatusWorkspaceRowWithMenu({
 }: {
   workspace: SidebarWorkspaceEntry;
   hostBadge: HostBadgeModel | null;
+  showHost?: boolean;
   projectName: string;
   selected: boolean;
   shortcutNumber: number | null;
@@ -683,6 +710,7 @@ function StatusWorkspaceRowWithMenu({
       <StatusWorkspaceRowInner
         workspace={workspace}
         hostBadge={hostBadge}
+        showHost={showHost}
         projectName={projectName}
         selected={selected}
         shortcutNumber={shortcutNumber}
@@ -720,6 +748,7 @@ function StatusWorkspaceRowWithMenu({
 interface StatusWorkspaceRowInnerProps {
   workspace: SidebarWorkspaceEntry;
   hostBadge: HostBadgeModel | null;
+  showHost?: boolean;
   projectName: string;
   selected: boolean;
   shortcutNumber: number | null;
@@ -766,6 +795,7 @@ function DraggableStatusWorkspaceRowInner(
 function StatusWorkspaceRowInnerContent({
   workspace,
   hostBadge,
+  showHost = true,
   projectName,
   selected,
   shortcutNumber,
@@ -915,6 +945,7 @@ function StatusWorkspaceRowInnerContent({
             >
               <SidebarWorkspaceRowContent
                 workspace={workspace}
+                showHost={showHost}
                 leadingProjectName={projectName}
                 serviceSummary={serviceSummary}
                 isHovered={isHovered}

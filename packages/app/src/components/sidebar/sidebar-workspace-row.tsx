@@ -50,6 +50,8 @@ interface SidebarWorkspaceRowProps {
   onPress: () => void;
   /** The host pill after the title. Absent → the sidebar spans one host, or this one is hidden. */
   hostBadge?: HostBadgeModel | null;
+  /** False when the row above already named this host. */
+  showHost?: boolean;
   /** Project grouping only: shows a transient "creating" affordance. */
   isCreating?: boolean;
   /** Project grouping only: drag-to-reorder wiring. Absent → not draggable. */
@@ -66,6 +68,7 @@ export function SidebarWorkspaceRow({
   canCopyBranchName,
   onPress,
   hostBadge,
+  showHost = true,
   isCreating = false,
   drag,
   isDragging = false,
@@ -157,6 +160,7 @@ export function SidebarWorkspaceRow({
         shortcutNumber={shortcutNumber}
         showShortcutBadge={showShortcutBadge}
         hostBadge={hostBadge}
+        showHost={showHost}
         isCreating={isCreating}
         isArchiving={isArchiving}
         onPress={onPress}
@@ -190,6 +194,7 @@ interface WorkspaceRowBodyProps {
   shortcutNumber: number | null;
   showShortcutBadge: boolean;
   hostBadge?: HostBadgeModel | null;
+  showHost?: boolean;
   isCreating: boolean;
   isArchiving: boolean;
   onPress: () => void;
@@ -214,6 +219,7 @@ function WorkspaceRowBody({
   shortcutNumber,
   showShortcutBadge,
   hostBadge,
+  showHost = true,
   isCreating,
   isArchiving,
   onPress,
@@ -322,6 +328,7 @@ function WorkspaceRowBody({
             >
               <SidebarWorkspaceRowContent
                 workspace={workspace}
+                showHost={showHost}
                 serviceSummary={serviceSummary}
                 isHovered={isHovered}
                 isLoading={isArchiving || isCreating}

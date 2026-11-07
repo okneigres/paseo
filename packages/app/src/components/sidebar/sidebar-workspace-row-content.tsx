@@ -116,6 +116,7 @@ export interface SidebarProjectCollapseControl {
 
 export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowContent({
   workspace,
+  showHost = true,
   leadingProjectName = null,
   projectCollapse = null,
   projectNamePrefix = null,
@@ -129,6 +130,8 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
+  /** False when the row above already named this host: the list says it once, not per row. */
+  showHost?: boolean;
   /** Project a hoisted row belongs to; it names that project in the meta line. */
   leadingProjectName?: string | null;
   /** Set on the workspace row that stands in for its project row: hover swaps the icon for the chevron. */
@@ -192,7 +195,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
               {titlePrefix ? (
                 <WorkspaceTitlePrefix projectName={titlePrefix} hostLabel={hostLabel} />
               ) : (
-                <WorkspaceHostTitlePrefix hostLabel={hostLabel} />
+                <WorkspaceHostTitlePrefix hostLabel={showHost ? hostLabel : null} />
               )}
               {workspaceLabel}
             </Text>
