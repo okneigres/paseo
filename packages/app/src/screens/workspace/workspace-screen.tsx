@@ -140,6 +140,7 @@ import { useWorkspace } from "@/stores/session-store-hooks";
 import type { CheckoutStatusPayload } from "@/git/use-status-query";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { useArchiveAgent } from "@/hooks/use-archive-agent";
+import { useWorkspaceArchiveUndoRunning } from "@/workspace/archive-undo";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { removeResidentBrowserWebview } from "@/desktop/browser/resident-webviews";
 import { createWorkspaceBrowser, useBrowserStore } from "@/desktop/browser/store";
@@ -383,9 +384,9 @@ const MobileMountedTabSlot = memo(function MobileMountedTabSlot({
     [buildPaneContentModel, paneId, tabDescriptor],
   );
   const handleTouch = useCallback(() => {
-    if (!isPaneFocused && paneId) onFocusPane(paneId);
+    if (paneId) onFocusPane(paneId);
     return false;
-  }, [isPaneFocused, onFocusPane, paneId]);
+  }, [onFocusPane, paneId]);
 
   return (
     <RenderProfile id={`MobileMountedTabSlot:${tabDescriptor.kind}:${tabDescriptor.tabId}`}>
@@ -1253,6 +1254,11 @@ function WorkspaceScreenContent({
   const hasHydratedAgents = useSessionStore(
     (state) => state.sessions[normalizedServerId]?.hasHydratedAgents ?? false,
   );
+  // An undo puts the row back before the host restores its agents. Their tabs stay until it settles.
+  const isArchiveUndoRunning = useWorkspaceArchiveUndoRunning({
+    serverId: normalizedServerId,
+    workspaceId: normalizedWorkspaceId,
+  });
   const workspaceRouteState = useResolvedWorkspaceRouteState({
     serverId: normalizedServerId,
     workspace: workspaceDescriptor,
@@ -1562,7 +1568,7 @@ function WorkspaceScreenContent({
       persistenceKey,
       buildWorkspaceTabSnapshot({
         agentVisibility: workspaceAgentVisibility,
-        agentsHydrated: hasHydratedAgents,
+        agentsHydrated: hasHydratedAgents && !isArchiveUndoRunning,
         terminalsHydrated: terminalsQuery.isSuccess,
         knownTerminalIds,
         standaloneTerminalIds,
@@ -1573,6 +1579,7 @@ function WorkspaceScreenContent({
     );
   }, [
     hasHydratedAgents,
+    isArchiveUndoRunning,
     hasHydratedWorkspaceLayoutStore,
     pendingTerminalCreateInput,
     createTerminalMutation.isPending,

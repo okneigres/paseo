@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { type PressableStateCallbackType } from "react-native";
+import type { PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
   ArrowDown,
@@ -21,6 +21,7 @@ import {
   PinOff,
   Tag,
 } from "lucide-react-native";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { isWeb } from "@/constants/platform";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
@@ -28,6 +29,7 @@ import { useAppSettings } from "@/hooks/use-settings";
 import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import type { Theme } from "@/styles/theme";
+import { densityIconProps } from "@/styles/density";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import {
   DropdownMenu,
@@ -83,12 +85,45 @@ const archiveLeadingIcon = <ThemedArchive size={14} uniProps={foregroundMutedCol
 const pinLeadingIcon = <ThemedPin size={14} uniProps={foregroundMutedColorMapping} />;
 const unpinLeadingIcon = <ThemedPinOff size={14} uniProps={foregroundMutedColorMapping} />;
 
+/** Pointer-only, so it is always the kebab's pointer size. */
+export const ARCHIVE_BUTTON_SIZE = 18;
+
+const triggerIconProps = densityIconProps("sm", foregroundMutedColorMapping);
+const triggerIconHoveredProps = densityIconProps("sm", foregroundColorMapping);
+
 function renderTriggerIcon({ hovered }: { hovered?: boolean }) {
   return (
     <ThemedMoreVertical
       size={14}
       uniProps={hovered ? foregroundColorMapping : foregroundMutedColorMapping}
     />
+  );
+}
+
+function renderArchiveIcon({ hovered }: PressableStateCallbackType & { hovered?: boolean }) {
+  return <ThemedArchive uniProps={hovered ? triggerIconHoveredProps : triggerIconProps} />;
+}
+
+/** One-click archive beside the kebab, for pointer rows that reveal it on hover. */
+export function SidebarWorkspaceArchiveButton({
+  workspaceKey,
+  onArchive,
+}: {
+  workspaceKey: string;
+  onArchive: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <PressHighlight
+      hitSlop={4}
+      style={archiveButtonStyle}
+      onPress={onArchive}
+      accessibilityRole={isWeb ? undefined : "button"}
+      accessibilityLabel={t("sidebar.workspace.actions.archiveWorkspace")}
+      testID={`sidebar-workspace-archive-button-${workspaceKey}`}
+    >
+      {renderArchiveIcon}
+    </PressHighlight>
   );
 }
 
@@ -547,6 +582,12 @@ function triggerStyle({ hovered = false }: PressableStateCallbackType & { hovere
   return [styles.trigger, hovered && styles.triggerHovered];
 }
 
+function archiveButtonStyle({
+  hovered = false,
+}: PressableStateCallbackType & { hovered?: boolean }) {
+  return [styles.archiveButton, hovered && styles.triggerHovered];
+}
+
 const styles = StyleSheet.create((theme) => ({
   trigger: {
     // Larger on touch so the kebab is an easy tap target.
@@ -564,5 +605,14 @@ const styles = StyleSheet.create((theme) => ({
   },
   triggerHovered: {
     backgroundColor: theme.colors.surface2,
+  },
+  // The kebab's box without its offsets: the archive glyph fills its view box, so it needs
+  // none of the nudging the three dots do. The kebab's marginLeft is the gap between them.
+  archiveButton: {
+    width: ARCHIVE_BUTTON_SIZE,
+    height: ARCHIVE_BUTTON_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
   },
 }));

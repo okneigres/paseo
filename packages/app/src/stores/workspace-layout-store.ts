@@ -129,6 +129,8 @@ export type WorkspaceTabDestination =
   | { kind: "sheet"; tabId: string };
 
 interface WorkspaceLayoutStore {
+  /** Deliberate focus, including reselecting the current tab. Never persisted. */
+  focusRequest: { workspaceKey: string; tabId: string } | null;
   panelRevisionByWorkspace: Record<string, Record<string, number>>;
   /** Published once by the app shell; callers never pass a form factor to open a tab. */
   layoutMode: WorkspaceLayoutMode;
@@ -216,6 +218,7 @@ interface WorkspaceLayoutStore {
    * (archiving agents, killing terminals) first. No-ops on the last visible pane.
    */
   closePane: (workspaceKey: string, paneId: string) => void;
+  focusWorkspace: (workspaceKey: string) => void;
   focusPane: (workspaceKey: string, paneId: string) => void;
   unfocusPane: (workspaceKey: string) => string | null;
   restorePaneFocus: (workspaceKey: string, token: string) => void;
@@ -1104,6 +1107,7 @@ export function createWorkspaceLayoutStore(
         },
         layoutMode: "split-panes",
         sheetsByWorkspace: {},
+        focusRequest: null,
         layoutByWorkspace: {},
         splitSizesByWorkspace: {},
         explorerSidebarWidthByWorkspace: {},
@@ -1156,6 +1160,7 @@ export function createWorkspaceLayoutStore(
                   });
             set((state) => ({
               ...withSheets(state, normalizedWorkspaceKey, next),
+              focusRequest: { workspaceKey: normalizedWorkspaceKey, tabId: sheet.tab.tabId },
               ...advancePanelRevision(
                 state,
                 normalizedWorkspaceKey,
@@ -1219,6 +1224,9 @@ export function createWorkspaceLayoutStore(
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
             ...advancePanelRevision(state, normalizedWorkspaceKey, result.tabId, normalizedTarget),
+            ...(input.intent === "background"
+              ? {}
+              : { focusRequest: { workspaceKey: normalizedWorkspaceKey, tabId: result.tabId } }),
             // A tab brought to the front dismisses the sheet over it.
             ...(input.intent === "background" ? {} : dismissSheets(state, normalizedWorkspaceKey)),
             hiddenAgentIdsByWorkspace:
@@ -1539,18 +1547,16 @@ export function createWorkspaceLayoutStore(
             } else {
               nextLayout = focusTabInLayout({ layout, tabId: normalizedTabId });
             }
-            if (!nextLayout) {
-              return state;
-            }
+            if (!tabPane) return state;
 
             return {
+              focusRequest: { workspaceKey: normalizedWorkspaceKey, tabId: normalizedTabId },
               ...withoutFocusRestoration(state, normalizedWorkspaceKey),
               // Choosing a tab dismisses the sheets that cover it.
               ...dismissSheets(state, normalizedWorkspaceKey),
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
-              },
+              layoutByWorkspace: nextLayout
+                ? { ...state.layoutByWorkspace, [normalizedWorkspaceKey]: nextLayout }
+                : state.layoutByWorkspace,
             };
           });
         },
@@ -1568,13 +1574,15 @@ export function createWorkspaceLayoutStore(
               paneId: normalizedPaneId,
               tabId: normalizedTabId,
             });
-            return nextLayout
+            const pane = findPaneById(layout.root, normalizedPaneId);
+            return pane?.tabIds.includes(normalizedTabId)
               ? {
+                  focusRequest: { workspaceKey: normalizedWorkspaceKey, tabId: normalizedTabId },
                   // Choosing a tab dismisses the sheets that cover it.
                   ...dismissSheets(state, normalizedWorkspaceKey),
                   layoutByWorkspace: {
                     ...state.layoutByWorkspace,
-                    [normalizedWorkspaceKey]: nextLayout,
+                    [normalizedWorkspaceKey]: nextLayout ?? layout,
                   },
                 }
               : state;
@@ -2005,6 +2013,13 @@ export function createWorkspaceLayoutStore(
             };
           });
         },
+        focusWorkspace: (workspaceKey) => {
+          const state = get();
+          const paneId =
+            state.layoutByWorkspace[workspaceKey]?.focusedPaneId ??
+            state.focusRestorationByWorkspace[workspaceKey]?.restorePaneId;
+          if (paneId) state.focusPane(workspaceKey, paneId);
+        },
         focusPane: (workspaceKey, paneId) => {
           const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);
           const normalizedPaneId = trimNonEmpty(paneId);
@@ -2025,16 +2040,17 @@ export function createWorkspaceLayoutStore(
               layout,
               paneId: normalizedPaneId,
             });
-            if (!nextLayout) {
-              return state;
-            }
+            const pane = findPaneById(layout.root, normalizedPaneId);
+            if (!pane) return state;
 
             return {
+              focusRequest: pane.focusedTabId
+                ? { workspaceKey: normalizedWorkspaceKey, tabId: pane.focusedTabId }
+                : null,
               ...withoutFocusRestoration(state, normalizedWorkspaceKey),
-              layoutByWorkspace: {
-                ...state.layoutByWorkspace,
-                [normalizedWorkspaceKey]: nextLayout,
-              },
+              layoutByWorkspace: nextLayout
+                ? { ...state.layoutByWorkspace, [normalizedWorkspaceKey]: nextLayout }
+                : state.layoutByWorkspace,
             };
           });
         },
