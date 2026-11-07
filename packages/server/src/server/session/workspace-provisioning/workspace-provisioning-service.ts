@@ -202,6 +202,18 @@ export function createWorkspaceProvisioningService(deps: {
     }
   }
 
+  /**
+   * The remote that identifies the project across hosts. `origin` wins so existing keys stay put;
+   * a checkout without one falls back to the naming remote, without which it could only ever get a
+   * host-local path key and never group with its counterpart on another machine.
+   */
+  async function resolveProjectIdentityRemoteUrl(
+    rootPath: string,
+    originUrl: string | null,
+  ): Promise<string | null> {
+    return originUrl ?? (await getProjectNameRemoteUrl(rootPath));
+  }
+
   async function findOrCreateProjectForDirectory(cwd: string): Promise<PersistedProjectRecord> {
     const rootPath = resolve(cwd);
     const checkout = await workspaceGitService.getCheckout(rootPath);
@@ -214,7 +226,7 @@ export function createWorkspaceProvisioningService(deps: {
         deriveProjectNameFromRemoteUrl(groupingRemoteUrl) || basename(rootPath) || rootPath,
       projectKey: deriveProjectKey({
         rootPath,
-        remoteUrl: checkout.remoteUrl,
+        remoteUrl: await resolveProjectIdentityRemoteUrl(rootPath, checkout.remoteUrl),
         worktreeRoot: checkout.worktreeRoot,
         mainRepoRoot: checkout.mainRepoRoot,
         serverId,
@@ -369,7 +381,7 @@ export function createWorkspaceProvisioningService(deps: {
         input.repoRoot,
       projectKey: deriveProjectKey({
         rootPath: input.repoRoot,
-        remoteUrl: checkout.remoteUrl,
+        remoteUrl: await resolveProjectIdentityRemoteUrl(input.repoRoot, checkout.remoteUrl),
         worktreeRoot: checkout.worktreeRoot,
         mainRepoRoot: checkout.mainRepoRoot,
         serverId,
@@ -466,7 +478,10 @@ export function createWorkspaceProvisioningService(deps: {
       const kind = projectCheckout.isGit ? "git" : "non_git";
       const projectKey = deriveProjectKey({
         rootPath: project.rootPath,
-        remoteUrl: projectCheckout.remoteUrl,
+        remoteUrl: await resolveProjectIdentityRemoteUrl(
+          project.rootPath,
+          projectCheckout.remoteUrl,
+        ),
         worktreeRoot: projectCheckout.worktreeRoot,
         mainRepoRoot: projectCheckout.mainRepoRoot,
         serverId,
@@ -516,7 +531,7 @@ export function createWorkspaceProvisioningService(deps: {
     const kind: PersistedProjectRecord["kind"] = projectCheckout.isGit ? "git" : "non_git";
     const projectKey = deriveProjectKey({
       rootPath: project.rootPath,
-      remoteUrl: projectCheckout.remoteUrl,
+      remoteUrl: await resolveProjectIdentityRemoteUrl(project.rootPath, projectCheckout.remoteUrl),
       worktreeRoot: projectCheckout.worktreeRoot,
       mainRepoRoot: projectCheckout.mainRepoRoot,
       serverId,

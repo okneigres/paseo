@@ -546,6 +546,8 @@ function resolveStoredProjectKeys(input: {
   for (const project of input.projects) {
     for (const host of project.hosts) {
       viewKeyByPlacement.set(JSON.stringify([host.serverId, host.projectId]), project.viewKey);
+      // A project without a shared remote used to be keyed by its own path on that host.
+      viewKeyByPlacement.set(`host:${host.serverId}:${host.iconWorkingDir}`, project.viewKey);
     }
   }
   const resolved: string[] = [];
