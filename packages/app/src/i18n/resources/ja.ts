@@ -1205,6 +1205,14 @@ export const ja: TranslationResources = {
       previous: "前の一致",
       next: "次の一致",
     },
+    view: {
+      failed: "サイドバーのビューを読み込めませんでした。",
+      useDefault: "デフォルトのビューを使用",
+      readFailed: "サイドバーのビュー設定を読み込めませんでした。",
+      agentUnavailable: "このエージェントは利用できなくなりました",
+      terminalUnavailable: "このターミナルは利用できなくなりました",
+      projectUnavailable: "このプロジェクトは利用できなくなりました",
+    },
     statusGroupAccessibility: "{{label}} グループ",
     statusBucket: {
       needsInput: "入力待ち",
@@ -2635,6 +2643,13 @@ export const ja: TranslationResources = {
         description: "プロンプト間を移動するためのアウトラインを表示します",
       },
       sidebar: {
+        view: {
+          title: "サイドバーのビュー",
+          label: "ビュー",
+          default: "デフォルトのビュー",
+          unavailable:
+            "選択したビューは利用できないか無効です。デフォルトのビューを表示しています。",
+        },
         header: {
           title: "ヘッダー",
           description: "サイドバー上部に表示する項目とその順序を選択します",
