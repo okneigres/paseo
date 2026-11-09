@@ -1,6 +1,6 @@
+import type { JsonValue } from "@getpaseo/protocol/agent-types";
 import type { UserComposerAttachment } from "@/attachments/types";
 import type { DraftAgentControlsProps } from "@/composer/agent-controls";
-import type { WorkspacePreferencesKey } from "@/create-agent-preferences/service";
 import type { UseAgentFormStateResult } from "@/hooks/use-agent-form-state";
 
 export interface DraftKeyContext {
@@ -21,14 +21,26 @@ export function resolveDraftKey(input: {
 
 export function buildDraftAgentControls(input: {
   formState: UseAgentFormStateResult;
-  workspaceKey: WorkspacePreferencesKey | null;
-  features?: DraftAgentControlsProps["features"];
-  onSetFeature?: DraftAgentControlsProps["onSetFeature"];
+  optionControls?: DraftAgentControlsProps["optionControls"];
+  options: DraftAgentControlsProps["options"];
+  onSetOption: DraftAgentControlsProps["onSetOption"];
   onApplyAgentProfile: DraftAgentControlsProps["onApplyAgentProfile"];
   onDropdownClose?: DraftAgentControlsProps["onDropdownClose"];
+  context: NonNullable<DraftAgentControlsProps["context"]>;
+  metadata: Record<string, JsonValue>;
+  onSetMetadata: (patch: Record<string, JsonValue>) => void;
 }): DraftAgentControlsProps {
-  const { formState, workspaceKey, features, onSetFeature, onApplyAgentProfile, onDropdownClose } =
-    input;
+  const {
+    formState,
+    optionControls,
+    options,
+    onSetOption,
+    onApplyAgentProfile,
+    onDropdownClose,
+    context,
+    metadata,
+    onSetMetadata,
+  } = input;
   return {
     providerDefinitions: formState.providerDefinitions,
     selectedProvider: formState.selectedProvider,
@@ -46,14 +58,17 @@ export function buildDraftAgentControls(input: {
     selectedThinkingOptionId: formState.selectedThinkingOptionId,
     onSelectThinkingOption: formState.setThinkingOptionFromUser,
     onApplyAgentProfile,
-    features,
-    onSetFeature,
+    optionControls,
+    options,
+    onSetOption,
     onDropdownClose,
     onModelSelectorOpen: formState.refetchProviderModelsIfStale,
     onRetryModelProvider: formState.refreshProviderModels,
     isRetryingModelProvider: formState.isProviderModelsRefreshing,
     modelSelectorServerId: formState.selectedServerId,
-    workspaceKey,
+    context,
+    metadata,
+    onSetMetadata,
   };
 }
 
