@@ -52,10 +52,8 @@ import { useIsCompactFormFactor } from "@/constants/layout";
 import {
   controlSizingForLayout,
   TOOLBAR_CONTROL_GAP,
-  bySizing,
   toolbarGlyphColor,
   type ToolbarGlyphs,
-  TOUCH_ICON_SIZE,
   toolbarSlot,
 } from "@/components/ui/control-geometry";
 import { readMeasuredWidth } from "@/hooks/use-container-width";
@@ -89,6 +87,10 @@ import { composerModelFromHalves } from "@/composer/halves-model";
 import { ComposerModelProvider } from "@/composer/model";
 import { ComposerAgentProvider, useComposerInput } from "@/composer/session";
 import { PluginComposerItems, usePluginComposerItemCount } from "@/plugins/composer-items";
+import {
+  PluginToolbarSlot,
+  usePluginToolbarWidth,
+} from "@/composer/agent-controls/plugin-toolbar-slot";
 import {
   useAgentProfileEditor,
   useAgentProfilePicker,
@@ -470,6 +472,7 @@ function ControlledAgentControls({
     onSelectThinkingOption && thinkingOptions && thinkingOptions.length > 0,
   );
   const pluginItemCount = usePluginComposerItemCount(modelSelectorServerId);
+  const { width: pluginItemsWidth, onLayout: handlePluginItemsLayout } = usePluginToolbarWidth();
 
   const formattedThinkingOptions = useMemo(
     () => toThinkingControlOptions(thinkingOptions),
@@ -492,6 +495,7 @@ function ControlledAgentControls({
     () =>
       (optionControls?.controls ?? []).map((control) => {
         if (control.type === "toggle") return { type: "toggle" as const };
+        if (control.desktopTrigger === "icon") return { type: "select" as const, label: null };
         const selected = readSelectOption(control, optionControls?.options ?? {});
         const choice = control.choices.find((candidate) => candidate.value === selected);
         return {
@@ -507,10 +511,10 @@ function ControlledAgentControls({
       hasThinking: canSelectThinking,
       hasMode: modeControl !== null && modeControl !== undefined,
       features: featureControls,
-      pluginItems: pluginItemCount,
+      pluginItemsWidth,
       fontScale,
     }),
-    [canSelectModel, canSelectThinking, featureControls, fontScale, modeControl, pluginItemCount],
+    [canSelectModel, canSelectThinking, featureControls, fontScale, modeControl, pluginItemsWidth],
   );
   const presentation = useMemo(() => resolveComposerControlPresentation(density), [density]);
   const layoutContextValue = useMemo(
@@ -639,7 +643,7 @@ function ControlledAgentControls({
 
   return (
     <ComposerControlLayoutProvider value={layoutContextValue}>
-      <View style={styles.container} onLayout={handleLayout}>
+      <View style={styles.container} onLayout={handleLayout} testID="agent-controls-toolbar">
         {!presentation.foldControls ? (
           <DesktopAgentControlsContent
             provider={provider}
@@ -665,7 +669,7 @@ function ControlledAgentControls({
             handleSheetOpenChange={setOpenSelector}
             modeControl={modeControl}
             presentation={presentation}
-            pluginItemCount={pluginItemCount}
+            hasPluginItems={pluginItemsWidth > 0}
             glyphs={layoutContextValue.glyphs}
             activeSheet={activeSheet}
             handleOpenSheet={handleOpenSheet}
@@ -702,6 +706,14 @@ function ControlledAgentControls({
             canSwitchProvider={Boolean(onSelectProviderAndModel)}
           />
         )}
+        {!isCompact ? (
+          <PluginToolbarSlot
+            serverId={modelSelectorServerId}
+            width={pluginItemsWidth}
+            fits={!presentation.aggregateFeatures}
+            onLayout={handlePluginItemsLayout}
+          />
+        ) : null}
       </View>
     </ComposerControlLayoutProvider>
   );
@@ -736,7 +748,7 @@ interface DesktopAgentControlsContentProps extends AgentControlsContentProps {
   handleDesktopModelSelect: (providerId: string, modelId: string) => void;
   handleToolbarOpenChange: (id: string | null) => void;
   presentation: ComposerControlPresentation;
-  pluginItemCount: number;
+  hasPluginItems: boolean;
   activeSheet: ActiveSheet;
   handleOpenSheet: (sheet: Exclude<ActiveSheet, null>) => void;
   handleCloseSheet: () => void;
@@ -770,7 +782,7 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
     handleSheetOpenChange,
     modeControl,
     presentation,
-    pluginItemCount,
+    hasPluginItems,
     glyphs,
     activeSheet,
     handleOpenSheet,
@@ -786,7 +798,7 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
     [t],
   );
   const handleOpenFeatures = useCallback(() => handleOpenSheet("features"), [handleOpenSheet]);
-  const hasFeatures = featureItems.length > 0 || pluginItemCount > 0;
+  const hasFeatures = featureItems.length > 0 || hasPluginItems;
   return (
     <>
       {canSelectModel ? (
@@ -868,17 +880,14 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
           </AdaptiveModalSheet>
         </>
       ) : (
-        <>
-          <ComposerControls
-            items={featureItems}
-            surface="toolbar"
-            disabled={disabled}
-            openId={openSelector}
-            onOpenIdChange={handleToolbarOpenChange}
-            onActionComplete={onDropdownClose}
-          />
-          <PluginComposerItems serverId={modelSelectorServerId} surface="toolbar" />
-        </>
+        <ComposerControls
+          items={featureItems}
+          surface="toolbar"
+          disabled={disabled}
+          openId={openSelector}
+          onOpenIdChange={handleToolbarOpenChange}
+          onActionComplete={onDropdownClose}
+        />
       )}
     </>
   );
@@ -1465,18 +1474,15 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: TOOLBAR_CONTROL_GAP,
-    // Clips pickers that run out of room. Touch-sized the pickers' pills and circles reach 8 past
-    // what the row spaces, so the clip reaches as far.
+    // Clips pickers that run out of room.
     overflow: "hidden",
-    paddingHorizontal: bySizing({ touch: theme.spacing[2], pointer: 0 }),
-    marginHorizontal: bySizing({ touch: -theme.spacing[2], pointer: 0 }),
   },
   modelControl: {
     minWidth: 0,
     flexShrink: 1,
   },
   modeIconBadge: {
-    ...toolbarSlot(TOUCH_ICON_SIZE.md),
+    ...toolbarSlot(),
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 0,
