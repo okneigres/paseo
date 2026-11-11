@@ -66,10 +66,13 @@ const ThemedFolderGit2 = withUnistyles(FolderGit2);
 export function SidebarWorkspaceRowFrame({
   workspace,
   isDragging = false,
+  isEditingTitle = false,
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
   isDragging?: boolean;
+  /** Hover would fade the kebab in over the title being edited and open the hover card. */
+  isEditingTitle?: boolean;
   children: (input: {
     isHovered: boolean;
     contextMenuOpen: boolean;
@@ -97,10 +100,10 @@ export function SidebarWorkspaceRowFrame({
       workspace={workspace}
       prHint={workspace.prHint}
       isDragging={isDragging}
-      disabled={contextMenuOpen}
+      disabled={contextMenuOpen || isEditingTitle}
     >
       {children({
-        isHovered: isHovered && !contextMenuOpen && !isDragging,
+        isHovered: isHovered && !contextMenuOpen && !isDragging && !isEditingTitle,
         contextMenuOpen,
         onContextMenuOpenChange: handleContextMenuOpenChange,
         hoverHandlers,
@@ -131,6 +134,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   shortcutNumber = null,
   showShortcutBadge = false,
   reserveIdleStatusIndicatorSpace = true,
+  titleEditor = null,
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
@@ -150,6 +154,8 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   showShortcutBadge?: boolean;
   /** Keep the empty leading slot when the workspace has no active status. */
   reserveIdleStatusIndicatorSpace?: boolean;
+  /** Takes the title's place, in a box exactly one title line tall, while renaming in place. */
+  titleEditor?: ReactNode;
   children?: ReactNode;
 }) {
   const {
@@ -195,18 +201,22 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
         <View style={styles.workspaceLeadingGroup}>{leadingVisual}</View>
         <View style={styles.workspaceContentColumn}>
           <View style={styles.workspaceTitleRow}>
-            <Text
-              style={workspaceBranchTextStyle}
-              numberOfLines={1}
-              testID={`sidebar-workspace-title-${workspace.workspaceKey}`}
-            >
-              {titlePrefix ? (
-                <WorkspaceTitlePrefix projectName={titlePrefix} hostLabel={hostLabel} />
-              ) : (
-                <WorkspaceHostTitlePrefix hostLabel={showHost ? hostLabel : null} />
-              )}
-              {workspaceLabel}
-            </Text>
+            {titleEditor ? (
+              <View style={styles.workspaceTitleEditorSlot}>{titleEditor}</View>
+            ) : (
+              <Text
+                style={workspaceBranchTextStyle}
+                numberOfLines={1}
+                testID={`sidebar-workspace-title-${workspace.workspaceKey}`}
+              >
+                {titlePrefix ? (
+                  <WorkspaceTitlePrefix projectName={titlePrefix} hostLabel={hostLabel} />
+                ) : (
+                  <WorkspaceHostTitlePrefix hostLabel={showHost ? hostLabel : null} />
+                )}
+                {workspaceLabel}
+              </Text>
+            )}
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>
           </View>
           <WorkspaceMetaRow
@@ -828,6 +838,11 @@ const styles = StyleSheet.create((theme) => ({
     fontWeight: "400",
     lineHeight: TITLE_LINE_HEIGHT,
     opacity: 0.76,
+    flex: 1,
+    minWidth: 0,
+  },
+  workspaceTitleEditorSlot: {
+    height: TITLE_LINE_HEIGHT,
     flex: 1,
     minWidth: 0,
   },

@@ -17,10 +17,10 @@ import {
   useEffect,
   useRef,
   type ReactElement,
+  type ReactNode,
   type MutableRefObject,
   type ComponentProps,
   type PropsWithChildren,
-  type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { router, usePathname, type Href } from "expo-router";
@@ -36,7 +36,7 @@ import type { Theme } from "@/styles/theme";
 import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop";
 import { type GestureType } from "react-native-gesture-handler";
-import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
+import { useSidebarWorkspaceRename } from "@/workspace-rename";
 import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
 import {
   useIsSidebarProjectMarked,
@@ -311,6 +311,8 @@ interface WorkspaceRowInnerProps {
   onCopyBranchName?: () => void;
   onCopyPath?: () => void;
   onRename?: () => void;
+  /** Present while the row is renamed in place: the row stops pressing, dragging and hovering. */
+  titleEditor?: ReactNode;
   onMarkAsRead?: () => void;
   onMarkAsUnread?: () => void;
   archiveShortcutKeys?: ShortcutKey[][] | null;
@@ -1148,6 +1150,7 @@ function WorkspaceRowInner({
   onCopyBranchName,
   onCopyPath,
   onRename,
+  titleEditor = null,
   onMarkAsRead,
   onMarkAsUnread,
   archiveShortcutKeys,
@@ -1205,9 +1208,14 @@ function WorkspaceRowInner({
   }, [interaction]);
 
   const accessibilityState = useMemo(() => ({ selected }), [selected]);
+  const isEditingTitle = titleEditor !== null;
 
   return (
-    <SidebarWorkspaceRowFrame workspace={workspace} isDragging={isDragging}>
+    <SidebarWorkspaceRowFrame
+      workspace={workspace}
+      isDragging={isDragging}
+      isEditingTitle={isEditingTitle}
+    >
       {({ isHovered, contextMenuOpen, onContextMenuOpenChange, hoverHandlers }) => {
         const isDesktop = !isTouchPlatform;
         const serviceSummary = isDesktop ? selectWorkspaceServiceSummary(workspace.scripts) : null;
@@ -1226,7 +1234,7 @@ function WorkspaceRowInner({
         return (
           <View
             {...dragAttributes}
-            {...dragHandleProps?.listeners}
+            {...(isEditingTitle ? null : dragHandleProps?.listeners)}
             ref={setRowContainerRef}
             style={styles.workspaceRowContainer}
             {...hoverHandlers}
@@ -1253,15 +1261,16 @@ function WorkspaceRowInner({
               openInFileManagerPath={workspace.workspaceDirectory}
               extraContextItems={extraContextItems}
               disabled={isArchiving}
+              enabled={!isEditingTitle}
               aria-selected={selected}
               accessibilityRole="button"
               accessibilityState={accessibilityState}
               style={workspaceRowStyle}
               highlightStyle={styles.workspaceRowPressed}
-              onPressIn={handleWorkspacePressIn}
-              onTouchMove={interaction.handleTouchMove}
-              onPressOut={handleWorkspacePressOut}
-              onPress={handlePress}
+              onPressIn={isEditingTitle ? undefined : handleWorkspacePressIn}
+              onTouchMove={isEditingTitle ? undefined : interaction.handleTouchMove}
+              onPressOut={isEditingTitle ? undefined : handleWorkspacePressOut}
+              onPress={isEditingTitle ? undefined : handlePress}
               testID={`sidebar-workspace-row-${workspace.workspaceKey}`}
             >
               <SidebarWorkspaceRowContent
@@ -1277,6 +1286,7 @@ function WorkspaceRowInner({
                 shortcutNumber={shortcutNumber}
                 showShortcutBadge={showShortcutBadge}
                 reserveIdleStatusIndicatorSpace={reserveIdleStatusIndicatorSpace}
+                titleEditor={titleEditor}
               >
                 <WorkspaceRowRightGroup
                   workspace={workspace}
@@ -1355,7 +1365,7 @@ function WorkspaceRowWithMenu({
   const { t } = useTranslation();
   const toast = useToast();
   const [isHidingWorkspace, setIsHidingWorkspace] = useState(false);
-  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const rename = useSidebarWorkspaceRename(workspace);
   const isArchiving = workspace.archivingAt !== null || isHidingWorkspace;
   const redirectAfterArchive = useCallback(() => {
     redirectIfArchivingActiveWorkspace({
@@ -1390,14 +1400,6 @@ function WorkspaceRowWithMenu({
   const handleCopyBranchName = useCallback(() => {
     clipboard.copyBranchName(workspace);
   }, [clipboard, workspace]);
-
-  const handleOpenRename = useCallback(() => {
-    setIsRenameOpen(true);
-  }, []);
-
-  const handleCloseRename = useCallback(() => {
-    setIsRenameOpen(false);
-  }, []);
 
   const isPinned = workspace.pinnedAt != null;
   const handleTogglePin = useCallback(() => {
@@ -1460,7 +1462,8 @@ function WorkspaceRowWithMenu({
         onArchive={handleArchive}
         onCopyBranchName={canCopyBranchName ? handleCopyBranchName : undefined}
         onCopyPath={handleCopyPath}
-        onRename={handleOpenRename}
+        onRename={rename.begin}
+        titleEditor={rename.titleEditor}
         onMarkAsRead={hasClearableAttention ? handleMarkAsRead : undefined}
         onMarkAsUnread={canMarkUnread ? handleMarkAsUnread : undefined}
         archiveShortcutKeys={selected ? archiveShortcutKeys : null}
@@ -1468,12 +1471,7 @@ function WorkspaceRowWithMenu({
         onTogglePin={onTogglePin}
         reserveIdleStatusIndicatorSpace={reserveIdleStatusIndicatorSpace}
       />
-      <WorkspaceRenameModal
-        visible={isRenameOpen}
-        workspace={workspace}
-        onClose={handleCloseRename}
-        testID={`sidebar-workspace-rename-modal-${workspace.workspaceKey}`}
-      />
+      {rename.modal}
     </>
   );
 }
