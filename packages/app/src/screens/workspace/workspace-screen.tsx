@@ -59,7 +59,10 @@ import {
   CompactWorkspaceHeader,
   MobileWorkspaceTabSwitcher,
 } from "@/screens/workspace/compact-workspace-header";
-import { WorkspaceHeaderProjectRow } from "@/screens/workspace/workspace-header-project-row";
+import {
+  WorkspaceHeaderProjectPrefix,
+  WorkspaceHeaderProjectRow,
+} from "@/screens/workspace/workspace-header-project-row";
 import { ScreenTitle } from "@/components/headers/screen-title";
 import {
   FloatingPanelPortalHost,
@@ -526,12 +529,11 @@ function WorkspaceHeaderTitleBar({
         </View>
       ) : (
         <View style={styles.headerTitleTextGroup}>
-          <ScreenTitle testID="workspace-header-title">{title}</ScreenTitle>
-          <WorkspaceHeaderProjectRow
-            subtitle={subtitle}
-            isSubtitleDistinct={isSubtitleDistinct}
-            serverId={normalizedServerId}
-          />
+          <ScreenTitle testID="workspace-header-title">
+            <WorkspaceHeaderProjectPrefix project={isSubtitleDistinct ? subtitle : null} />
+            {title}
+          </ScreenTitle>
+          <WorkspaceHeaderProjectRow serverId={normalizedServerId} />
         </View>
       )}
       {actionsInBar ? null : (

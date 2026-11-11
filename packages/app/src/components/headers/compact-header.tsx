@@ -29,7 +29,7 @@ interface CompactHeaderProps {
   navigation: "menu" | "back";
   /** Back button action. Defaults to navigating back. */
   onBack?: () => void;
-  title?: string;
+  title?: ReactNode;
   titleTestID?: string;
   /** A line under the title. */
   subtitle?: ReactNode;

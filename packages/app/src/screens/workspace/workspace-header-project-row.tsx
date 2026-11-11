@@ -5,38 +5,37 @@ import { HostBadge } from "@/hosts/host-badge";
 import { useHostBadges } from "@/hosts/use-host-badges";
 
 /**
- * Which project the workspace belongs to, and which machine it runs on.
- *
- * Compact gets both, on their own line under the workspace name: this header is the only thing on
- * screen that says where the workspace lives, because the sidebar that normally carries the host
- * badge is closed. It still follows the host's own badge setting, so a purely local setup stays
- * quiet. A project name that only repeats the workspace name is dropped on wide, where the two sit
- * side by side, and kept on compact, where the line exists for the host anyway.
+ * The project a workspace belongs to, drawn as a prefix ahead of its title — the same reading the
+ * sidebar rows use. Null while the project name would only repeat the title.
  */
-export function WorkspaceHeaderProjectRow({
-  subtitle,
-  isSubtitleDistinct,
-  serverId,
-}: {
-  subtitle: string;
-  isSubtitleDistinct: boolean;
-  serverId: string;
-}) {
+export function WorkspaceHeaderProjectPrefix({ project }: { project: string | null }) {
+  if (!project) {
+    return null;
+  }
+  return (
+    <>
+      <Text testID="workspace-header-subtitle" style={styles.project} numberOfLines={1}>
+        {project}
+      </Text>
+      <Text style={styles.separator}> · </Text>
+    </>
+  );
+}
+
+/**
+ * Which machine the workspace runs on. The project name moved into the title, so this line is the
+ * host alone — and on a purely local, single-host setup it is quiet, following the host's own
+ * badge setting.
+ */
+export function WorkspaceHeaderProjectRow({ serverId }: { serverId: string }) {
   const isCompact = useIsCompactFormFactor();
   const hostBadge = useHostBadges({ enabled: isCompact }).get(serverId) ?? null;
-  const showProject = isSubtitleDistinct || isCompact;
-  if (!showProject && !hostBadge) {
+  if (!hostBadge) {
     return null;
   }
   return (
     <View style={styles.row}>
-      {showProject ? (
-        <Text testID="workspace-header-subtitle" style={styles.project} numberOfLines={1}>
-          {subtitle}
-        </Text>
-      ) : null}
-      {showProject && hostBadge ? <Text style={styles.separator}>·</Text> : null}
-      {hostBadge ? <HostBadge badge={hostBadge} /> : null}
+      <HostBadge badge={hostBadge} />
     </View>
   );
 }

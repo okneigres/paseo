@@ -5,7 +5,10 @@ import {
   EXPLORER_TOGGLE_KEYS,
   WorkspaceExplorerToggle,
 } from "@/screens/workspace/workspace-explorer-toggle";
-import { WorkspaceHeaderProjectRow } from "@/screens/workspace/workspace-header-project-row";
+import {
+  WorkspaceHeaderProjectPrefix,
+  WorkspaceHeaderProjectRow,
+} from "@/screens/workspace/workspace-header-project-row";
 import {
   useWindowLayout,
   resolveWorkspaceActionPlacement,
@@ -49,15 +52,15 @@ export function CompactWorkspaceHeader({
 }: CompactWorkspaceHeaderProps) {
   const { t } = useTranslation();
   const actionsInBar = resolveWorkspaceActionPlacement(useWindowLayout()) === "vertical-bar";
-  const projectRow = useMemo(
+  const projectRow = useMemo(() => <WorkspaceHeaderProjectRow serverId={serverId} />, [serverId]);
+  const titleNode = useMemo(
     () => (
-      <WorkspaceHeaderProjectRow
-        subtitle={subtitle}
-        isSubtitleDistinct={isSubtitleDistinct}
-        serverId={serverId}
-      />
+      <>
+        <WorkspaceHeaderProjectPrefix project={isSubtitleDistinct ? subtitle : null} />
+        {title}
+      </>
     ),
-    [subtitle, isSubtitleDistinct, serverId],
+    [isSubtitleDistinct, subtitle, title],
   );
   const symbols = {
     "tab-count": tabSwitcher,
@@ -82,7 +85,7 @@ export function CompactWorkspaceHeader({
       {headerVariant === "compact" ? (
         <CompactHeader
           navigation="menu"
-          title={title}
+          title={titleNode}
           titleTestID="workspace-header-title"
           subtitle={projectRow}
           loading={isLoading}

@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { StyleProp, View, ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { baseColors } from "@/styles/theme";
 import {
   advanceFindIndex,
   findKeysFromSignature,
@@ -188,12 +189,14 @@ function scrollNodeIntoView(node: View | null): void {
   scrollable.scrollIntoView?.({ block: "center", behavior: "smooth" });
 }
 
-const findRowStyles = StyleSheet.create((theme) => ({
+const findRowStyles = StyleSheet.create(() => ({
+  // Search results read as a separate state from hover/selection, so they get their own tint
+  // rather than borrowing the surface greys.
   match: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
+    backgroundColor: `${baseColors.yellow[400]}1f`,
   },
   active: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
+    backgroundColor: `${baseColors.yellow[400]}3d`,
   },
 }));
 
