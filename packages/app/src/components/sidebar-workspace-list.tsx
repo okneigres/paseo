@@ -1011,11 +1011,11 @@ function ProjectHeaderRow({
   const projectRowStyle = useCallback(
     ({ pressed }: PressableStateCallbackType) => [
       styles.projectRow,
+      sidebarFindRowStyle(findRow),
       isDragging && styles.projectRowDragging,
-      selected && styles.sidebarRowSelected,
       isHovered && styles.projectRowHovered,
       pressed && styles.projectRowPressed,
-      sidebarFindRowStyle(findRow),
+      selected && styles.sidebarRowSelected,
     ],
     [findRow, isDragging, selected, isHovered],
   );
@@ -1212,13 +1212,15 @@ function WorkspaceRowInner({
         const isDesktop = !isTouchPlatform;
         const serviceSummary = isDesktop ? selectWorkspaceServiceSummary(workspace.scripts) : null;
         const workspaceRowStyle = [
+          // The find tint paints under the rest: a selected workspace keeps its own look, and the
+          // cursor still shows the active search hit on a row that is not selected.
+          sidebarFindRowStyle(findRow),
           getProjectWorkspaceRowStyle({
             isDragging,
             isPressed,
             selected,
             isHovered,
           }),
-          sidebarFindRowStyle(findRow),
         ];
         const backdrop = getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered });
         return (
@@ -3163,6 +3165,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   sidebarRowSelected: {
     backgroundColor: theme.colors.surfaceSidebarSelected,
+    // The selected workspace is the one the main area shows, so it carries an outline on top of
+    // the fill: a search hit or a hover tint can never be mistaken for it.
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.primary,
   },
   workspaceRowContainer: {
     position: "relative",

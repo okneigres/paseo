@@ -894,6 +894,7 @@ function StatusWorkspaceRowInnerContent({
           showShortcut,
         });
         const workspaceRowStyle = [
+          sidebarFindRowStyle(findRow),
           getStatusWorkspaceRowStyle({
             isPressed,
             selected,
@@ -901,7 +902,6 @@ function StatusWorkspaceRowInnerContent({
             inStatusGroup,
             isDragging,
           }),
-          sidebarFindRowStyle(findRow),
         ];
         const backdrop = getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered });
         return (
@@ -1195,5 +1195,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   sidebarRowSelected: {
     backgroundColor: theme.colors.surfaceSidebarSelected,
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.primary,
   },
 }));
