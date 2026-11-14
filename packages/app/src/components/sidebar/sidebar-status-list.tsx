@@ -1,9 +1,9 @@
+import { PressHighlight as Pressable } from "@/components/ui/press-highlight";
 import { memo, useCallback, useMemo, useState, type MutableRefObject, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   View,
   Text,
-  Pressable,
   ScrollView,
   type GestureResponderEvent,
   type PressableStateCallbackType,
@@ -950,6 +950,7 @@ function StatusWorkspaceRowInnerContent({
               <SidebarWorkspaceRowContent
                 workspace={workspace}
                 showHost={showHost}
+                backdrop={backdrop}
                 leadingProjectName={projectName}
                 serviceSummary={serviceSummary}
                 isHovered={isHovered}
@@ -1039,7 +1040,11 @@ function StatusWorkspaceActionSlot({
   return (
     <SidebarWorkspaceTrailingActionSlot reserveWidth={reserveSlotWidth}>
       <SidebarWorkspaceTrailingActionBase presentation={trailingPresentation}>
-        <SidebarWorkspaceTrailingContent workspace={workspace} trailing={trailing} />
+        <SidebarWorkspaceTrailingContent
+          workspace={workspace}
+          trailing={trailing}
+          backdrop={backdrop}
+        />
       </SidebarWorkspaceTrailingActionBase>
       <SidebarWorkspaceTrailingActionOverlay
         visible={kebab.showKebab}
@@ -1108,7 +1113,8 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[2],
     // Keep status mode's Pinned/Workspaces boundary identical to project mode.
     paddingTop: 2,
-    paddingBottom: theme.spacing[4],
+    // Match project grouping: permanent room to scroll the final row above sidebar toasts.
+    paddingBottom: theme.spacing[24],
   },
   pinnedSection: {
     marginBottom: theme.spacing[1],

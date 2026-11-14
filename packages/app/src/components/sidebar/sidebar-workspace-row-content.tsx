@@ -128,6 +128,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   projectCollapse = null,
   projectNamePrefix = null,
   serviceSummary = null,
+  backdrop = "surfaceSidebar",
   isHovered,
   isLoading,
   isCreating = false,
@@ -147,6 +148,8 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   /** Project name shown ahead of the workspace title, for that same row. */
   projectNamePrefix?: string | null;
   serviceSummary?: WorkspaceServiceSummary | null;
+  /** Which surface the row sits on; the meta line tints its separators to match. */
+  backdrop?: SidebarSurfaceBackdrop;
   isHovered: boolean;
   isLoading: boolean;
   isCreating?: boolean;
@@ -220,6 +223,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>
           </View>
           <WorkspaceMetaRow
+            backdrop={backdrop}
             currentBranch={workspace.currentBranch}
             // The header row names its project in the title; the host sits ahead of every title.
             projectName={projectNamePrefix ? null : leadingProjectName}
@@ -227,6 +231,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
             prHint={workspace.prHint}
             serviceSummary={serviceSummary}
             labels={labels}
+            workspace={workspace}
           />
         </View>
       </View>
