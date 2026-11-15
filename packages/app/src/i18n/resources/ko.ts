@@ -2340,6 +2340,11 @@ export const ko: TranslationResources = {
     projects: "프로젝트",
     projectList: {
       hostLoadFailed: "{{hostName}} 호스트에서 프로젝트를 불러올 수 없습니다: {{message}}",
+      remove: "Remove {{projectName}}",
+      removeTitle: "Remove project?",
+      removeMessage: 'Remove "{{projectName}}" from Paseo?\n\nFiles on disk will not be changed.',
+      removeConfirm: "Remove",
+      removed: "Removed {{projectName}}",
       editProject: "{{projectName}} 편집",
     },
     groupInfo: "{{title}} 정보",

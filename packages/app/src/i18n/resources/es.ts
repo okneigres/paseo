@@ -2378,6 +2378,11 @@ export const es: TranslationResources = {
     projects: "Proyectos",
     projectList: {
       hostLoadFailed: "No se pudieron cargar proyectos desde el host{{hostName}}:{{message}}",
+      remove: "Remove {{projectName}}",
+      removeTitle: "Remove project?",
+      removeMessage: 'Remove "{{projectName}}" from Paseo?\n\nFiles on disk will not be changed.',
+      removeConfirm: "Remove",
+      removed: "Removed {{projectName}}",
       editProject: "Editar{{projectName}}",
     },
     groupInfo: "Acerca de{{title}}",

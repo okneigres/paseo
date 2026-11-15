@@ -2365,6 +2365,11 @@ export const ar: TranslationResources = {
     projects: "المشاريع",
     projectList: {
       hostLoadFailed: "تعذر تحميل المشاريع من المضيف{{hostName}}:{{message}}",
+      remove: "Remove {{projectName}}",
+      removeTitle: "Remove project?",
+      removeMessage: 'Remove "{{projectName}}" from Paseo?\n\nFiles on disk will not be changed.',
+      removeConfirm: "Remove",
+      removed: "Removed {{projectName}}",
       editProject: "تحرير{{projectName}}",
     },
     groupInfo: "حول{{title}}",

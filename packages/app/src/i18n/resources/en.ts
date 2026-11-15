@@ -2355,6 +2355,11 @@ export const en = {
     projects: "Projects",
     projectList: {
       hostLoadFailed: "Couldn't load projects from host {{hostName}}: {{message}}",
+      remove: "Remove {{projectName}}",
+      removeTitle: "Remove project?",
+      removeMessage: 'Remove "{{projectName}}" from Paseo?\n\nFiles on disk will not be changed.',
+      removeConfirm: "Remove",
+      removed: "Removed {{projectName}}",
       editProject: "Edit {{projectName}}",
     },
     groupInfo: "About {{title}}",

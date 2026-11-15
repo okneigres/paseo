@@ -1,8 +1,22 @@
-import { useCallback, useMemo } from "react";
-import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  Pressable,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type PressableStateCallbackType,
+} from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ChevronRight } from "lucide-react-native";
+import { ChevronRight, Trash2 } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
+import { getHostRuntimeStore } from "@/runtime/host-runtime";
+import { useToast } from "@/contexts/toast-context";
+import { PressHighlight } from "@/components/ui/press-highlight";
+import {
+  getCurrentProjectRemoveReadiness,
+  removeProjectFromHosts,
+} from "@/projects/project-remove";
+import { confirmDialog } from "@/utils/confirm-dialog";
 import { ProjectIconView } from "@/components/project-icon-view";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useProjects, type ProjectHostError } from "@/hooks/use-projects";
@@ -23,7 +37,7 @@ interface HostProject {
 
 export default function ProjectsScreen({ serverId }: ProjectsScreenProps) {
   const { t } = useTranslation();
-  const { projects, hostErrors, isLoading } = useProjects();
+  const { projects, hostErrors, isLoading, refetch } = useProjects();
   const hostProjects = useMemo<HostProject[]>(
     () =>
       projects.flatMap((project) =>
@@ -76,6 +90,7 @@ export default function ProjectsScreen({ serverId }: ProjectsScreenProps) {
             host={host}
             isFirst={index === 0}
             iconDataUri={iconDataByProjectViewKey.get(project.viewKey) ?? null}
+            onRemoved={refetch}
           />
         ))}
       </View>
@@ -104,16 +119,63 @@ interface ProjectRowProps {
   host: ProjectHostEntry;
   isFirst: boolean;
   iconDataUri: string | null;
+  onRemoved: () => void;
 }
 
-function ProjectRow({ project, host, isFirst, iconDataUri }: ProjectRowProps) {
+function ProjectRow({ project, host, isFirst, iconDataUri, onRemoved }: ProjectRowProps) {
   const { t } = useTranslation();
+  const toast = useToast();
   const { theme } = useUnistyles();
   const { viewKey } = project;
   const { projectName } = host;
+  const [isRemoving, setIsRemoving] = useState(false);
   const handleNavigate = useCallback(() => {
     openProjectSettings(host.serverId, host.projectId);
   }, [host.projectId, host.serverId]);
+
+  const handleRemove = useCallback(
+    (event: GestureResponderEvent) => {
+      // The row itself opens settings; the trash must not also navigate.
+      event.stopPropagation();
+      if (isRemoving || !host.projectId) return;
+      void (async () => {
+        const confirmed = await confirmDialog({
+          title: t("settings.projectList.removeTitle"),
+          message: t("settings.projectList.removeMessage", { projectName }),
+          confirmLabel: t("settings.projectList.removeConfirm"),
+          cancelLabel: t("sidebar.project.confirmations.cancel"),
+          destructive: true,
+        });
+        if (!confirmed) return;
+
+        setIsRemoving(true);
+        const readiness = getCurrentProjectRemoveReadiness({
+          hosts: [{ serverId: host.serverId, projectId: host.projectId }],
+        });
+        if (readiness.kind === "needs_host_update") {
+          toast.error(t("sidebar.project.toasts.updateHostToRemove"));
+          setIsRemoving(false);
+          return;
+        }
+        const outcome = await removeProjectFromHosts({
+          targets: readiness.targets,
+          getClient: (serverId) => getHostRuntimeStore().getClient(serverId),
+        });
+        setIsRemoving(false);
+        if (outcome.kind === "host_disconnected") {
+          toast.error(t("sidebar.project.toasts.hostDisconnected"));
+          return;
+        }
+        if (outcome.kind === "failed") {
+          toast.error(t("sidebar.project.toasts.removeFailed"));
+          return;
+        }
+        toast.show(t("settings.projectList.removed", { projectName }));
+        onRemoved();
+      })();
+    },
+    [host.projectId, host.serverId, isRemoving, onRemoved, projectName, t, toast],
+  );
 
   const rowStyle = useCallback(
     ({ pressed, hovered }: PressableStateCallbackType & { hovered?: boolean }) => [
@@ -146,7 +208,22 @@ function ProjectRow({ project, host, isFirst, iconDataUri }: ProjectRowProps) {
           {projectName}
         </Text>
       </View>
-      <ChevronRight size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+      <View style={styles.rowActions}>
+        {isRemoving ? (
+          <LoadingSpinner size="small" color={theme.colors.foregroundMuted} />
+        ) : (
+          <PressHighlight
+            style={styles.removeButton}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.projectList.remove", { projectName })}
+            testID={`project-remove-${viewKey}`}
+            onPress={handleRemove}
+          >
+            <Trash2 size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+          </PressHighlight>
+        )}
+        <ChevronRight size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
+      </View>
     </Pressable>
   );
 }
@@ -210,6 +287,15 @@ const styles = StyleSheet.create((theme) => ({
   },
   rowPressed: {
     backgroundColor: theme.colors.surface3,
+  },
+  rowActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  removeButton: {
+    padding: theme.spacing[1],
+    borderRadius: theme.borderRadius.sm,
   },
   leading: {
     width: 16,

@@ -2364,6 +2364,11 @@ export const ru: TranslationResources = {
     projects: "Проекты",
     projectList: {
       hostLoadFailed: "Не удалось загрузить проекты с хоста {{hostName}}: {{message}}",
+      remove: "Удалить {{projectName}}",
+      removeTitle: "Удалить проект?",
+      removeMessage: "Убрать «{{projectName}}» из Paseo?\n\nФайлы на диске не изменятся.",
+      removeConfirm: "Удалить",
+      removed: "«{{projectName}}» убран из списка",
       editProject: "Изменить {{projectName}}",
     },
     groupInfo: "О разделе «{{title}}»",

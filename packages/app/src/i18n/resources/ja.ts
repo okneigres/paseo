@@ -2352,6 +2352,11 @@ export const ja: TranslationResources = {
     projects: "プロジェクト",
     projectList: {
       hostLoadFailed: "ホスト{{hostName}}からプロジェクトを読み込めませんでした: {{message}}",
+      remove: "Remove {{projectName}}",
+      removeTitle: "Remove project?",
+      removeMessage: 'Remove "{{projectName}}" from Paseo?\n\nFiles on disk will not be changed.',
+      removeConfirm: "Remove",
+      removed: "Removed {{projectName}}",
       editProject: "{{projectName}}を編集",
     },
     groupInfo: "{{title}}について",

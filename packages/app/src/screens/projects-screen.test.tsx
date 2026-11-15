@@ -97,6 +97,7 @@ vi.mock("lucide-react-native", async (importOriginal) => {
     ExternalLink: icon("ExternalLink"),
     Pencil: icon("Pencil"),
     FolderGit2: icon("FolderGit2"),
+    Trash2: icon("Trash2"),
   };
 });
 
@@ -163,6 +164,34 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
     ),
 }));
 
+const removeProject = vi.fn(async () => {});
+const confirmRemove = vi.fn(async () => true);
+
+vi.mock("@/utils/confirm-dialog", () => ({
+  confirmDialog: () => confirmRemove(),
+}));
+
+vi.mock("@/runtime/host-runtime", () => ({
+  getHostRuntimeStore: () => ({ getClient: () => ({ removeProject }) }),
+}));
+
+// The host's capability is exercised by project-remove.test.ts; here the readiness gate is open so
+// the row's wiring is what the assertions see.
+vi.mock("@/projects/project-remove", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/projects/project-remove")>();
+  return {
+    ...actual,
+    getCurrentProjectRemoveReadiness: ({
+      hosts,
+    }: {
+      hosts: readonly { serverId: string; projectId: string }[];
+    }) => ({
+      kind: "ready" as const,
+      targets: hosts.map((host) => ({ serverId: host.serverId, projectId: host.projectId })),
+    }),
+  };
+});
+
 vi.mock("@/hooks/use-projects", () => ({
   useProjects: () => projectsState.current,
 }));
@@ -172,6 +201,7 @@ vi.mock("@/projects/icons", () => ({
 }));
 
 import { i18n } from "@/i18n/i18next";
+import { ToastProvider } from "@/contexts/toast-context";
 import ProjectsScreen from "./projects-screen";
 
 function workspaceSummary(overrides: Partial<WorkspaceSummary> = {}): WorkspaceSummary {
@@ -261,12 +291,18 @@ describe("ProjectsScreen", () => {
     root = null;
     container?.remove();
     container = null;
+    removeProject.mockClear();
+    confirmRemove.mockClear();
     vi.unstubAllGlobals();
   });
 
   function render(serverId = "host-a") {
     act(() => {
-      root?.render(<ProjectsScreen serverId={serverId} />);
+      root?.render(
+        <ToastProvider>
+          <ProjectsScreen serverId={serverId} />
+        </ToastProvider>,
+      );
     });
   }
 
@@ -304,6 +340,45 @@ describe("ProjectsScreen", () => {
 
     expect(push).toHaveBeenCalledTimes(1);
     expect(push).toHaveBeenCalledWith("/settings/hosts/host-a/projects/project-a");
+  });
+
+  it("removes the project from Paseo only, after confirmation", async () => {
+    setProjectsState({
+      projects: [project({ viewKey: "remote:github.com/acme/app" })],
+    });
+
+    render();
+
+    const button = container!.querySelector<HTMLElement>(
+      '[data-testid="project-remove-remote:github.com/acme/app"]',
+    );
+    expect(button).not.toBeNull();
+
+    await act(async () => {
+      button!.click();
+    });
+
+    expect(confirmRemove).toHaveBeenCalledTimes(1);
+    expect(removeProject).toHaveBeenCalledWith("project-a");
+    expect(projectsState.current.refetch).toHaveBeenCalled();
+  });
+
+  it("keeps the project when the confirmation is declined", async () => {
+    confirmRemove.mockResolvedValueOnce(false);
+    setProjectsState({
+      projects: [project({ viewKey: "remote:github.com/acme/app" })],
+    });
+
+    render();
+
+    const button = container!.querySelector<HTMLElement>(
+      '[data-testid="project-remove-remote:github.com/acme/app"]',
+    );
+    await act(async () => {
+      button!.click();
+    });
+
+    expect(removeProject).not.toHaveBeenCalled();
   });
 
   it("does not render a kebab menu on the row", () => {

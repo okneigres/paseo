@@ -2306,6 +2306,11 @@ export const zhCN: TranslationResources = {
     projects: "项目",
     projectList: {
       hostLoadFailed: "无法从 Host {{hostName}} 加载 projects：{{message}}",
+      remove: "Remove {{projectName}}",
+      removeTitle: "Remove project?",
+      removeMessage: 'Remove "{{projectName}}" from Paseo?\n\nFiles on disk will not be changed.',
+      removeConfirm: "Remove",
+      removed: "Removed {{projectName}}",
       editProject: "编辑 {{projectName}}",
     },
     groupInfo: "关于 {{title}}",
