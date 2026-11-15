@@ -35,6 +35,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand,
       onCopyAgentId,
       onCopyTerminalId: vi.fn(),
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath,
       onReloadAgent,
       onRenameTab,
@@ -66,6 +67,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId: vi.fn(),
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
@@ -102,6 +104,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId: vi.fn(),
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
@@ -131,6 +134,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId: vi.fn(),
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
@@ -161,6 +165,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId: vi.fn(),
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
       onRenameTab,
@@ -197,6 +202,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId,
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
       onRenameTab,
@@ -209,6 +215,74 @@ describe("buildWorkspaceTabMenuEntries", () => {
     const labels = entries.filter((entry) => entry.kind === "item").map((entry) => entry.label);
     expect(labels[0]).toBe("Copy terminal id");
     expect(labels[1]).toBe("Rename");
+  });
+
+  it("offers the browser id on a browser tab", () => {
+    const onCopyBrowserId = vi.fn();
+    const browserTab: WorkspaceTabDescriptor = {
+      key: "browser_abc",
+      tabId: "browser_abc",
+      kind: "browser",
+      target: { kind: "browser", browserId: "browser-abc-123" },
+    };
+    const entries = buildWorkspaceTabMenuEntries({
+      surface: "desktop",
+      tab: browserTab,
+      index: 0,
+      tabCount: 1,
+      menuTestIDBase: "workspace-tab-context-browser_abc",
+      onCopyResumeCommand: vi.fn(),
+      onCopyAgentId: vi.fn(),
+      onCopyTerminalId: vi.fn(),
+      onCopyBrowserId,
+      onCopyFilePath: vi.fn(),
+      onReloadAgent: vi.fn(),
+      onRenameTab: vi.fn(),
+      onCloseTab: vi.fn(),
+      onCloseTabsBefore: vi.fn(),
+      onCloseTabsAfter: vi.fn(),
+      onCloseOtherTabs: vi.fn(),
+    });
+
+    const copyEntry = entries.find(
+      (entry) => entry.kind === "item" && entry.testID.endsWith("-copy-browser-id"),
+    );
+    expect(copyEntry?.kind === "item" ? copyEntry.label : null).toBe("Copy browser id");
+    if (!copyEntry || copyEntry.kind !== "item") {
+      throw new Error("Copy browser id entry missing");
+    }
+    copyEntry.onSelect();
+    expect(onCopyBrowserId).toHaveBeenCalledWith("browser-abc-123");
+  });
+
+  it("keeps a terminal tab's menu to its own entries", () => {
+    const onRenameTab = vi.fn();
+    const onCopyTerminalId = vi.fn();
+    const terminalTab: WorkspaceTabDescriptor = {
+      key: "terminal_abc",
+      tabId: "terminal_abc",
+      kind: "terminal",
+      target: { kind: "terminal", terminalId: "terminal-abc" },
+    };
+    const entries = buildWorkspaceTabMenuEntries({
+      surface: "desktop",
+      tab: terminalTab,
+      index: 0,
+      tabCount: 1,
+      menuTestIDBase: "workspace-tab-context-terminal_abc",
+      onCopyResumeCommand: vi.fn(),
+      onCopyAgentId: vi.fn(),
+      onCopyTerminalId,
+      onCopyBrowserId: vi.fn(),
+      onCopyFilePath: vi.fn(),
+      onReloadAgent: vi.fn(),
+      onRenameTab,
+      onCloseTab: vi.fn(),
+      onCloseTabsBefore: vi.fn(),
+      onCloseTabsAfter: vi.fn(),
+      onCloseOtherTabs: vi.fn(),
+    });
+    const labels = entries.filter((entry) => entry.kind === "item").map((entry) => entry.label);
     expect(labels).not.toContain("Copy resume command");
     expect(labels).not.toContain("Copy agent id");
     expect(labels).not.toContain("Copy file path");
@@ -248,6 +322,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId: vi.fn(),
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath,
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
@@ -292,6 +367,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId: vi.fn(),
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),
@@ -323,6 +399,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyResumeCommand: vi.fn(),
       onCopyAgentId: vi.fn(),
       onCopyTerminalId: vi.fn(),
+      onCopyBrowserId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
       onRenameTab: vi.fn(),

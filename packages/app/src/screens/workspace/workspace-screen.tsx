@@ -2176,6 +2176,19 @@ function WorkspaceScreenContent({
     [toast, t],
   );
 
+  const handleCopyBrowserId = useCallback(
+    async (browserId: string) => {
+      if (!browserId) return;
+      try {
+        await Clipboard.setStringAsync(browserId);
+        toast.copied(t("workspace.tabs.toasts.browserIdCopiedLabel"));
+      } catch {
+        toast.error(t("workspace.tabs.toasts.copyFailed"));
+      }
+    },
+    [toast, t],
+  );
+
   const handleCopyFilePath = useCallback(
     async (path: string) => {
       if (!path) return;
@@ -3446,6 +3459,7 @@ function WorkspaceScreenContent({
           onCopyResumeCommand={handleCopyResumeCommand}
           onCopyAgentId={handleCopyAgentId}
           onCopyTerminalId={handleCopyTerminalId}
+          onCopyBrowserId={handleCopyBrowserId}
           onCopyFilePath={handleCopyFilePath}
           onReloadAgent={handleReloadAgent}
           onRenameTab={handleRenameTab}
@@ -3466,6 +3480,7 @@ function WorkspaceScreenContent({
       handleCopyResumeCommand,
       handleCopyAgentId,
       handleCopyTerminalId,
+      handleCopyBrowserId,
       handleCopyFilePath,
       handleReloadAgent,
       handleRenameTab,
@@ -3584,6 +3599,7 @@ function WorkspaceScreenContent({
         onCopyResumeCommand={handleCopyResumeCommand}
         onCopyAgentId={handleCopyAgentId}
         onCopyTerminalId={handleCopyTerminalId}
+        onCopyBrowserId={handleCopyBrowserId}
         onCopyFilePath={handleCopyFilePath}
         onReloadAgent={handleReloadAgent}
         onRenameTab={handleRenameTab}
@@ -3620,6 +3636,7 @@ function WorkspaceScreenContent({
     handleCopyResumeCommand,
     handleCopyAgentId,
     handleCopyTerminalId,
+    handleCopyBrowserId,
     handleCopyFilePath,
     handleReloadAgent,
     handleRenameTab,
@@ -3706,6 +3723,7 @@ function WorkspaceScreenContent({
                 onCopyResumeCommand={handleCopyResumeCommand}
                 onCopyAgentId={handleCopyAgentId}
                 onCopyTerminalId={handleCopyTerminalId}
+                onCopyBrowserId={handleCopyBrowserId}
                 onCopyFilePath={handleCopyFilePath}
                 onReloadAgent={handleReloadAgent}
                 onRenameTab={handleRenameTab}
@@ -3753,6 +3771,7 @@ function WorkspaceScreenContent({
         onCopyResumeCommand={handleCopyResumeCommand}
         onCopyAgentId={handleCopyAgentId}
         onCopyTerminalId={handleCopyTerminalId}
+        onCopyBrowserId={handleCopyBrowserId}
         onCopyFilePath={handleCopyFilePath}
         onReloadAgent={handleReloadAgent}
         onRenameTab={handleRenameTab}
@@ -3795,6 +3814,7 @@ function WorkspaceScreenContent({
     handleCopyResumeCommand,
     handleCopyAgentId,
     handleCopyTerminalId,
+    handleCopyBrowserId,
     handleCopyFilePath,
     handleReloadAgent,
     handleRenameTab,

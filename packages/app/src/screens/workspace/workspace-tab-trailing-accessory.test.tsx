@@ -143,6 +143,7 @@ function renderAccessory(
     onCopyResumeCommand: vi.fn(),
     onCopyAgentId: vi.fn(),
     onCopyTerminalId: vi.fn(),
+    onCopyBrowserId: vi.fn(),
     onCopyFilePath: vi.fn(),
     onReloadAgent: vi.fn(),
     onRenameTab,
