@@ -79,10 +79,36 @@ export function buildWorkspaceStructureProjects(input: {
   }> = [];
   const keyCountsByServer = new Map<string, Map<string, number>>();
   const viewKeyByServerProjectId = new Map<string, Map<string, string>>();
+  // The session store hands these over as one-shot iterators, so they are read once and shared by
+  // every pass below.
+  const sessions = input.sessions.map((session) => ({
+    serverId: session.serverId,
+    projects: [...session.projects],
+    workspaces: [...session.workspaces],
+  }));
 
-  for (const session of input.sessions) {
+  // A directory that one host knows by its remote and another by its path alone is one project:
+  // the daemon already treats a path as the identity when no remote exists, so the remote is the
+  // narrower name for the same thing. Without this, creating a workspace on the remote-aware host
+  // re-derived its key from the path to the remote, the row split in two, and the new key was
+  // prepended to the top of the sidebar as a project nobody had a stored position for.
+  const remoteKeyByRootPath = new Map<string, string>();
+  for (const session of sessions) {
     for (const project of session.projects) {
-      const projectKey = normalizeProjectKey(project.projectKey ?? null);
+      const key = normalizeProjectKey(project.projectKey ?? null);
+      if (key?.startsWith("remote:")) {
+        remoteKeyByRootPath.set(project.projectRootPath, key);
+      }
+    }
+  }
+
+  for (const session of sessions) {
+    for (const project of session.projects) {
+      const persistedKey = normalizeProjectKey(project.projectKey ?? null);
+      const projectKey =
+        persistedKey === project.projectRootPath
+          ? (remoteKeyByRootPath.get(project.projectRootPath) ?? persistedKey)
+          : persistedKey;
       projectEntries.push({ serverId: session.serverId, project, projectKey });
       if (projectKey) {
         const counts = getOrCreate(keyCountsByServer, session.serverId, () => new Map());
@@ -110,7 +136,7 @@ export function buildWorkspaceStructureProjects(input: {
     );
   }
 
-  for (const session of input.sessions) {
+  for (const session of sessions) {
     for (const workspace of session.workspaces) {
       const viewKey = viewKeyByServerProjectId.get(session.serverId)?.get(workspace.projectId);
       if (!viewKey) continue;

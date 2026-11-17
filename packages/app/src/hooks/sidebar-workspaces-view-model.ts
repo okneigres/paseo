@@ -594,7 +594,7 @@ function resolveStoredProjectKeys(input: {
   }
 
   const resolved: string[] = [];
-  const seen = new Set<string>();
+  const indexByKey = new Map<string, number>();
   for (const key of input.storedKeys) {
     let mapped = currentViewKeys.has(key) ? key : viewKeyByPlacement.get(key);
     if (!mapped && key.startsWith("remote:")) {
@@ -602,8 +602,21 @@ function resolveStoredProjectKeys(input: {
       mapped = (name ? viewKeyByName.get(name) : undefined) ?? undefined;
     }
     mapped ??= key;
-    if (seen.has(mapped)) continue;
-    seen.add(mapped);
+    // Two stored keys that name one project collapse to the later position. A duplicate is written
+    // by prepending: a project's key changed shape or appeared a moment before the pass could map
+    // it, so its new key landed on top while the entry the user had positioned stayed further down.
+    // Keeping the top copy would make that jump permanent; the older entry is the real position.
+    const existingIndex = indexByKey.get(mapped);
+    if (existingIndex === undefined) {
+      indexByKey.set(mapped, resolved.length);
+      resolved.push(mapped);
+      continue;
+    }
+    resolved.splice(existingIndex, 1);
+    for (const [otherKey, otherIndex] of indexByKey) {
+      if (otherIndex > existingIndex) indexByKey.set(otherKey, otherIndex - 1);
+    }
+    indexByKey.set(mapped, resolved.length);
     resolved.push(mapped);
   }
   return resolved;

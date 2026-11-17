@@ -165,6 +165,39 @@ describe("buildWorkspaceStructureProjects", () => {
     });
   });
 
+  test("groups a path-keyed checkout with the same directory's remote identity", () => {
+    const result = buildWorkspaceStructureProjects({
+      sessions: [
+        {
+          serverId: "host-a",
+          projects: [
+            project({
+              id: "prj_a",
+              key: "remote:git.example.com:2222/acme/app",
+              root: "/repos/app",
+            }),
+          ],
+          workspaces: [workspace("ws-a", "prj_a", "/repos/app")],
+        },
+        {
+          serverId: "host-b",
+          projects: [project({ id: "prj_b", key: "/repos/app", root: "/repos/app" })],
+          workspaces: [workspace("ws-b", "prj_b", "/repos/app")],
+        },
+      ],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      viewKey: "remote:git.example.com:2222/acme/app",
+      hosts: [
+        { serverId: "host-a", projectId: "prj_a" },
+        { serverId: "host-b", projectId: "prj_b" },
+      ],
+      workspaceKeys: ["host-a:ws-a", "host-b:ws-b"],
+    });
+  });
+
   test("keeps projects without persisted keys scoped to their host", () => {
     const result = buildWorkspaceStructureProjects({
       sessions: [

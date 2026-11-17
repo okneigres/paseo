@@ -610,6 +610,35 @@ describe("computeSidebarOrderUpdates", () => {
     expect(updates.projectOrder).toEqual(["remote:github.com/acme/app", "other-project"]);
   });
 
+  it("collapses a duplicate onto the older stored position, not the prepended one", () => {
+    const projects = buildSidebarProjectsFromStructure({
+      projects: [
+        project({
+          projectKey: "remote:github.com/acme/app",
+          iconWorkingDir: "/repos/app",
+          workspaceKeys: ["srv:ws-1"],
+          hosts: [{ serverId: "srv", iconWorkingDir: "/repos/app", worktreeSupport: "supported" }],
+        }),
+      ],
+    });
+
+    const updates = computeSidebarOrderUpdates({
+      projects,
+      persistedProjectOrder: [
+        "remote:github.com/acme/app",
+        "first-project",
+        "second-project",
+        "/repos/app",
+      ],
+    });
+
+    expect(updates.projectOrder).toEqual([
+      "first-project",
+      "second-project",
+      "remote:github.com/acme/app",
+    ]);
+  });
+
   it("returns no project-order update when persisted order already covers visible keys", () => {
     const projects = [
       sidebarProject({ projectKey: "project-a", workspaceKeys: ["ws-1"] }),
