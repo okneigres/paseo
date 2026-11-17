@@ -567,7 +567,14 @@ function resolveStoredProjectKeys(input: {
       viewKeyByPlacement.set(JSON.stringify([host.serverId, host.projectId]), project.viewKey);
       // A project without a shared remote used to be keyed by its own path on that host.
       viewKeyByPlacement.set(`host:${host.serverId}:${host.iconWorkingDir}`, project.viewKey);
-      viewKeyByPlacement.set(host.iconWorkingDir, project.viewKey);
+      // Only a remote view key may claim a bare path. A host-local project is keyed by that same
+      // absolute path on every host that keeps the checkout there, so a `host:`/placement-keyed
+      // copy on another host would otherwise swallow the stored position of the real project while
+      // that project's host was still answering — the entry was then dropped as a duplicate and
+      // re-prepended to the top of the sidebar on the next render.
+      if (project.viewKey.startsWith("remote:")) {
+        viewKeyByPlacement.set(host.iconWorkingDir, project.viewKey);
+      }
     }
   }
   // The project's identity remote changed shape once (origin -> naming remote). The old keys

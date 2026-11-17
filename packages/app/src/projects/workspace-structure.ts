@@ -32,6 +32,23 @@ interface WorkspaceStructureSession {
 
 export type WorkspaceSort = "manual" | "created" | "lastPrompt";
 
+/**
+ * A host running the host-scoped identity experiment stored `host:<serverId>:<path>` as a
+ * project's key. Used verbatim, that key made one repository two sidebar projects — one per host —
+ * and each of them fought the other for the stored sidebar position: while one host's daemon was
+ * still answering, the other's project claimed the plain path key, the stored entry was dropped as
+ * a duplicate, and the missing project was re-prepended to the top of the order.
+ *
+ * COMPAT(legacyHostProjectKey): read the prefix off so the project is identified by its path, the
+ * identity the same repository has on every other host. Remove once daemons that wrote it are gone.
+ */
+const LEGACY_HOST_PROJECT_KEY = /^host:[^:]+:(?<path>.+)$/u;
+
+function normalizeProjectKey(projectKey: string | null): string | null {
+  if (!projectKey) return null;
+  return LEGACY_HOST_PROJECT_KEY.exec(projectKey)?.groups?.path ?? projectKey;
+}
+
 interface WorkspaceSortItem {
   workspaceName: string;
   workspaceKey: string;
@@ -55,32 +72,37 @@ export function buildWorkspaceStructureProjects(input: {
   workspaceSort?: WorkspaceSort;
 }): WorkspaceStructureProject[] {
   const byProject = new Map<string, ProjectDraft>();
-  const projectEntries: Array<{ serverId: string; project: ProjectDescriptor }> = [];
+  const projectEntries: Array<{
+    serverId: string;
+    project: ProjectDescriptor;
+    projectKey: string | null;
+  }> = [];
   const keyCountsByServer = new Map<string, Map<string, number>>();
   const viewKeyByServerProjectId = new Map<string, Map<string, string>>();
 
   for (const session of input.sessions) {
     for (const project of session.projects) {
-      projectEntries.push({ serverId: session.serverId, project });
-      const sharedKey = project.projectKey ?? null;
-      if (sharedKey) {
+      const projectKey = normalizeProjectKey(project.projectKey ?? null);
+      projectEntries.push({ serverId: session.serverId, project, projectKey });
+      if (projectKey) {
         const counts = getOrCreate(keyCountsByServer, session.serverId, () => new Map());
-        counts.set(sharedKey, (counts.get(sharedKey) ?? 0) + 1);
+        counts.set(projectKey, (counts.get(projectKey) ?? 0) + 1);
       }
     }
   }
 
   const allocatedViewKeys = new Set(
-    projectEntries.flatMap(({ project }) => (project.projectKey ? [project.projectKey] : [])),
+    projectEntries.flatMap(({ projectKey }) => (projectKey ? [projectKey] : [])),
   );
 
-  for (const { serverId, project } of projectEntries) {
+  for (const { serverId, project, projectKey } of projectEntries) {
     const viewKey = addProjectToView({
       byProject,
       keyCountsByServer,
       allocatedViewKeys,
       serverId,
       project,
+      projectKey,
     });
     getOrCreate(viewKeyByServerProjectId, serverId, () => new Map()).set(
       project.projectId,
@@ -160,9 +182,9 @@ function addProjectToView(input: {
   allocatedViewKeys: Set<string>;
   serverId: string;
   project: ProjectDescriptor;
+  projectKey: string | null;
 }): string {
-  const { byProject, keyCountsByServer, serverId, project } = input;
-  const sharedKey = project.projectKey ?? null;
+  const { byProject, keyCountsByServer, serverId, project, projectKey: sharedKey } = input;
   const canUseSharedKey =
     sharedKey !== null && keyCountsByServer.get(serverId)?.get(sharedKey) === 1;
   const viewKey = canUseSharedKey

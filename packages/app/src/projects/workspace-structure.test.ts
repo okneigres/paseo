@@ -129,6 +129,42 @@ describe("buildWorkspaceStructureProjects", () => {
     expect(new Set(Object.values(identitiesByProjectId(forward))).size).toBe(3);
   });
 
+  test("reads a host-scoped legacy project key back as the repository path", () => {
+    const result = buildWorkspaceStructureProjects({
+      sessions: [
+        {
+          serverId: "host-a",
+          projects: [
+            project({ id: "prj_a", key: "/repos/world-ideas", root: "/repos/world-ideas" }),
+          ],
+          workspaces: [workspace("ws-a", "prj_a", "/repos/world-ideas")],
+        },
+        {
+          serverId: "host-b",
+          projects: [
+            project({
+              id: "prj_b",
+              key: "host:host-b:/repos/world-ideas",
+              root: "/repos/world-ideas",
+            }),
+          ],
+          workspaces: [workspace("ws-b", "prj_b", "/repos/world-ideas")],
+        },
+      ],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      viewKey: "/repos/world-ideas",
+      projectKey: "/repos/world-ideas",
+      hosts: [
+        { serverId: "host-a", projectId: "prj_a" },
+        { serverId: "host-b", projectId: "prj_b" },
+      ],
+      workspaceKeys: ["host-a:ws-a", "host-b:ws-b"],
+    });
+  });
+
   test("keeps projects without persisted keys scoped to their host", () => {
     const result = buildWorkspaceStructureProjects({
       sessions: [

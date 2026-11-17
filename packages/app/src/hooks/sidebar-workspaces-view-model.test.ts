@@ -560,6 +560,56 @@ describe("computeSidebarOrderUpdates", () => {
     expect(updates.projectOrder).toEqual(["project-b", "project-a"]);
   });
 
+  it("keeps a stored path key for a project that has not arrived yet", () => {
+    // Another host answers first; its copy of the same directory has no shared key, so its view key
+    // is a placement key. It must not claim the stored position of the host-local project.
+    const projects = buildSidebarProjectsFromStructure({
+      projects: [
+        project({
+          projectKey: JSON.stringify(["host-b", "prj_world"]),
+          iconWorkingDir: "/repos/world-ideas",
+          workspaceKeys: ["host-b:ws-1"],
+          hosts: [
+            {
+              serverId: "host-b",
+              iconWorkingDir: "/repos/world-ideas",
+              worktreeSupport: "supported",
+            },
+          ],
+        }),
+      ],
+    });
+
+    const updates = computeSidebarOrderUpdates({
+      projects,
+      persistedProjectOrder: ["other-project", projects[0]!.viewKey, "/repos/world-ideas"],
+    });
+
+    // The stored path entry stays where it was; before the fix it resolved to the placement key,
+    // was dropped as a duplicate, and the local project was re-prepended on top of the sidebar.
+    expect(updates.projectOrder).toBeNull();
+  });
+
+  it("moves a stored path key onto the project's remote key", () => {
+    const projects = buildSidebarProjectsFromStructure({
+      projects: [
+        project({
+          projectKey: "remote:github.com/acme/app",
+          iconWorkingDir: "/repos/app",
+          workspaceKeys: ["srv:ws-1"],
+          hosts: [{ serverId: "srv", iconWorkingDir: "/repos/app", worktreeSupport: "supported" }],
+        }),
+      ],
+    });
+
+    const updates = computeSidebarOrderUpdates({
+      projects,
+      persistedProjectOrder: ["/repos/app", "other-project"],
+    });
+
+    expect(updates.projectOrder).toEqual(["remote:github.com/acme/app", "other-project"]);
+  });
+
   it("returns no project-order update when persisted order already covers visible keys", () => {
     const projects = [
       sidebarProject({ projectKey: "project-a", workspaceKeys: ["ws-1"] }),
