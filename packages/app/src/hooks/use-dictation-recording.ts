@@ -1,6 +1,7 @@
 import { Buffer } from "buffer";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AudioCaptureStartError, type AudioCaptureStartFailure } from "@/audio";
 import { useDictationAudioSource } from "@/hooks/use-dictation-audio-source";
 import { encodePcm16Wav } from "@/utils/pcm16-wav";
 
@@ -23,6 +24,9 @@ export interface UseDictationRecordingResult {
   volume: number;
   duration: number;
   error: string | null;
+  /** Why capture could not start, so the composer can name the cause instead of a generic error. */
+  startError: AudioCaptureStartFailure | null;
+  clearStartError: () => void;
   status: DictationRecordingStatus;
   start: () => Promise<void>;
   cancel: () => Promise<void>;
@@ -56,6 +60,7 @@ export function useDictationRecording(
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<AudioCaptureStartFailure | null>(null);
   const [status, setStatus] = useState<DictationRecordingStatus>("idle");
 
   const onErrorRef = useRef(options.onError);
@@ -139,6 +144,7 @@ export function useDictationRecording(
     actionGateRef.current = true;
     clearSegments();
     setError(null);
+    setStartError(null);
     setDuration(0);
     setStatus("recording");
 
@@ -151,6 +157,7 @@ export function useDictationRecording(
       await audio.stop().catch(() => undefined);
       stopRecording();
       setStatus("idle");
+      setStartError(err instanceof AudioCaptureStartError ? err.reason : "startFailed");
       const normalized = toError(err);
       setError(normalized.message);
       onErrorRef.current?.(normalized);
@@ -159,6 +166,10 @@ export function useDictationRecording(
       actionGateRef.current = false;
     }
   }, [audio, clearSegments, startDurationTracking, stopRecording]);
+
+  const clearStartError = useCallback(() => {
+    setStartError(null);
+  }, []);
 
   const cancel = useCallback(async () => {
     clearSegments();
@@ -220,6 +231,8 @@ export function useDictationRecording(
     volume: audio.volume,
     duration,
     error,
+    startError,
+    clearStartError,
     status,
     start,
     cancel,

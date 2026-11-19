@@ -24,7 +24,7 @@ export function resolveAgentControlsWorkspaceKey(input: {
 }
 
 export type ExplainedAgentControl = "mode" | "model" | "thinking";
-export type FeatureHighlightColor = "blue" | "default" | "green" | "yellow";
+export type FeatureHighlightColor = "blue" | "default" | "green" | "purple" | "yellow";
 export type AgentControlHintKey =
   | "agentControls.hints.thinking"
   | "agentControls.hints.model"
@@ -64,6 +64,8 @@ export function getFeatureHighlightColor(featureId: string): FeatureHighlightCol
       return "yellow";
     case "auto_accept":
       return "green";
+    case "ultracode":
+      return "purple";
     case PLAN_MODE_FEATURE_ID:
       return "blue";
     default:
