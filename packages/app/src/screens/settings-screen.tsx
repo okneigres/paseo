@@ -119,6 +119,7 @@ import { MetadataGenerationPage } from "@/screens/settings/metadata-generation-p
 import { HostVoicePage } from "@/screens/settings/voice/voice-page";
 import ProjectsScreen from "@/screens/projects-screen";
 import ProjectSettingsScreen from "@/screens/project-settings-screen";
+import { ProviderDetailPage } from "@/provider-settings";
 import {
   SETTINGS_DESKTOP_DETAIL_MIN_WIDTH,
   SETTINGS_DESKTOP_SIDEBAR_WIDTH,
@@ -991,6 +992,7 @@ function SettingsSidebar({
   let selectedHostSection: HostSectionSlug | null = null;
   if (view.kind === "host") selectedHostSection = view.section;
   if (view.kind === "project") selectedHostSection = "projects";
+  if (view.kind === "provider") selectedHostSection = "providers";
   if (view.kind === "plugin" || view.kind === "pluginListing") selectedHostSection = "plugins";
 
   const sidebarBody = (
@@ -1138,7 +1140,8 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
       view.kind === "host" ||
       view.kind === "project" ||
       view.kind === "plugin" ||
-      view.kind === "pluginListing"
+      view.kind === "pluginListing" ||
+      view.kind === "provider"
     )
       return view.serverId;
     return resolveActiveHostServerId({
@@ -1217,8 +1220,12 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
   const handleSelectHost = useCallback(
     (serverId: string) => {
       selectSettingsHost(serverId);
-      if (view.kind === "project") {
-        const target = buildSettingsHostSectionRoute(serverId, "projects");
+      if (view.kind === "project" || view.kind === "provider") {
+        // The detail belongs to the old host; open the same list on the new one.
+        const target = buildSettingsHostSectionRoute(
+          serverId,
+          view.kind === "project" ? "projects" : "providers",
+        );
         if (isCompactLayout) {
           router.push(target);
         } else {
@@ -1297,6 +1304,7 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
     if (view.kind === "project") {
       return t("settings.projects");
     }
+    if (view.kind === "provider") return t("settings.hostSections.providers");
     return undefined;
   })();
 
@@ -1329,6 +1337,16 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
           projectId={view.projectId}
           onBackToProjects={handleBackFromDetail}
           showBackToProjects={!isCompactLayout}
+        />
+      );
+    }
+    if (view.kind === "provider") {
+      return (
+        <ProviderDetailPage
+          serverId={view.serverId}
+          provider={view.providerId}
+          onBack={handleBackFromDetail}
+          showBack={!isCompactLayout}
         />
       );
     }
