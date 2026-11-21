@@ -1,11 +1,6 @@
 import { Fragment, useMemo, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
 import { usePanelStore } from "@/stores/panel-store";
 import { CompactHeader } from "@/components/headers/compact-header";
-import {
-  EXPLORER_TOGGLE_KEYS,
-  WorkspaceExplorerToggle,
-} from "@/screens/workspace/workspace-explorer-toggle";
 import {
   WorkspaceHeaderProjectPrefix,
   WorkspaceHeaderProjectRow,
@@ -26,10 +21,9 @@ interface CompactWorkspaceHeaderProps {
   title: string;
   subtitle: string;
   isSubtitleDistinct: boolean;
-  onToggleExplorer: () => void;
-  explorerToggleLabel: string;
-  explorerToggleAccessibilityState: { expanded: boolean };
+  explorerAction: ReactNode;
   tabSwitcher: ReactNode;
+  inDesktopTitlebar: boolean;
   /** Workspace overflow menu. */
   children: ReactNode;
   headerVariant: "compact" | "full";
@@ -43,17 +37,15 @@ export function CompactWorkspaceHeader({
   title,
   subtitle,
   isSubtitleDistinct,
-  onToggleExplorer,
-  explorerToggleLabel,
-  explorerToggleAccessibilityState,
+  explorerAction,
   children,
   tabSwitcher,
+  inDesktopTitlebar,
   serverId,
   headerVariant,
   isRouteFocused,
   isCompact,
 }: CompactWorkspaceHeaderProps) {
-  const { t } = useTranslation();
   const actionsInBar = resolveWorkspaceActionPlacement(useWindowLayout()) === "vertical-bar";
   const projectRow = useMemo(() => <WorkspaceHeaderProjectRow serverId={serverId} />, [serverId]);
   const titleNode = useMemo(
@@ -68,16 +60,7 @@ export function CompactWorkspaceHeader({
   const symbols = {
     "tab-count": tabSwitcher,
     overflow: children,
-    explorer: (
-      <WorkspaceExplorerToggle
-        onPress={onToggleExplorer}
-        label={explorerToggleLabel}
-        tooltipLabel={t("workspace.tabs.explorerSidebar.toggle")}
-        tooltipKeys={EXPLORER_TOGGLE_KEYS}
-        accessibilityState={explorerToggleAccessibilityState}
-        mobile
-      />
-    ),
+    explorer: explorerAction,
   };
   const actions = resolveWorkspaceBarActions(headerVariant).map((symbol) => (
     <Fragment key={symbol}>{symbols[symbol]}</Fragment>
@@ -88,6 +71,7 @@ export function CompactWorkspaceHeader({
       {headerVariant === "compact" ? (
         <CompactHeader
           navigation="menu"
+          inDesktopTitlebar={inDesktopTitlebar}
           title={titleNode}
           titleTestID="workspace-header-title"
           subtitle={projectRow}
