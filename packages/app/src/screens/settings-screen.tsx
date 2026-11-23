@@ -1336,7 +1336,6 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
           serverId={view.serverId}
           projectId={view.projectId}
           onBackToProjects={handleBackFromDetail}
-          showBackToProjects={!isCompactLayout}
         />
       );
     }
@@ -1346,7 +1345,6 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
           serverId={view.serverId}
           provider={view.providerId}
           onBack={handleBackFromDetail}
-          showBack={!isCompactLayout}
         />
       );
     }
@@ -1452,7 +1450,8 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
         <WindowChromeRegion corners="top-right">
           <View style={desktopStyles.contentPane} testID="settings-detail-pane">
             <PageLayout
-              title={detailTitle}
+              // A project or provider page draws its own title, which names the list it came from.
+              title={view.kind === "project" || view.kind === "provider" ? undefined : detailTitle}
               actions={detailActions}
               width={detailWidth}
               titleTestID="settings-detail-header-title"

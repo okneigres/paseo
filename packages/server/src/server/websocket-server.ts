@@ -747,6 +747,7 @@ export class VoiceAssistantWebSocketServer {
           onAccepted,
         ),
       isRunning: (agentId) => agentManager.hasInFlightRun(agentId),
+      canSteer: (agentId) => agentManager.canSteer(agentId),
       hasPendingPermission: (agentId) => agentManager.hasPendingPermissions(agentId),
       subscribe: (notify) =>
         agentManager.subscribe(
@@ -755,6 +756,7 @@ export class VoiceAssistantWebSocketServer {
           },
           { replayState: false },
         ),
+      onStop: (notify) => agentManager.onStop(notify),
       dispatch: async (batch) => {
         const dispatch = await sendPreparedPromptToAgent({
           agentManager,
@@ -774,6 +776,8 @@ export class VoiceAssistantWebSocketServer {
           await waitForAgentRunStartWithTimeout(agentManager, batch.recipientId, dispatch.started);
         return dispatch.disposition;
       },
+      awaitStart: (agentId, started) =>
+        waitForAgentRunStartWithTimeout(agentManager, agentId, started),
       onError: (err, batch) =>
         this.logger.error(
           { err, agentId: batch.recipientId, messageIds: batch.messageIds },
@@ -1083,6 +1087,19 @@ export class VoiceAssistantWebSocketServer {
           (connection) => connection.session,
         ),
       ),
+    );
+  }
+
+  public async publishWorkspaceUpdates(workspaceIds: Iterable<string>): Promise<void> {
+    const ids = Array.from(workspaceIds);
+    await Promise.all(
+      this.listSessions().map(async (session) => {
+        try {
+          await session.emitWorkspaceUpdatesForExternalWorkspaceIds(ids);
+        } catch (error) {
+          this.logger.warn({ err: error }, "Failed to publish workspace updates");
+        }
+      }),
     );
   }
 
@@ -1689,6 +1706,7 @@ export class VoiceAssistantWebSocketServer {
       getTransportBufferedAmount: options.getTransportBufferedAmount,
       onLifecycleIntent: options.onLifecycleIntent,
       logger: options.connectionLogger.child({ module: "session" }),
+      publishWorkspaceArchiveUpdates: (workspaceIds) => this.publishWorkspaceUpdates(workspaceIds),
       onWorkspaceRecovered: async (workspace) => {
         await Promise.all(
           this.listSessions().map((activeSession) =>
@@ -2240,6 +2258,8 @@ export class VoiceAssistantWebSocketServer {
         canonicalSubmittedPrompts: true,
         agentMessageProvenance: true,
         agentMessageBatching: true,
+        // COMPAT(agentActiveTurnBehaviors): added in v0.17.2, remove gate after 2027-05-22.
+        agentActiveTurnBehaviors: true,
         // COMPAT(stableProjectIdentity): added in v0.1.109, remove gate after 2027-01-15.
         stableProjectIdentity: true,
         // COMPAT(workspaceScriptManagement): added in v0.1.105, remove gate after 2027-01-10.

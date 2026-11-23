@@ -49,9 +49,17 @@ export interface AcpOptions {
   startupTimeoutMs?: number;
   /** Global discovery initializes ACP but returns an empty catalog without opening a session. */
   workspaceOnlyCatalog?: boolean;
+  /**
+   * For an agent that lists thinking options only for the selected model: discovery selects each
+   * model in turn and records the thinking options the agent lists for it, or none.
+   */
+  perModelThinkingOptions?: boolean;
   waitForInitialCommands?: boolean;
   initialCommandsTimeoutMs?: number;
-  /** Allow delayed session/load updates before publishing the session as ready. */
+  /**
+   * For an agent that streams history after its session/load response: publish the session
+   * as ready once this long passes without a history update.
+   */
   loadReplayQuietPeriodMs?: number;
   /**
    * Keep a turn open after `end_turn` while qualifying tool calls are still running,
@@ -136,11 +144,16 @@ export interface AcpTransformer {
   configure?(change: AcpConfigChange, context: AcpConfigureContext): Promise<"handled" | "pass">;
   /** Rewrites every session config snapshot before Paseo sees it. */
   config?(state: ProviderConfigState, context: AcpContext): ProviderConfigState;
+  /** Rewrites each advertised ACP slash command before Paseo sees it. */
+  command?(command: ProviderCommand, context: AcpContext): ProviderCommand;
   notification?(
     notification: { method: string; params: JsonValue },
     context: AcpContext,
   ): AcpVendorUpdate | readonly AcpVendorUpdate[] | null;
-  toolCall?(toolCall: AcpToolCallSnapshot, context: AcpContext): AcpToolCallSnapshot;
+  toolCall?(
+    toolCall: AcpToolCallSnapshot,
+    context: AcpContext & { mcpServerNames?: readonly string[] },
+  ): AcpToolCallSnapshot;
 }
 
 export function runAcpProvider(options: RunAcpProviderOptions): ProviderRegistration {
