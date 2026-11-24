@@ -20,7 +20,10 @@ import {
 import type { WorkspaceGitService } from "../../workspace-git-service.js";
 import type { CreatePaseoWorktreeWorkflowResult } from "../../worktree-session.js";
 import { deriveProjectKey, deriveProjectNameFromRemoteUrl } from "../../project-key.js";
-import { getProjectNameRemoteUrl } from "../../../utils/checkout-git.js";
+import {
+  fetchMissingObjectsFromRemotes,
+  getProjectNameRemoteUrl,
+} from "../../../utils/checkout-git.js";
 import { areEquivalentPaths, createRealpathAwarePathMatcher } from "../../../utils/path.js";
 import type { UntrustedWorkspaceSource } from "../../workspace-automation-gate.js";
 import { readPaseoWorktreeMetadata } from "../../../utils/worktree-metadata.js";
@@ -242,6 +245,10 @@ export function createWorkspaceProvisioningService(deps: {
   async function readCheckoutForAddedDirectory(
     rootPath: string,
   ): Promise<ProjectCheckoutLitePayload> {
+    // A checkout that carries refs without their objects answers `bad object HEAD` until the
+    // objects arrive; the remotes it already knows can supply them, and an unreachable one only
+    // costs its own attempt.
+    await fetchMissingObjectsFromRemotes(rootPath, { logger });
     try {
       return await workspaceGitService.getCheckout(rootPath);
     } catch (error) {

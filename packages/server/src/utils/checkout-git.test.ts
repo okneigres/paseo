@@ -32,6 +32,7 @@ import {
   getPullRequestStatus,
   getCheckoutStatus,
   getCheckoutWorktreeState,
+  fetchMissingObjectsFromRemotes,
   checkoutResolvedBranch,
   listBranchSuggestions,
   setCheckoutBaseBranch,
@@ -268,6 +269,61 @@ function commitFile(cwd: string, path: string, content: string, message: string)
   execFileSync("git", ["add", path], { cwd });
   execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", message], { cwd });
 }
+
+describe("fetchMissingObjectsFromRemotes", () => {
+  it("brings the objects a checkout is missing without touching its refs", async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "paseo-fetch-pack-")));
+    const origin = join(root, "origin.git");
+    const work = join(root, "work");
+    try {
+      execFileSync("git", ["init", "--bare", "--initial-branch=main", origin]);
+      execFileSync("git", ["clone", origin, work], { stdio: "ignore" });
+      execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: work });
+      execFileSync("git", ["config", "user.name", "Test"], { cwd: work });
+      writeFileSync(join(work, "file.txt"), "one\n");
+      execFileSync("git", ["add", "."], { cwd: work });
+      execFileSync("git", ["commit", "-m", "one"], { cwd: work });
+      execFileSync("git", ["push", "origin", "main"], { cwd: work, stdio: "ignore" });
+      const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: work }).toString().trim();
+      // A checkout synced file by file: refs arrived, objects did not.
+      rmSync(join(work, ".git", "objects"), { recursive: true, force: true });
+      mkdirSync(join(work, ".git", "objects", "info"), { recursive: true });
+      mkdirSync(join(work, ".git", "objects", "pack"), { recursive: true });
+      expect(spawnSync("git", ["status"], { cwd: work }).status).not.toBe(0);
+
+      await fetchMissingObjectsFromRemotes(work);
+
+      expect(execFileSync("git", ["rev-parse", "HEAD"], { cwd: work }).toString().trim()).toBe(
+        head,
+      );
+      expect(spawnSync("git", ["status", "--porcelain"], { cwd: work }).status).toBe(0);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the checkout usable when a remote is unreachable", async () => {
+    const work = realpathSync(mkdtempSync(join(tmpdir(), "paseo-fetch-pack-dead-")));
+    try {
+      execFileSync("git", ["init", "--initial-branch=main", work]);
+      execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: work });
+      execFileSync("git", ["config", "user.name", "Test"], { cwd: work });
+      writeFileSync(join(work, "file.txt"), "one\n");
+      execFileSync("git", ["add", "."], { cwd: work });
+      execFileSync("git", ["commit", "-m", "one"], { cwd: work });
+      execFileSync("git", ["remote", "add", "origin", join(work, "missing-remote.git")], {
+        cwd: work,
+      });
+      rmSync(join(work, ".git", "objects"), { recursive: true, force: true });
+      mkdirSync(join(work, ".git", "objects", "info"), { recursive: true });
+      mkdirSync(join(work, ".git", "objects", "pack"), { recursive: true });
+
+      await expect(fetchMissingObjectsFromRemotes(work)).resolves.toBeUndefined();
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("checkout git utilities", () => {
   let tempDir: string;

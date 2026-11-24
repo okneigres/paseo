@@ -1440,6 +1440,53 @@ async function isWorkingTreeDirty(cwd: string, context?: CheckoutContext): Promi
 /** The remote whose URL names a project on this group's machines; `origin` is only a fallback. */
 export const PROJECT_NAME_REMOTE = "h01";
 
+/**
+ * Fetches the objects a checkout is missing, from the remotes it already knows.
+ *
+ * A checkout that arrived over a file-sync tool carries refs before their objects: `HEAD` names a
+ * commit nobody has, and every git read fails with `bad object HEAD`. `git fetch-pack --all <url>`
+ * brings the objects without touching a single ref, so the repository heals without being reset.
+ * An unreachable remote only costs its own attempt — the caller keeps whatever it had.
+ */
+export async function fetchMissingObjectsFromRemotes(
+  cwd: string,
+  options: { logger?: Logger; timeoutMs?: number } = {},
+): Promise<void> {
+  const run = getRunGitCommand();
+  // `HEAD` alone resolves the ref without touching its object; `^{commit}` needs the commit.
+  const verify = await run(["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], {
+    cwd,
+    envOverlay: READ_ONLY_GIT_ENV,
+    acceptExitCodes: [0, 1, 128],
+  }).catch(() => null);
+  if (!verify || verify.exitCode === 0) {
+    return;
+  }
+
+  const configured = await run(["config", "--get-regexp", "^remote\\..*\\.url$"], {
+    cwd,
+    envOverlay: READ_ONLY_GIT_ENV,
+    acceptExitCodes: [0, 1],
+  }).catch(() => null);
+  const urls = new Set<string>();
+  for (const line of configured?.stdout.split("\n") ?? []) {
+    const match = /^remote\.[^\s]+\.url\s+(\S.*)$/u.exec(line.trim());
+    if (match?.[1]) urls.add(match[1]);
+  }
+
+  for (const url of urls) {
+    try {
+      await run(["fetch-pack", "-q", "--all", url], {
+        cwd,
+        envOverlay: READ_ONLY_GIT_ENV,
+        timeout: options.timeoutMs ?? 20_000,
+      });
+    } catch (error) {
+      options.logger?.debug({ err: error, cwd, url }, "Could not fetch missing objects");
+    }
+  }
+}
+
 export async function getProjectNameRemoteUrl(
   cwd: string,
   context?: CheckoutContext,
