@@ -231,9 +231,36 @@ export function createWorkspaceProvisioningService(deps: {
     return (await resolveNamingRemoteUrl(rootPath)) ?? originUrl;
   }
 
+  /**
+   * The checkout Paseo reads while a directory is being added or opened.
+   *
+   * A `.git` whose objects never arrived — a checkout synced file by file, a clone cut off —
+   * answers `bad object HEAD` to every git read, and the user's own folder then cannot be added at
+   * all. The directory is a plain directory until the repository is readable; the git read is
+   * simply retried on the next pass.
+   */
+  async function readCheckoutForAddedDirectory(
+    rootPath: string,
+  ): Promise<ProjectCheckoutLitePayload> {
+    try {
+      return await workspaceGitService.getCheckout(rootPath);
+    } catch (error) {
+      logger.warn({ err: error, rootPath }, "Unreadable checkout; treating the directory as plain");
+      return {
+        cwd: rootPath,
+        isGit: false,
+        currentBranch: null,
+        remoteUrl: null,
+        worktreeRoot: null,
+        isPaseoOwnedWorktree: false,
+        mainRepoRoot: null,
+      };
+    }
+  }
+
   async function findOrCreateProjectForDirectory(cwd: string): Promise<PersistedProjectRecord> {
     const rootPath = resolve(cwd);
-    const checkout = await workspaceGitService.getCheckout(rootPath);
+    const checkout = await readCheckoutForAddedDirectory(rootPath);
     const groupingRemoteUrl = await resolveNamingRemoteUrl(rootPath);
     const timestamp = new Date().toISOString();
     return projectRegistry.getOrCreateActiveByRoot({
@@ -289,7 +316,7 @@ export function createWorkspaceProvisioningService(deps: {
     },
   ): Promise<PersistedWorkspaceRecord> {
     const normalizedCwd = resolve(cwd);
-    const checkout = await workspaceGitService.getCheckout(normalizedCwd);
+    const checkout = await readCheckoutForAddedDirectory(normalizedCwd);
     const project = projectId
       ? await refreshProjectKind(await requireActiveProject(projectId), normalizedCwd, checkout)
       : // COMPAT(workspaceCreateMissingProjectId): added in v0.1.107, remove after 2027-01-15.

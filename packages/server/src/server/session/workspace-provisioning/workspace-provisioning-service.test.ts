@@ -653,6 +653,21 @@ test("ensureWorkspaceRecordUnarchived refreshes the latch for a different merged
   });
 });
 
+test("adds a directory whose repository cannot be read as a plain directory", async () => {
+  const repo = path.join(tmpDir, "broken-repo");
+  mkdirSync(path.join(repo, ".git"), { recursive: true });
+  // A `.git` whose objects never arrived: git answers `bad object HEAD` to every read.
+  checkoutFailure = new Error("fatal: bad object HEAD");
+
+  const project = await provisioning.findOrCreateProjectForDirectory(repo);
+
+  expect(project.kind).toBe("non_git");
+  expect(project.rootPath).toBe(repo);
+
+  const workspace = await provisioning.findOrCreateWorkspaceForDirectory(repo);
+  expect(workspace.projectId).toBe(project.projectId);
+});
+
 test("does not unarchive either record when checkout refresh fails", async () => {
   const repo = path.join(tmpDir, "repo");
   mkdirSync(repo, { recursive: true });
