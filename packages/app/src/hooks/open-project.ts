@@ -83,10 +83,24 @@ export async function openProjectDirectly(
   const normalizedServerId = input.serverId.trim();
   const trimmedPath = input.projectPath.trim();
   if (!normalizedServerId || !trimmedPath || !input.client || !input.isConnected) {
+    // The screen turns every failure into one sentence, so the reason has to reach the log or it
+    // is lost — this branch never reaches the daemon and leaves no trace there.
+    console.warn("[open-project] addProject skipped before the request", {
+      serverId: normalizedServerId,
+      projectPath: trimmedPath,
+      hasServerId: Boolean(normalizedServerId),
+      hasPath: Boolean(trimmedPath),
+      hasClient: Boolean(input.client),
+      isConnected: input.isConnected,
+    });
     return { ok: false, errorCode: null, error: null };
   }
 
   if (!input.canAddProject) {
+    console.warn("[open-project] addProject refused: the host does not advertise projectAdd", {
+      serverId: normalizedServerId,
+      projectPath: trimmedPath,
+    });
     return {
       ok: false,
       errorCode: null,
@@ -96,6 +110,12 @@ export async function openProjectDirectly(
 
   const payload = await input.client.addProject(trimmedPath);
   if (payload.error || !payload.project) {
+    console.warn("[open-project] addProject failed", {
+      serverId: normalizedServerId,
+      projectPath: trimmedPath,
+      errorCode: payload.errorCode ?? null,
+      error: payload.error ?? null,
+    });
     return {
       ok: false,
       errorCode: payload.errorCode ?? null,
@@ -109,9 +129,15 @@ export async function openProjectDirectly(
     upsertProject: input.upsertProject,
     setHasHydratedWorkspaces: input.setHasHydratedWorkspaces,
   });
-  return registered
-    ? { ok: true, project: payload.project }
-    : { ok: false, errorCode: null, error: "Unable to register project" };
+  if (!registered) {
+    console.warn("[open-project] addProject returned a project the store refused", {
+      serverId: normalizedServerId,
+      projectPath: trimmedPath,
+      projectId: payload.project.projectId,
+    });
+    return { ok: false, errorCode: null, error: "Unable to register project" };
+  }
+  return { ok: true, project: payload.project };
 }
 
 export async function cloneGithubProjectDirectly(

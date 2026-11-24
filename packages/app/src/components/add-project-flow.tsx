@@ -590,12 +590,26 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
           return;
         }
         const reason = getOpenProjectFailureReason(result);
+        console.warn("[add-project-flow] openProject failed", {
+          serverId: hostId,
+          projectPath: path,
+          sourceKind,
+          reason,
+          errorCode: result.errorCode,
+          error: result.error,
+        });
         const message =
           reason === "directory_not_found" ? "Directory not found" : "Unable to add project";
         setState((current) =>
           setPageStatus(current, sourceKind, { isSubmitting: false, error: message }),
         );
-      } catch {
+      } catch (error) {
+        console.error("[add-project-flow] openProject threw", {
+          serverId: hostId,
+          projectPath: path,
+          sourceKind,
+          error,
+        });
         setState((current) =>
           setPageStatus(current, sourceKind, {
             isSubmitting: false,
