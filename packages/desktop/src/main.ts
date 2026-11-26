@@ -107,7 +107,7 @@ import {
 import { runDesktopStartup } from "./desktop-startup.js";
 import { registerBrowserAutomationIpc } from "./features/browser-automation/ipc.js";
 import { BrowserKeyboard } from "./features/browser-keyboard/index.js";
-import { installAppUpdateOnQuit } from "./features/auto-updater.js";
+import { installAppUpdateOnQuit, startAppUpdatePacing } from "./features/auto-updater.js";
 import {
   buildAgentDeepLinkRoute,
   parseAgentDeepLink,
@@ -956,6 +956,7 @@ async function bootstrap(): Promise<void> {
   }
 
   await app.whenReady();
+  void startAppUpdatePacing();
 
   // Personal extensions run inside the app's own window; see features/extensions.ts.
   await loadUnpackedExtensions();
@@ -1072,10 +1073,18 @@ const quitLifecycle = createQuitLifecycle({
       showShutdownFeedback: showDaemonShutdownDialog,
     }),
   installAppUpdateOnQuit: async (signal) => {
-    const settings = await getDesktopSettingsStore().get();
+    let releaseChannel: "stable" | "beta" = "stable";
+    try {
+      releaseChannel = (await getDesktopSettingsStore().get()).releaseChannel;
+    } catch (error) {
+      log.warn(
+        "[auto-updater] Failed to read desktop settings on quit, defaulting to stable:",
+        error,
+      );
+    }
     return installAppUpdateOnQuit({
       currentVersion: app.getVersion(),
-      releaseChannel: settings.releaseChannel,
+      releaseChannel,
       signal,
     });
   },

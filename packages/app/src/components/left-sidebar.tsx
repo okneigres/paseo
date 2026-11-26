@@ -56,6 +56,7 @@ import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
 import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarToastRegion } from "@/components/sidebar/sidebar-toast-region";
+import { SidebarSelectionHost } from "@/sidebar-selection";
 import { SidebarNavRows, useVisibleSidebarNavItems } from "@/components/sidebar/sidebar-nav-rows";
 import { SidebarFooterIconHighlight } from "@/components/sidebar/sidebar-footer-icon-highlight";
 import { useSidebarSeparatorsStore } from "@/stores/sidebar-separators-store";
@@ -691,6 +692,7 @@ function MobileSidebar({
                 listHeaderComponent={workspacesSectionHeaderElement}
               />
             )}
+            <SidebarSelectionHost active={active} workspaceEntriesByKey={workspaceEntriesByKey} />
           </SidebarToastRegion>
         </SidebarViewSlot>
 
@@ -946,6 +948,7 @@ function DesktopSidebar({
                   listHeaderComponent={workspacesSectionHeaderElement}
                 />
               )}
+              <SidebarSelectionHost active={active} workspaceEntriesByKey={workspaceEntriesByKey} />
             </SidebarToastRegion>
           </SidebarViewSlot>
 
