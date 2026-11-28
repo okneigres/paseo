@@ -63,6 +63,7 @@ export interface UseAgentFormStateResult {
   setModelFromUser: (modelId: string) => void;
   selectedThinkingOptionId: string;
   setThinkingOptionFromUser: (thinkingOptionId: string, retainedOptions?: ProviderOptions) => void;
+  selectedSystemPrompt: string;
   workingDir: string;
   providerDefinitions: AgentProviderDefinition[];
   providerDefinitionMap: Map<AgentProvider, AgentProviderDefinition>;
@@ -359,6 +360,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
         modelId: profile.modelId,
         modeId: profile.modeId,
         thinkingOptionId: profile.thinkingOptionId,
+        systemPrompt: profile.systemPrompt,
         providerDef,
         providerModels,
         providerPrefs,
@@ -509,6 +511,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
       setModelFromUser,
       selectedThinkingOptionId: formState.thinkingOptionId,
       setThinkingOptionFromUser,
+      selectedSystemPrompt: formState.systemPrompt,
       workingDir,
       providerDefinitions,
       providerDefinitionMap,
@@ -538,6 +541,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
       formState.modeId,
       formState.model,
       formState.thinkingOptionId,
+      formState.systemPrompt,
       workingDir,
       setModeFromUser,
       setModelFromUser,

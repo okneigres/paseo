@@ -58,6 +58,6 @@ export function computeNotificationPlan({
   return { inAppRecipientIndex: null, shouldPush: pushEligible };
 }
 
-export function isPushEligibleAttentionReason(reason: AgentAttentionReason): boolean {
-  return reason !== "error";
+export function isPushEligibleAttentionReason(_reason: AgentAttentionReason): boolean {
+  return true;
 }

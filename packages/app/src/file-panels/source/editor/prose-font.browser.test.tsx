@@ -24,6 +24,8 @@ const EDITOR_THEME: EditorVisualTheme = {
   codeFontSize: CODE_SIZE,
   proseFontSize: READING_SIZE,
   syntax: {
+    diffAddition: "#00ff00",
+    diffDeletion: "#ff0000",
     keyword: "#ff0000",
     comment: "#888888",
     string: "#00ff00",

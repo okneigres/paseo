@@ -45,9 +45,15 @@ import {
 import { SidebarCloseButton } from "@/components/headers/sidebar-close-button";
 import {
   resolveDesktopSidebarInsetLeft,
+  resolveDesktopSidebarInsetTop,
   resolveDesktopSidebarWidth,
 } from "@/components/desktop-sidebar-layout";
-import { useTopBand, useWindowLayout, resolveDesktopDivisionLayout } from "@/window-layout";
+import {
+  useTopBand,
+  useWindowLayout,
+  useWindowSafeAreaInsets,
+  resolveDesktopDivisionLayout,
+} from "@/window-layout";
 import {
   SIDEBAR_RESIZE_ACTIVATION_OFFSET,
   SIDEBAR_RESIZE_FAIL_OFFSET,
@@ -177,6 +183,7 @@ export const LeftSidebar = memo(function LeftSidebar({
   const { theme } = useUnistyles();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const windowInsets = useWindowSafeAreaInsets();
   const isCompactLayout = useIsCompactFormFactor();
   const activeWorkspace = useActiveWorkspaceSelection();
   const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
@@ -230,7 +237,7 @@ export const LeftSidebar = memo(function LeftSidebar({
       openSettingsFromSidebar({
         workspace: activeWorkspace,
         isCompact: isCompactLayout,
-        route: buildSettingsHostSectionRoute(serverId, "host"),
+        route: buildSettingsHostSectionRoute(serverId, "daemon"),
       });
     },
     [activeWorkspace, isCompactLayout],
@@ -301,7 +308,11 @@ export const LeftSidebar = memo(function LeftSidebar({
           <DesktopSidebar
             {...sharedProps}
             {...handlers}
-            insetsTop={insets.top}
+            insetsTop={resolveDesktopSidebarInsetTop({
+              overlay: desktopOverlay,
+              safeAreaTop: insets.top,
+              windowSafeAreaTop: windowInsets.top,
+            })}
             active={active}
             overlay={desktopOverlay}
           />

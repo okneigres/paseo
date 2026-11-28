@@ -86,7 +86,7 @@ import {
 import type { ImageAttachment, MessagePayload, TextReplacement } from "./types";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 import type { DraftCommandTarget } from "@/agent-commands";
-import { encodeImages } from "@/utils/encode-images";
+import { normalizePickedImageAssets } from "@/hooks/image-attachment-picker";
 import { focusWithRetries } from "@/utils/web-focus";
 import {
   cancelComposerAgent,
@@ -1771,6 +1771,15 @@ function ComposerContentImpl({
     });
   }, []);
 
+  const handleImagesDropped = useCallback(
+    (images: ImageAttachment[]) => {
+      if (images.length === 0) return;
+      addImages(images);
+      focusInput();
+    },
+    [addImages, focusInput],
+  );
+
   const handleWorkspaceFileDropped = useCallback(
     (payload: WorkspaceFileDragPayload) => {
       if (!workspaceId) {
@@ -1841,7 +1850,6 @@ function ComposerContentImpl({
         attachmentSubmitFormat: resolveComposerAttachmentSubmitFormat({
           supportsForgeAttachments: supportsForgeSearch,
         }),
-        encodeImages,
         submission: createMessageSubmissionWriter(serverId),
         activeTurnBehavior,
         activeTurnId:
@@ -2041,7 +2049,24 @@ function ComposerContentImpl({
     (files: readonly NativePastedFile[]) => {
       setPendingNativeImagePastes((pending) => pending + 1);
       void pickAndPersistImages({
-        pickImages: async () => normalizeNativePastedImages(files),
+        pickImages: async () => {
+          const pasted = normalizeNativePastedImages(files);
+          const result = [];
+          for (const item of pasted) {
+            if (
+              item.source.kind === "file_uri" &&
+              (item.mimeType === "image/heic" || item.mimeType === "image/heif")
+            ) {
+              const converted = await normalizePickedImageAssets([
+                { uri: item.source.uri, mimeType: item.mimeType, fileName: item.fileName },
+              ]);
+              result.push(...converted);
+            } else {
+              result.push(item);
+            }
+          }
+          return result;
+        },
         persister: composerImageAttachmentPersister,
       })
         .then((newImages) => {
@@ -2079,7 +2104,23 @@ function ComposerContentImpl({
         status: "uploading",
       }));
       setPendingFiles((pending) => [...pending, ...placeholders]);
-      const outcomes = await uploadFileAttachments({ client, files });
+      const outcomes: Array<{
+        file: SelectedFile;
+        uploaded?: Extract<ComposerAttachment, { kind: "file" }>;
+        error?: Error;
+      }> = [];
+      for (const file of files) {
+        try {
+          const sent = await uploadFileAttachments({ client, files: [file] });
+          if (sent[0]) outcomes.push({ file, uploaded: sent[0] });
+          else outcomes.push({ file, error: new Error(t("composer.errors.uploadFailed")) });
+        } catch (error) {
+          outcomes.push({
+            file,
+            error: error instanceof Error ? error : new Error(t("composer.errors.uploadFailed")),
+          });
+        }
+      }
       const uploaded = outcomes.flatMap((outcome) => (outcome.uploaded ? [outcome.uploaded] : []));
       const failures = outcomes.flatMap((outcome) =>
         outcome.error ? [{ file: outcome.file, error: outcome.error }] : [],
@@ -2104,13 +2145,19 @@ function ComposerContentImpl({
       }
       setPendingFiles((pending) => markPendingFileUploading(pending, id));
       void (async () => {
-        const [outcome] = await uploadFileAttachments({ client, files: [entry.file] });
-        if (outcome?.uploaded) {
-          addFiles([outcome.uploaded]);
+        let uploaded: Extract<ComposerAttachment, { kind: "file" }> | undefined;
+        let failure: Error | null = null;
+        try {
+          [uploaded] = await uploadFileAttachments({ client, files: [entry.file] });
+        } catch (error) {
+          failure = error instanceof Error ? error : new Error(t("composer.errors.uploadFailed"));
+        }
+        if (uploaded) {
+          addFiles([uploaded]);
           removePendingFile(setPendingFiles, id);
           return;
         }
-        const message = outcome?.error?.message ?? t("composer.errors.uploadFailed");
+        const message = failure?.message ?? t("composer.errors.uploadFailed");
         toastErrorRef.current(message);
         setPendingFiles((pending) => markPendingFileFailed(pending, id, message));
       })();
@@ -2160,6 +2207,7 @@ function ComposerContentImpl({
           toastErrorRef.current(t("composer.errors.daemonClientDisconnected"));
           return;
         }
+        focusInput();
         await uploadSelectedFiles(files);
       } catch (error) {
         console.error("[Composer] Failed to upload dropped files:", error);
@@ -2168,7 +2216,7 @@ function ComposerContentImpl({
         );
       }
     },
-    [client, isConnected, t, uploadSelectedFiles],
+    [client, focusInput, isConnected, t, uploadSelectedFiles],
   );
 
   const handleRemoveAttachment = useCallback(
@@ -2721,7 +2769,7 @@ function ComposerContentImpl({
   // backdrop and rejects the drop atomically, instead of accepting a drop with no feedback.
   useFileDrop(
     {
-      onFiles: addImages,
+      onFiles: handleImagesDropped,
       onGenericFiles: handleGenericFilesDropped,
       onWorkspaceFile: handleWorkspaceFileDropped,
     },
@@ -2776,7 +2824,7 @@ function ComposerContentImpl({
               recall={recall}
               inputRef={messageInputRef}
               anchorStyle={messageInputContainerStyle}
-              show={mode.showAutocomplete && !isFullscreen}
+              show={mode.showAutocomplete && !isFullscreen && !isComposerLocked}
               ref={autocompleteRef}
               configuration={autocompleteConfiguration}
             >

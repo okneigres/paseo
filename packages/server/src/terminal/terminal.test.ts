@@ -22,6 +22,7 @@ import {
   existsSync,
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -1175,6 +1176,47 @@ describe.skipIf(isPlatform("win32"))("terminal title", () => {
     expect(result.stdout.split(/\r?\n/)).toContain("PASEO_CUSTOM_PROMPT> ");
   });
 
+  it.skipIf(!hasZsh || !isPlatform("linux"))(
+    "strips AppImage runtime vars and ARGV0 before spawning zsh terminals",
+    () => {
+      const homeDir = mkdtempSync(join(tmpdir(), "terminal-zsh-appimage-home-"));
+      temporaryDirs.push(homeDir);
+      writeFileSync(join(homeDir, ".zshrc"), "");
+      const appDir = "/tmp/.mount_Paseo-terminal";
+
+      const env = buildTerminalEnvironment({
+        shell: "/bin/zsh",
+        baseEnv: {
+          HOME: homeDir,
+          PATH: `${appDir}:${appDir}/usr/sbin:/usr/local/bin:/usr/bin:/bin`,
+          APPIMAGE: "/home/user/app/Paseo-x86_64.AppImage",
+          APPDIR: appDir,
+          ARGV0: "/home/user/app/Paseo-x86_64.AppImage",
+          OWD: "/home/user",
+          APPIMAGE_LIBRARY_PATH: `${appDir}/usr/lib`,
+        },
+        paseoCliBinDir: null,
+        paseoHookCliPath: null,
+      });
+
+      expect("APPIMAGE" in env).toBe(false);
+      expect("APPDIR" in env).toBe(false);
+      expect("ARGV0" in env).toBe(false);
+      expect("OWD" in env).toBe(false);
+      expect("APPIMAGE_LIBRARY_PATH" in env).toBe(false);
+      expect(env.PATH).toBe("/usr/local/bin:/usr/bin:/bin");
+
+      const result = spawnSync("/bin/zsh", ["-c", 'sh -c "echo \\$0"'], {
+        cwd: homeDir,
+        env,
+        encoding: "utf8",
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim()).toBe("sh");
+    },
+  );
+
   it.skipIf(!hasZsh)("emits zsh shell integration command completion", async () => {
     const homeDir = mkdtempSync(join(tmpdir(), "terminal-zsh-command-finished-home-"));
     temporaryDirs.push(homeDir);
@@ -1495,6 +1537,47 @@ describe("terminal activity interruption", () => {
     session.send({ type: "input", data });
 
     expect(session.getActivity()).toMatchObject({ state: "working" });
+  });
+});
+
+describe("killAndWait", () => {
+  function isAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // The worker's shutdown and "Restart and close terminals" end every terminal with
+  // killAndWait and then exit, so the program must be gone when it resolves.
+  it("ends a program that survives the soft kill before it resolves", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "terminal-kill-and-wait-"));
+    temporaryDirs.push(dir);
+    const pidFile = join(dir, "program.pid");
+    const session = trackSession(
+      await createTerminal({
+        workspaceId: "ws-test",
+        cwd: dir,
+        name: "Stubborn",
+        command: process.execPath,
+        args: [
+          "-e",
+          `process.on("SIGHUP", () => {});
+           require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
+           setInterval(() => {}, 1e9);`,
+        ],
+      }),
+    );
+    const deadline = Date.now() + 10_000;
+    while (!existsSync(pidFile) && Date.now() < deadline) await delay(50);
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    expect(isAlive(pid)).toBe(true);
+
+    await session.killAndWait({ gracefulTimeoutMs: 0 });
+
+    expect(isAlive(pid)).toBe(false);
   });
 });
 
